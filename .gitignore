@@ -1,0 +1,45 @@
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+**/telegram.env
+**/*credentials*.json
+**/*secrets*.json
+
+# Runtime
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+logs/
+**/logs/
+events/
+**/events/
+runtime/
+**/runtime/
+SuperLive_Recordings/
+recordings/
+*.log
+
+# Media/runtime artifacts
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# Private migration / install payloads
+*.zip
+*Migration_Payload*
+*Reinstall_Backup*
+backup/
+
+# Downloaded model/cache artifacts
+models/*.pt
+*.onnx
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini

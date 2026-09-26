@@ -1,0 +1,9 @@
+ultralytics
+opencv-python
+mss
+pywin32
+pillow
+numpy
+requests
+psutil
+winotify
