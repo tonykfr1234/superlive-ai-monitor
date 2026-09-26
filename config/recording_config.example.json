@@ -1,0 +1,10 @@
+{
+  "record_root": "C:\\SuperLive_Recordings",
+  "target_fps": 10.0,
+  "segment_minutes": 30,
+  "disk_check_seconds": 60,
+  "rotation_start_used_percent": 80.0,
+  "rotation_stop_used_percent": 78.0,
+  "capture_max_failures": 5,
+  "capture_retry_seconds": 1.0
+}

@@ -1,0 +1,17 @@
+{
+  "moving_notify_seconds": 300,
+  "still_notify_seconds": 600,
+  "absence_reset_seconds": 30,
+  "target_fps": 10.0,
+  "confidence": 0.25,
+  "imgsz": 640,
+  "watch_classes": [
+    0,
+    2,
+    3,
+    5,
+    7
+  ],
+  "capture_max_failures": 5,
+  "capture_retry_seconds": 1.0
+}
