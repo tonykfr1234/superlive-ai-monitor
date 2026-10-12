@@ -1,16 +1,12 @@
 {
-  "moving_notify_seconds": 300,
-  "still_notify_seconds": 600,
-  "absence_reset_seconds": 30,
+  "roi": null,
+  "roi_coordinate_space": "mumu_content_v1",
+  "roi_reselect_required": false,
   "target_fps": 10.0,
   "confidence": 0.25,
   "imgsz": 640,
   "watch_classes": [
-    0,
-    2,
-    3,
-    5,
-    7
+    0
   ],
   "capture_max_failures": 5,
   "capture_retry_seconds": 1.0

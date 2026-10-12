@@ -39,7 +39,7 @@ def rm(p):
 old=readpid(WATCHDOG_PID)
 if old and old!=os.getpid() and alive(old):
     log("WATCHDOG_ALREADY_RUNNING PID=%s"%old); raise SystemExit(2)
-WATCHDOG_PID.write_text(str(os.getpid()),encoding="utf-8"); rm(STOP_FLAG)
+WATCHDOG_PID.write_text(str(os.getpid()),encoding="utf-8")
 
 def heartbeat(pid=None,status="OK"):
     HEARTBEAT.write_text(json.dumps({"timestamp":datetime.now().isoformat(timespec="seconds"),"watchdog_pid":os.getpid(),"monitor_pid":pid,"status":status},indent=2),encoding="utf-8")
@@ -90,10 +90,14 @@ try:
         time.sleep(1)
 finally:
     if mon is not None and mon.poll() is None:
-        try:mon.terminate();mon.wait(timeout=10)
+        # The monitor polls stop.flag; allow it to close capture/UI cleanly.
+        STOP_FLAG.write_text("STOP",encoding="utf-8")
+        try:mon.wait(timeout=15)
         except:
-            try:mon.kill()
-            except:pass
+            try:mon.terminate();mon.wait(timeout=5)
+            except:
+                try:mon.kill()
+                except:pass
     if stream:
         try:stream.close()
         except:pass

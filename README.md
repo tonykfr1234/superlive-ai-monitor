@@ -1,129 +1,143 @@
-# SuperLive AI Monitor
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a><br>
+  <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
+</p>
 
-> A Windows-first, long-running person and vehicle monitoring pipeline for a MuMu-hosted SuperLive live view, with local recording, Windows alerts, Telegram photo alerts, self-healing capture, and watchdog recovery.
-
-[繁體中文 README](README.zh-TW.md) · [English User Guide](docs/USER_GUIDE.md) · [繁中使用指南](docs/USER_GUIDE.zh-TW.md) · [Security](SECURITY.md)
-
-## Why this project
-
-Many camera apps are easy to watch but hard to automate. SuperLive AI Monitor turns a visible MuMu/SuperLive camera window into a practical monitoring pipeline without requiring a camera RTSP URL:
-
-- detects **people and vehicles** with YOLO + ByteTrack;
-- distinguishes **moving** and **still/persistent** objects;
-- sends **Windows notifications** and **Telegram photo alerts**;
-- saves event JPG/CSV evidence;
-- records the raw MuMu view in rolling MP4 segments;
-- recovers from transient MSS/BitBlt capture failures;
-- restarts crashed monitor/recorder processes with watchdogs;
-- supports VMware with CPU inference fallback when CUDA is unavailable.
-
-This is an unofficial community project and is not affiliated with the SuperLive or MuMu vendors.
-
-## Default notification policy
-
-| Condition | Behavior |
-|---|---|
-| Person or vehicle appears | Notify immediately |
-| Object remains moving | At most one alert per category every **5 minutes** |
-| Object remains present but still | Reminder every **10 minutes** |
-| Category disappears | Session resets after **30 seconds** |
-| Reappears after reset | Notify immediately |
-
-Rate limiting is category-based (`PERSON` / `VEHICLE`), not ByteTrack-ID-based, so tracker ID churn does not create alert storms.
-
-## Recording
-
-Default Windows/VMware profile:
-
-- path: `C:\SuperLive_Recordings`
-- target: **10 FPS**
-- segment length: **30 minutes per MP4**
-- disk check: every **60 seconds**
-- at **80% total drive usage**, delete the oldest closed MP4 files;
-- stop deleting when drive usage falls to **78%**.
-
-The percentage applies to the **whole drive**, not only the recording folder. See [Recording Design](docs/RECORDING.md), especially for thin-provisioned VMware VMDKs.
-
-## Architecture
-
-```text
-Camera live view
-     ↓
-SuperLive in MuMu
-     ↓
-Windows desktop capture (MSS / BitBlt)
-     ├──────────────→ raw rolling MP4 recorder
-     ↓
-YOLO person/vehicle detection
-     ↓
-ByteTrack + temporal motion analysis
-     ↓
-Presence / moving / still policy
-     ├── Windows notification
-     ├── Telegram photo alert
-     ├── event JPG
-     └── events.csv
-
-AI watchdog       → restart monitor after crash
-Recorder watchdog → restart recorder after crash
-Capture self-heal → recreate MSS before escalating to watchdog
-```
-
-## Quick start
-
-1. Install MuMu Player, install/sign in to SuperLive, and open the live camera view.
-2. Clone/download this repository.
-3. Run:
+<h1 align="center">SuperLive AI Monitor</h1>
+<p align="center">Choose a polygon. Record person activity. Receive the event on Telegram.</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+</p>
+<p align="center">
+  <a href="#quick-start">Quick start</a> · <a href="#workflow">Workflow</a> · <a href="#features">Features</a> · <a href="#demo">Demo</a> · <a href="#faq">FAQ</a> · <a href="#documentation">Documentation</a>
+</p>
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM_REPO.ps1
 ```
 
-4. Configure Telegram locally with `installer\SET_TELEGRAM.bat`.
-5. Start/stop with the deployed `Start_AI_Monitor.bat` and `Stop_AI_Monitor.bat`.
+---
 
-Runtime files are deployed to `%USERPROFILE%\Downloads\SuperLive_AI`. No Windows auto-start, Task Scheduler task or Windows Service is created by default.
+SuperLive AI Monitor adds event recording to a visible SuperLive camera feed in MuMu on Windows. Select a polygon around the area you care about; YOLO detects people there, records their activity and delivers completed videos through Telegram. No camera RTSP URL is required.
 
-## Hardware guidance
+This is an unofficial community project, not affiliated with the SuperLive or MuMu vendors.
 
-### Physical Windows PC
+The 12 README languages translate the documentation. The application preview currently uses Traditional Chinese.
 
-| Component | Minimum practical | Recommended for 24/7 |
-|---|---|---|
-| CPU | modern 4-core / 8-thread | modern 6+ performance-capable cores |
-| RAM | 8 GB | 16–32 GB |
-| GPU | CPU inference supported | NVIDIA CUDA GPU for higher inference FPS |
-| Storage | SSD | dedicated high-endurance SSD/NVMe for recording |
+<a id="quick-start"></a>
+## Quick start
 
-### VMware
+1. Install MuMu and SuperLive, sign in, and open the intended live camera view. Keep the Windows session logged in.
+2. Clone/download this repository. Run `installer\INSTALL_FROM_REPO.bat` or the PowerShell command above.
+3. Run `installer\SET_TELEGRAM.bat` to configure your own bot and chat locally. The repository includes no credentials.
+4. Run `installer\VERIFY_ALL.bat` with the live view open.
+5. Start the deployed `%USERPROFILE%\Downloads\SuperLive_AI\Start_AI_Monitor.bat`; use `Stop_AI_Monitor.bat` to stop.
 
-| Setting | Recommended starting point |
-|---|---|
-| vCPU | 6 vCPU, `1 processor × 6 cores` |
-| RAM | 8 GB minimum; 16 GB when host RAM allows |
-| 3D | `Accelerate 3D graphics` enabled |
-| Graphics memory | ~2 GB is generally enough for this GUI workload |
-| Nested virtualization | `Virtualize Intel VT-x/EPT` enabled for MuMu |
-| AI | CPU fallback is normal without real NVIDIA GPU passthrough |
+**Already installed?** Run `installer\UPDATE_FROM_REPO.bat`. The updater backs up and stops the runtime, preserves local region/Telegram/storage settings and leaves it stopped for a deliberate restart. No Windows auto-start, scheduled task or service is created.
 
-VMware 3D acceleration helps desktop/MuMu rendering; it does **not** turn VMware SVGA 3D or Intel Iris Xe into CUDA compute for PyTorch.
+<a id="workflow"></a>
+## Workflow
 
-## What does “baseline” mean?
+```text
+New person activity inside the polygon
+  → start recording + local Windows alert and snapshot
+  → first 120 seconds: keep detecting; no automatic rollover or new Telegram sends
+  → movement from 120 seconds until before 300: close this clip and immediately start the next
+  → each new clip starts another 120-second Telegram quiet period
+  → 120 seconds without movement, or 300-second maximum: close and wait
+  → completed videos stay queued until the current quiet period has ended
+```
 
-A **baseline** is a *known-good, verified version used as the reference point for later installs and changes*. It is not a secret bundle and not merely a backup. Earlier private installers used a `baseline/` directory for verified runtime files; the public repository uses `src/` for clearer open-source organization. See [Baseline](docs/BASELINE.md).
+A person first observed after startup counts as new activity. Normal clips last **120–300 seconds**. Before 120 seconds, movement resets the inactivity interval without splitting the clip. From 120 seconds until the 300-second cap, detected movement ends the old clip and starts a new one immediately. Absent and stationary people both count as no movement; after 120 continuous seconds without movement, recording ends and waits for renewed movement or a new arrival.
 
-## Security first
+**Completed videos are the only automatic Telegram notifications.** Starting a clip keeps the Windows alert and local evidence, but sends no Telegram photo. The queue, including older videos and retries, does not start new Telegram sends during the current clip's first 120 seconds. Repeated rollovers can therefore delay the backlog. A send already dispatched before the quiet period may still arrive; it cannot be recalled.
 
-This public repository must never contain Telegram tokens/chat IDs, OpenAI/ChatGPT/API keys, GitHub tokens, passwords, cookies, sessions, `telegram.env`, `.env`, logs, event images, recordings or private migration payloads.
+Manual stop or capture failure may leave a local partial clip shorter than 120 seconds. It is not padded to simulate extra footage and is not automatically sent before its quiet deadline; pending work also waits for any newer clip's quiet period.
 
-Before every public push:
+Selection or invalid capture/inference is unknown and resets the observation interval. After recovery, valid observations must establish a new inactivity interval.
+
+<a id="features"></a>
+## Features
+
+| Feature | Behavior |
+| --- | --- |
+| Polygon detection | Convex/concave regions; legacy rectangles supported; positive-area person-box overlap required |
+| Camera content | Excludes MuMu title/menu area; keeps camera timestamps and channel labels |
+| Preview | Clickable controls and status below the image |
+| Activity recording | Normal clips 120–300 seconds; movement after 120 seconds rolls over; 120-second inactivity stop |
+| Notifications | Local Windows alert and evidence at start; completed videos only on Telegram |
+| Video delivery | Actual-duration H.264 MP4; persistent queue/retries; no new sends during each clip's first 120 seconds |
+| Recovery | Capture retry and separate monitor/recorder watchdogs |
+| Storage | 10 FPS; `C:\SuperLive_Recordings`; drive rotation at 80% down to 78% |
+
+Movement is a proxy derived from person-box position/size, not pose analysis or a physical sensor. Small jitter is ignored and slow displacement accumulates, but camera movement, occlusion and detection errors can affect it. Videos contain the full cropped camera view, not a polygon-shaped crop.
+
+<a id="demo"></a>
+## Demo
+
+These 36-second, silent demonstrations use the **actual preview renderer with a synthetic scene, scripted person boxes and simulated recording states**. Bilingual captions explain the workflow. They are not real camera recordings or evidence of YOLO detection accuracy. The video **compresses the 120-second intervals** to show the initial Telegram quiet period, movement-triggered rollover and subsequent waiting quickly.
+
+![Generated polygon and activity-recording demonstration](docs/media/superlive-demo.gif)
+
+[Open or download the MP4 demonstration](docs/media/superlive-demo.mp4)
+
+| Polygon selection | Recording and activity | Inactivity and rearming |
+| --- | --- | --- |
+| ![Selecting polygon vertices](docs/media/polygon-selection.png) | ![Recording activity within the polygon](docs/media/activity-recording.png) | ![Waiting for renewed movement after inactivity](docs/media/inactivity-rearm.png) |
+
+## Latest changes
+
+Normal clips now last 120–300 seconds. Movement after the first 120 seconds immediately starts a new clip and a fresh Telegram quiet period. Automatic start photos are removed; only completed videos are delivered, with the whole queue deferred during quiet periods. Polygon detection and the 120-second no-movement stop remain. See the [changelog](CHANGELOG.md).
+
+<a id="controls"></a>
+## Controls
+
+| Control | Action |
+| --- | --- |
+| R / Select | Begin a polygon |
+| Left click | Add at least three distinct vertices in boundary order |
+| Right click / Backspace | Remove the last vertex |
+| Enter / Save | Close and save a valid, non-crossing polygon |
+| Esc / Cancel | Keep the previous region |
+| C / Full frame | Clear the region restriction |
+| Q / Stop | Stop monitoring and finish the current clip |
+
+Keyboard shortcuts require preview focus. Settings persist relative to the camera content. If old coordinates cannot be migrated safely after cropping, select a new region or explicitly choose full frame.
+
+<a id="faq"></a>
+## FAQ
+
+**Why does recording stay stopped when someone stands still?** After an inactivity stop, it waits for renewed movement or a new arrival.
+
+**How long is a clip?** Normally 120–300 seconds. Movement at or after 120 seconds rolls into a new clip; inactivity can end the clip before the cap. Manual stop or capture faults can produce shorter local partial files without padding.
+
+**Can it run in VMware?** CPU inference is supported. MuMu needs working nested virtualization; VMware graphics acceleration does not provide CUDA compute. Keep the interactive session and live view available.
+
+**Why has a finished video not arrived?** The current clip's first 120 seconds defer all new Telegram sends, including old retries. Repeated rollovers extend that wait. Network failures also keep videos queued. A request already dispatched before a quiet period can still arrive during it.
+
+<a id="docs"></a>
+<a id="documentation"></a>
+## Documentation
+
+| Topic | Document |
+| --- | --- |
+| Daily operation | [English User Guide](docs/USER_GUIDE.md) · [繁中使用指南](docs/USER_GUIDE.zh-TW.md) |
+| Internals | [Architecture](docs/ARCHITECTURE.md) · [Recording Design](docs/RECORDING.md) |
+| Installation planning | [Hardware](docs/HARDWARE.md) · [VMware](docs/VMWARE.md) |
+| Versions and safety | [Baseline](docs/BASELINE.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) |
+
+Code lives in `src/`, public configuration templates in `config/`, and deployment tools in `installer/`. Test the real camera view and Telegram delivery in your own environment; offline tests cannot verify that setup.
+
+## Security
+
+Never commit real tokens/chat IDs, API keys, passwords, sessions, local configuration, logs, event images, recordings or private backups. Before pushing, run the same scanner used by GitHub Actions:
 
 ```powershell
 python .\scripts\security_scan.py .
 ```
 
-GitHub Actions runs the same scanner on pushes and pull requests. See [SECURITY.md](SECURITY.md).
-
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE).

@@ -28,16 +28,23 @@ if(Test-Path $Py){
 }else{Write-Host 'VENV=FAIL'}
 
 Write-Host "`n=== Production Files ==="
-foreach($F in @('scripts\stage4b_motion_monitor.py','scripts\stage5_watchdog.py','scripts\stage5c_recorder.py','scripts\stage5c_recorder_watchdog.py','config\notification_policy.json','config\recording_config.json','Start_AI_Monitor.bat','Stop_AI_Monitor.bat')){
+foreach($F in @('scripts\stage4b_motion_monitor.py','scripts\stage5_watchdog.py','scripts\stage5c_recorder.py','scripts\stage5c_recorder_watchdog.py','scripts\record_protocol.py','scripts\region_policy.py','scripts\person_activity.py','scripts\telegram_video.py','scripts\preview_ui.py','scripts\capture_region.py','config\notification_policy.json','config\recording_config.json','Start_AI_Monitor.bat','Stop_AI_Monitor.bat')){
   if(Test-Path "$Root\$F"){Write-Host "PASS $F"}else{Write-Host "FAIL $F"}
 }
 
 Write-Host "`n=== Notification Policy ==="
 if(Test-Path "$Root\config\notification_policy.json"){
   $N=Get-Content "$Root\config\notification_policy.json" -Raw|ConvertFrom-Json
-  Write-Host "MOVING_NOTIFY_SECONDS=$($N.moving_notify_seconds)"
-  Write-Host "STILL_NOTIFY_SECONDS=$($N.still_notify_seconds)"
-  Write-Host "ABSENCE_RESET_SECONDS=$($N.absence_reset_seconds)"
+  Write-Host 'PERSON_ONLY=YES'
+  Write-Host 'INACTIVITY_SECONDS=120'
+  Write-Host 'NORMAL_CLIP_SECONDS=120_TO_300'
+  Write-Host 'ROLLOVER=MOVEMENT_AT_LEAST_120_SECONDS_AND_BEFORE_300_SECONDS'
+  Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_ONLY'
+  Write-Host 'TELEGRAM_QUIET_SECONDS_PER_CLIP=120_INCLUDES_BACKLOG_AND_RETRIES'
+  Write-Host 'REARM=PERSON_MOVEMENT_OR_NEW_ARRIVAL'
+  Write-Host 'PREVIEW_CONTROLS=R polygon; click 3+ vertices; Enter save; right-click / Backspace undo; Esc cancel; C full frame; Q stop'
+  Write-Host ("ROI=" + ($N.roi | ConvertTo-Json -Depth 10 -Compress))
+  Write-Host "ROI_COORDINATE_SPACE=$($N.roi_coordinate_space)"
 }
 if(Test-Path "$Root\config\telegram.env"){Write-Host 'TELEGRAM_CONFIG=PASS'}else{Write-Host 'TELEGRAM_CONFIG=NOT_CONFIGURED'}
 
@@ -48,10 +55,11 @@ $UsedPct=if($Total -gt 0){($D.Used/$Total)*100}else{0}
 Write-Host "C_TOTAL_GB=$([math]::Round($Total/1GB,2))"
 Write-Host "C_FREE_GB=$([math]::Round($D.Free/1GB,2))"
 Write-Host "C_USED_PERCENT=$([math]::Round($UsedPct,2))"
-if(Test-Path 'C:\SuperLive_Recordings'){Write-Host 'RECORD_FOLDER=PASS C:\SuperLive_Recordings'}else{Write-Host 'RECORD_FOLDER=FAIL'}
 if(Test-Path "$Root\config\recording_config.json"){
   $R=Get-Content "$Root\config\recording_config.json" -Raw|ConvertFrom-Json
   Write-Host "RECORD_ROOT=$($R.record_root)"
+  Write-Host "MAX_SEGMENT_MINUTES=$($R.segment_minutes)"
+  if(Test-Path -LiteralPath $R.record_root){Write-Host 'RECORD_FOLDER=PASS'}else{Write-Host 'RECORD_FOLDER=FAIL'}
   Write-Host "ROTATION_START=$($R.rotation_start_used_percent)"
   Write-Host "ROTATION_STOP=$($R.rotation_stop_used_percent)"
 }
@@ -69,12 +77,16 @@ if($M){
 
 Write-Host "`n=== Compile ==="
 if(Test-Path $Py){
-  foreach($F in @('stage4b_motion_monitor.py','stage5_watchdog.py','stage5c_recorder.py','stage5c_recorder_watchdog.py')){
+  foreach($F in @('stage4b_motion_monitor.py','stage5_watchdog.py','stage5c_recorder.py','stage5c_recorder_watchdog.py','record_protocol.py','region_policy.py','person_activity.py','telegram_video.py','preview_ui.py','capture_region.py')){
     & $Py -m py_compile "$Root\scripts\$F"
     if($LASTEXITCODE -eq 0){Write-Host "COMPILE_PASS=$F"}else{Write-Host "COMPILE_FAIL=$F"}
   }
 }
 
+if(Test-Path $Py){
+  & $Py -c "import imageio_ffmpeg; print('VIDEO_ENCODER=' + imageio_ffmpeg.get_ffmpeg_exe())"
+  if($LASTEXITCODE -ne 0){Write-Host 'VIDEO_ENCODER=FAIL'}
+}
 Write-Host 'UNIVERSAL_VERIFY=COMPLETE'
 Stop-Transcript
 explorer.exe /select,"$Log"

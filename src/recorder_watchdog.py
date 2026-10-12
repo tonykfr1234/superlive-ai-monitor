@@ -94,14 +94,21 @@ try:
 
 finally:
     if process is not None and process.poll() is None:
+        # Let the recorder release its MP4 writer and persist the upload job.
+        # TerminateProcess on Windows does not run Python finally blocks.
+        STOP_FLAG.write_text("STOP", encoding="utf-8")
         try:
-            process.terminate()
-            process.wait(timeout=10)
-        except Exception:
+            process.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            log("RECORDER_GRACEFUL_STOP_TIMEOUT")
             try:
-                process.kill()
+                process.terminate()
+                process.wait(timeout=5)
             except Exception:
-                pass
+                try:
+                    process.kill()
+                except Exception:
+                    pass
 
     if child_stream is not None:
         try:

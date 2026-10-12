@@ -7,3 +7,4 @@ numpy
 requests
 psutil
 winotify
+imageio-ffmpeg>=0.6.0

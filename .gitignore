@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 **/telegram.env
+**/telegram_profile.txt
 **/*credentials*.json
 **/*secrets*.json
 
@@ -20,18 +21,21 @@ runtime/
 SuperLive_Recordings/
 recordings/
 *.log
+work/
 
 # Media/runtime artifacts
 *.mp4
 *.avi
 *.mkv
 *.mov
+!docs/media/superlive-demo.mp4
 
 # Private migration / install payloads
 *.zip
 *Migration_Payload*
 *Reinstall_Backup*
 backup/
+backups/
 
 # Downloaded model/cache artifacts
 models/*.pt

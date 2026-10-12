@@ -1,57 +1,65 @@
 # 使用指南（繁體中文）
 
-## 1. 準備 Windows / MuMu
+## 1. 準備與安裝
 
-建議 Windows 11。監控帳號必須保持登入。安裝 MuMu，在 MuMu 裡安裝 SuperLive、登入帳號，並先打開真正要監控的攝影機即時畫面。
-
-## 2. 安裝
-
-在 Repo 根目錄執行：
+Windows 監控帳號必須保持登入。安裝 MuMu，在 MuMu 裡安裝 SuperLive、登入帳號，開啟要監控的攝影機即時畫面。從 Repo 執行 `installer\INSTALL_FROM_REPO.bat`，或：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM_REPO.ps1
 ```
 
-Runtime 會部署到 `%USERPROFILE%\Downloads\SuperLive_AI`，不寫死任何 Windows 使用者名稱。
+程式會部署到 `%USERPROFILE%\Downloads\SuperLive_AI`。已有安裝使用 `installer\UPDATE_FROM_REPO.bat`；更新會先備份及停止程式，保留本機憑證、區域與儲存設定，完成後維持停止，確認畫面再手動啟動。
 
-## 3. Telegram
+## 2. 設定 Telegram 與驗證
 
-執行 `installer\SET_TELEGRAM.bat`。Bot Token 只在本機輸入；依提示對 Bot 傳送 `test`，程式會抓真正的數字 Chat ID。憑證只存於 Runtime 的 `config\telegram.env`，GitHub 不會包含它。
+執行 `installer\SET_TELEGRAM.bat`，在本機輸入自己的 Bot Token。依提示對 Bot 傳送 `test`，讓設定程式取得 Chat ID。憑證只存於安裝目錄的 `config\telegram.env`，不可 Commit／Push。儲存庫不附憑證；設定完成前無法傳送 Telegram 通知與影片。
 
-## 4. 啟動前驗證
+保持實際攝影機畫面開啟，執行 `installer\VERIFY_ALL.bat`，檢查檔案／目錄存在、畫面擷取、Python 語法及編碼器。Telegram 與錄影目錄的 PASS 只代表檔案或目錄存在，不代表憑證有效、可寫入或傳送成功；請透過 `SET_TELEGRAM.bat` 設定自己的憑證並收取測試訊息，再實際確認錄影影片可收到。
 
-保持 MuMu / SuperLive 即時畫面開著，再執行 Verify。重點確認 MuMu Process、Capture 非黑畫面、Python Compile、Telegram（若啟用）以及錄影目錄可寫。
+## 3. 啟停與多邊形區域
 
-## 5. 日常啟停
+使用安裝目錄的 `Start_AI_Monitor.bat` 與 `Stop_AI_Monitor.bat`。Start 啟動兩個 Watchdog；Stop 要求結束並儲存目前片段，手動停止可能留下未滿 120 秒的影片，不會補畫面湊長度。待傳影片於下次啟動繼續處理，但仍需遵守靜默期限。
 
-只使用：
+預覽介面目前使用繁體中文，攝影機影像下方有 R、C、Q、儲存與取消按鈕。多語言 README 是文件翻譯，不是介面語言設定。設定步驟：
 
-```text
-Start_AI_Monitor.bat
-Stop_AI_Monitor.bat
-```
+1. 點 R／設定區域。
+2. 沿區域邊緣依序用左鍵點選至少三個不同頂點。
+3. 需要修正時，右鍵或 Backspace 移除最後一點。
+4. Enter／儲存自動封閉並儲存多邊形；邊線不可交叉，區域必須有面積。
+5. Esc／取消保留原區域；C／全畫面清除區域限制；Q 停止監控。
 
-Start 會啟動 AI Watchdog 與 Recorder Watchdog。Stop 會建立正常停止旗標，避免 Watchdog 把你自己關掉的程式重新救回來。
+快捷鍵需要預覽視窗取得焦點。支援凹形多邊形；人員辨識框與區域必須有實際面積重疊才計入，只碰邊線不計入。未設定區域時使用完整攝影機內容。
 
-## 6. 通知規則
+頂點以攝影機內容區的相對座標存於 `config\notification_policy.json`，重新啟動仍保留，也支援舊矩形。若裁切後無法安全轉換舊區域，程式會等待重新選取或明確點選 C／全畫面。切換攝影機或畫面配置後請再次確認。
 
-預設：
+## 4. 移動、錄影與通知
 
-- 第一次看到 Person / Vehicle：立即通知。
-- 持續 MOVING：同類別最多每 5 分鐘一次。
-- 持續 STILL：同類別每 10 分鐘一次。
-- 完全消失 30 秒：Session Reset，下次出現立即通知。
+閒置時首次看到人員或偵測到重新移動，就開始影片，產生本機 Windows 通知與快照，不自動傳送 Telegram 起始照片。錄影期間持續偵測。
 
-要改時間可調整 Runtime 的 `config\notification_policy.json`。
+正常影片為 **120–300 秒**。前 120 秒偵測到移動，只重設無移動計時，不自動分段；滿 120 秒後、達 300 秒上限前，偵測到移動就立即結束目前影片並開始新片，每段新片都有自己的 120 秒靜默期。
 
-## 7. 錄影
+無人與靜止都算無移動；連續 120 秒無人移動後會結束並持續等待，等再次移動或新人進入才重新錄影，靜止者不會立即再次觸發。選取區域、擷取失敗或無有效偵測結果時屬未知，會重設無移動觀察區間。單段最低片長與連續無移動時間是兩個不同條件。
 
-Recorder 錄的是 MuMu 原始監視器畫面，與 AI 紅綠框 Preview 分離。預設 10 FPS、每 30 分鐘一支 MP4、存 `C:\SuperLive_Recordings`，磁碟使用率達 80% 開始刪最舊錄影，降到 78% 停止刪除。
+**Telegram 自動通知只傳送完成影片。** 目前影片前 120 秒不啟動新的 Telegram 傳送，舊片與重試也一併延後；持續換片可能讓待傳佇列繼續等待。靜默期開始前已送出的網路請求仍可能在期間內抵達，無法撤回。主動執行 `SET_TELEGRAM.bat` 的設定測試訊息仍可使用。
 
-## 8. 常見問題
+移動判斷使用人員框的位置或大小變化，不是姿態辨識。輕微抖動會過濾，慢速位移會累積；攝影機移動、遮擋或漏偵測仍可能影響結果，請用實際場景驗收。
 
-- **畫面全黑：** Windows Session 必須保持登入；真正 Logoff 會讓 GUI Capture 失去來源。
-- **MuMu 找不到：** 先開 MuMu 與 SuperLive 即時畫面。
-- **VM 裡 YOLO 慢：** VMware 3D acceleration 不等於 CUDA；CPU fallback 是正常狀態。
-- **Telegram 失敗：** 檢查本機 `telegram.env`、網路與 Bot/Chat。
-- **Recorder 重啟：** 查看 `logs\Stage5C\recorder_process.log` 與 `recorder_watchdog.log`。
+## 5. 影片與儲存
+
+影片保留裁切後的完整攝影機內容，不含底部操作列，也不裁成多邊形大小。預設 10 FPS、`C:\SuperLive_Recordings`，正常每段 120–300 秒。完成後在背景轉成 Telegram 可播放的 H.264 MP4，等待適用的靜默期結束再傳送；失敗會保留佇列，重啟後繼續重試。
+
+手動停止或擷取故障可能留下未滿 120 秒的本機片段，不會補畫面偽造片長，也不會在該片靜默期限前自動傳送。如果新片仍在靜默期，舊短片也會一起等待。
+
+錄影磁碟總使用率達 80% 開始刪除符合條件的最舊已關閉影片，降至 78% 停止；目前錄影與受待傳工作保護的影片不會刪除。詳見[錄影設計](RECORDING.md)。
+
+## 6. 常見問題
+
+- **區域快捷鍵沒反應：** 先點預覽視窗取得焦點，或直接使用底部按鈕。
+- **人還站在畫面裡卻沒有重新錄影：** 需再次移動或新人進入，這是預期行為。
+- **兩分鐘好像延後：** 移動、未知擷取狀態或選取區域會重設觀察區間。
+- **影片已完成卻還在等待：** 目前影片前 120 秒會暫緩所有新 Telegram 傳送，連續換片會延長等待。
+- **人一移動就換新片：** 舊片已滿 120 秒、未達 300 秒上限時，這是預期行為。
+- **畫面全黑或找不到 MuMu：** 保持 Windows 登入與正確即時畫面開啟。
+- **VM 裡推論慢：** 沒有真正 NVIDIA CUDA 時使用 CPU 屬正常；VMware 3D 加速不提供 CUDA 運算。
+- **Telegram 失敗：** 檢查本機設定與網路；靜默期規則允許傳送時，待傳影片會重試。
+- **Recorder 重啟：** 查看安裝目錄的 `logs\Stage5C`，不要把紀錄或影片提交到 Git。

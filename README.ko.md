@@ -1,0 +1,119 @@
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <strong>한국어</strong><br>
+  <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
+</p>
+
+<h1 align="center">SuperLive AI Monitor</h1>
+<p align="center">다각형으로 영역을 선택하고, 사람의 활동을 녹화해 Telegram으로 받아보세요.</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT 라이선스"></a>
+</p>
+<p align="center"><a href="#quick-start">빠른 시작</a> · <a href="#workflow">동작 과정</a> · <a href="#features">기능</a> · <a href="#demo">데모</a> · <a href="#faq">자주 묻는 질문</a> · <a href="#documentation">문서</a></p>
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM_REPO.ps1
+```
+
+---
+
+SuperLive AI Monitor는 Windows의 MuMu에서 표시하는 SuperLive 실시간 영상에 사람 감지와 이벤트 녹화를 추가합니다. YOLO가 선택한 다각형 안의 사람을 감지하고, 활동이 발생하면 녹화를 시작합니다. 녹화가 종료된 영상은 Telegram으로 전송하며, 카메라의 RTSP 주소는 필요하지 않습니다.
+
+SuperLive 및 MuMu 제공업체와 관련이 없는 비공식 커뮤니티 프로젝트입니다. **12개 언어 지원은 문서 번역에만 해당합니다. 프로그램의 미리보기 화면은 현재 중국어 번체로 표시됩니다.**
+
+<a id="quick-start"></a>
+## 빠른 시작
+
+1. MuMu와 SuperLive를 설치하고 로그인한 뒤, 감시할 카메라의 실시간 영상을 엽니다. Windows 사용자 세션도 로그인 상태로 유지하세요.
+2. 저장소를 복제하거나 다운로드한 뒤 `installer\INSTALL_FROM_REPO.bat` 또는 위의 PowerShell 명령을 실행합니다.
+3. `installer\SET_TELEGRAM.bat`으로 본인의 Bot과 Chat을 로컬에 설정합니다. 저장소에는 인증 정보가 포함되지 않습니다.
+4. 실시간 영상을 연 상태에서 `installer\VERIFY_ALL.bat`으로 설치 상태를 확인합니다. 이 검사만으로 Telegram 동영상 전송 성공이 검증되지는 않습니다.
+5. `%USERPROFILE%\Downloads\SuperLive_AI\Start_AI_Monitor.bat`으로 시작하고, 같은 폴더의 `Stop_AI_Monitor.bat`으로 중지합니다.
+
+**기존 설치 업데이트:** `installer\UPDATE_FROM_REPO.bat`을 실행하세요. 업데이트 도구는 백업 후 실행 중인 프로그램을 중지하고, 로컬 Telegram·감지 영역·저장 위치 설정을 유지합니다. 완료 후에도 중지 상태를 유지하므로 영상을 확인한 뒤 직접 다시 시작하세요. Windows 자동 시작 항목, 예약 작업, 서비스는 만들지 않습니다.
+
+<a id="workflow"></a>
+## 동작 과정
+
+1. 영역 안에 새로운 사람이 나타나거나 기존 사람이 다시 움직이면 녹화를 시작합니다. Windows 알림과 로컬 증거는 남기지만 Telegram 시작 사진은 보내지 않습니다.
+2. 각 영상의 **첫 120초 동안 감지는 계속하지만 자동으로 영상을 나누거나 새로운 Telegram 전송을 시작하지 않습니다**.
+3. 녹화가 120초 이상 300초 미만일 때 움직임이 감지되면 기존 영상을 즉시 종료하고 다음 영상을 시작합니다. 새 영상에도 120초 전송 대기 시간이 새로 적용됩니다.
+4. **120초 연속으로 사람의 움직임이 없으면** 녹화를 종료하고 계속 감지합니다. 움직임이 있을 때마다 이 시간을 다시 계산하며, 영상 한 편의 상한은 **5분**입니다.
+5. 종료된 영상을 실제 길이로 저장해 영속적인 백그라운드 대기열에 추가하고, 현재 전송 대기 시간이 끝난 후 Telegram으로 보냅니다.
+6. 움직임이 없어 녹화가 끝난 경우에는 새 움직임이나 다른 사람의 진입을 기다립니다. 같은 사람이 정지한 상태라면 바로 다시 녹화하지 않습니다.
+
+**자동 Telegram 알림은 녹화가 종료된 영상만 전송합니다.** 각 영상의 첫 120초에는 이전 영상과 실패한 작업의 재시도도 새로 전송하지 않으므로, 연속 분할 시 대기열 전체가 지연될 수 있습니다. 대기 시간이 시작되기 전에 이미 보낸 네트워크 요청은 이후에 도착할 수 있으며 취소할 수 없습니다.
+
+수동 중지나 화면 캡처 오류가 발생하면 120초보다 짧은 영상을 보존할 수 있습니다. 가짜 분량을 채우지 않으며, 원래의 전송 대기 기한과 새 영상의 대기 시간이 모두 끝나야 자동 전송할 수 있습니다.
+
+시작 후 처음 발견한 사람도 새로운 활동으로 취급합니다. 사람이 없거나 정지한 경우 모두 움직임이 없는 상태입니다. 영역 편집 중이거나 유효한 화면·감지 결과를 얻지 못하면 관찰 구간을 초기화하고, 복구 후 유효한 관찰 시간을 다시 누적합니다.
+
+<a id="features"></a>
+## 기능
+
+| 기능 | 동작 |
+| --- | --- |
+| 다각형 감지 영역 | 오목한 다각형과 기존 사각형 설정 지원. 사람 감지 상자와 영역이 실제 면적으로 겹쳐야 합니다 |
+| 활동 기반 녹화 | 정상 영상은 120–300초. 120초 이후 움직임이 있으면 즉시 다음 영상으로 전환하고, 120초 연속 움직임이 없으면 종료합니다 |
+| 영상과 조작부 분리 | MuMu 제목·메뉴 표시줄을 제외한 전체 카메라 영상을 저장하며, 미리보기 버튼은 녹화하지 않습니다 |
+| Telegram 전송 | 종료된 H.264 MP4만 자동 전송. 각 영상의 첫 120초에는 대기열 전체의 새 전송과 재시도를 보류합니다 |
+| 저장 공간 관리 | 기본 폴더는 `C:\SuperLive_Recordings`, 목표는 10 FPS. 녹화 중이거나 전송 대기 중인 파일을 보호합니다 |
+| 복구 및 실행 환경 | 감시 프로세스가 프로그램·화면 캡처 장애 복구를 지원하며, CPU 추론도 가능합니다 |
+
+<a id="demo"></a>
+## 데모
+
+아래는 **36초 무음 합성 데모**입니다. 실제 미리보기 렌더러에 합성 장면, 미리 지정한 감지 상자와 모의 녹화 상태를 사용했습니다. 120초 전송 대기 시간을 압축하여 움직임에 따른 영상 전환도 보여줍니다. 실제 카메라 영상이 아니며, YOLO 감지 정확도를 검증하는 영상도 아닙니다.
+
+![다각형 선택, 활동 녹화 및 다시 대기하는 합성 데모](docs/media/superlive-demo.gif)
+
+[MP4 데모 재생 또는 다운로드](docs/media/superlive-demo.mp4)
+
+| 다각형 선택 | 활동 녹화 | 움직임이 멈춘 후 대기 |
+| --- | --- | --- |
+| ![다각형 꼭짓점 선택](docs/media/polygon-selection.png) | ![영역 안의 활동 녹화](docs/media/activity-recording.png) | ![새로운 움직임 대기](docs/media/inactivity-rearm.png) |
+
+## 최근 변경 사항
+
+- 오목한 다각형을 포함한 감지 영역을 지원합니다. 경계에 닿기만 하는 경우에는 감지 대상으로 세지 않습니다.
+- 정상 영상은 최소 120초, 최대 300초입니다. 120초 이후 움직임이 있으면 즉시 다음 영상과 새로운 Telegram 전송 대기 시간을 시작합니다.
+- 자동 시작 사진을 제거하고 종료된 영상만 Telegram으로 전송합니다. 2분간 연속으로 움직임이 없을 때 종료하는 규칙은 유지합니다.
+- 합성 데모와 여러 언어의 사용 문서를 추가했습니다.
+
+<a id="controls"></a>
+## 다각형 조작
+
+| 조작 | 기능 |
+| --- | --- |
+| R／영역 선택 | 다각형 그리기 시작 |
+| 마우스 왼쪽 버튼 | 경계 순서대로 꼭짓점 추가 |
+| 마우스 오른쪽 버튼／Backspace | 마지막 꼭짓점 삭제 |
+| Enter／저장 | 유효한 다각형을 닫고 저장 |
+| Esc／취소 | 이전 영역 유지 |
+| C／전체 화면 | 영역 제한 해제 |
+| Q／중지 | 모니터링을 중지하고 현재 녹화 종료 |
+
+서로 다른 꼭짓점 3개 이상을 선택하고 변이 교차하지 않도록 하세요. 단축키를 사용하려면 미리보기 창에 포커스가 있어야 합니다. 영역은 잘라낸 카메라 영상에 대한 상대 좌표로 저장되며, 영상 안의 시간과 채널 표시는 유지됩니다.
+
+<a id="faq"></a>
+## 자주 묻는 질문
+
+**움직임은 어떻게 판단하나요?** 사람 감지 상자의 위치와 크기 변화로 판단합니다. 작은 흔들림은 무시하고 느린 이동은 누적합니다. 상자가 바뀌지 않는 손발 움직임은 감지하지 못할 수 있으며, 가림·카메라 움직임·감지 오류도 영향을 줍니다. 자세 추정이나 물리적 동작 센서를 대체하지 않습니다.
+
+**다각형 안쪽만 녹화하나요?** 아닙니다. 다각형은 어떤 사람이 이벤트를 시작할 수 있는지 결정하고, 영상에는 잘라낸 전체 카메라 화면을 저장합니다.
+
+**녹화는 끝났는데 영상이 왜 도착하지 않나요?** 현재 영상의 첫 120초에는 이전 영상과 재시도를 포함한 모든 새 Telegram 전송을 보류합니다. 연속으로 영상을 나누면 대기 시간이 늘어나며, 네트워크 장애 시에도 대기열에 남습니다. 대기 시작 전에 이미 보낸 요청은 그동안 도착할 수 있습니다.
+
+**가상 머신에서 GPU를 사용할 수 있나요?** CPU 추론을 지원합니다. VMware 그래픽 가속은 CUDA 연산을 제공한다는 뜻이 아닙니다. 기본적으로 60초마다 디스크를 확인하며, 드라이브 전체 사용률이 80%에 도달하면 78%가 될 때까지 오래된 종료 영상부터 삭제합니다. 녹화 중·전송 대기 파일은 보호합니다.
+
+<a id="docs"></a><a id="documentation"></a>
+## 문서 및 보안
+
+[영문 가이드](docs/USER_GUIDE.md) · [중국어 번체 가이드](docs/USER_GUIDE.zh-TW.md) · [녹화와 저장](docs/RECORDING.md) · [구조](docs/ARCHITECTURE.md) · [하드웨어](docs/HARDWARE.md) · [VMware](docs/VMWARE.md)
+
+실행 코드는 `src/`, 인증 정보가 없는 템플릿은 `config/`, 배포 도구는 `installer/`에 있습니다. 실제 Token, Chat ID, 비밀번호, 로컬 설정, 이벤트 이미지, 녹화 파일을 커밋하지 마세요. 공개 전에 `python .\scripts\security_scan.py .`을 실행하고 [보안 정책](SECURITY.md)을 확인하세요.
+
+## 라이선스
+
+[MIT 라이선스](LICENSE)로 배포합니다.
