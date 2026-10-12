@@ -120,4 +120,4 @@ Kode berada di `src/`, templat konfigurasi di `config/`, dan pemasang di `instal
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-Setiap hari pukul 23:00 (Taiwan), CSV berisi waktu pemicu, jenis kejadian, jumlah orang, dan nama video disimpan bersama rekaman hari itu lalu dikirim lewat Telegram, termasuk hari tanpa kejadian. Setelah tengah malam, kejadian setelah 23:00 memicu laporan lengkap; tanpa perubahan tidak dikirim ulang. Masa senyap dihormati dan pengiriman dicoba ulang setelah mulai ulang.
+Pukul 23:00 (Taiwan), kirim CSV untuk hari itu mulai 00:00 hingga sebelum 23:00 dan simpan bersama video. CSV harian dikecualikan dari masa senyap rekaman. Kejadian setelah 23:00 tidak disertakan dan tidak ada tambahan tengah malam. Hari tanpa kejadian tetap dilaporkan; kegagalan atau jadwal terlewat dicoba kembali.

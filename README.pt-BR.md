@@ -120,4 +120,4 @@ O código fica em `src/`, os modelos de configuração em `config/` e os instala
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-Todos os dias às 23:00 (Taiwan), um CSV reúne horários, tipos de evento, pessoas e nomes dos vídeos. É salvo junto às gravações do dia e enviado pelo Telegram, mesmo sem eventos. Após a meia-noite, eventos tardios geram um relatório completo; sem mudanças, não há reenvio. Respeita o silêncio e tenta novamente após reiniciar.
+Às 23:00 (Taiwan), envia um CSV do dia entre 00:00 inclusive e 23:00 exclusive e salva junto aos vídeos. O CSV diário é exceção ao silêncio da gravação. Eventos posteriores são excluídos, sem complemento à meia-noite. Mesmo sem eventos há relatório; falhas e horários perdidos são recuperados.

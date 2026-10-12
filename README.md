@@ -147,4 +147,4 @@ python .\scripts\security_scan.py .
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-Daily CSV at 23:00 (Asia/Taipei): saves every trigger time, event type, person count and video filename beside that day’s recordings, then sends it through Telegram. Zero-event days get an empty report. After midnight, late events cause a complete-day supplement; unchanged reports are not resent. Quiet periods defer delivery; offline reports retry after restart.
+At 23:00 Taiwan time, send a CSV covering that day from 00:00 inclusive to 23:00 exclusive and save it beside the videos. Daily CSV delivery is exempt from recording quiet periods. Events after 23:00 are excluded; no midnight supplement. Zero-event days still get a report. Network failures and missed schedules retry after restart.

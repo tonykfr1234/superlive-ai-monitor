@@ -120,4 +120,4 @@ Mã nguồn nằm trong `src/`, mẫu cấu hình trong `config/`, công cụ c�
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-Mỗi ngày lúc 23:00 (giờ Đài Loan), tạo CSV gồm thời điểm kích hoạt, loại sự kiện, số người và tên video, lưu cùng video trong ngày và gửi qua Telegram, kể cả khi không có sự kiện. Sau nửa đêm, gửi bản đầy đủ nếu có thêm sự kiện sau 23:00; không gửi lại khi không thay đổi. Tôn trọng thời gian im lặng và thử lại sau khi khởi động.
+Lúc 23:00 (giờ Đài Loan), gửi CSV cho khoảng từ 00:00 đến trước 23:00 trong ngày và lưu cùng video. CSV hằng ngày được miễn thời gian im lặng khi ghi hình. Không tính sự kiện sau 23:00 và không gửi bản bổ sung lúc nửa đêm. Vẫn báo cáo khi không có sự kiện; thử lại sau lỗi hoặc khởi động lại.

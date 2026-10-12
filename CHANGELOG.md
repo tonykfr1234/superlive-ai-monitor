@@ -2,8 +2,8 @@
 
 ## Unreleased - 2026-10-12
 
-- Add daily 23:00 Asia/Taipei trigger CSV reports beside the day’s videos, sent through Telegram sendDocument with durable retry and restart recovery. Include zero-event days; after midnight supplement late triggers without resending unchanged content. Reports respect recording quiet periods.
-- 每日晚上 11 點彙整觸發時間 CSV，與影片同資料夾保存並傳送 Telegram；跨午夜補齊晚間紀錄，支援靜默延後、斷線重試及重啟補送。
+- Add daily 23:00 Asia/Taipei trigger CSV reports beside the day’s videos, sent through Telegram sendDocument with durable retry and restart recovery. Include zero-event days and only the 00:00–23:00 interval. No midnight supplements. Daily CSV reports are explicitly exempt from recording quiet periods.
+- 每日晚上 11 點彙整觸發時間 CSV，與影片同資料夾保存並傳送 Telegram；只計入 00:00～23:00，不補送午夜完整版；每日 CSV 不受錄影靜默限制，支援斷線重試及重啟補送。
 
 - Add a custom multi-size Windows preview/taskbar icon and app identity.
 - Record original capture dimensions directly as H.264 CRF 18. Telegram starts with full-resolution CRF 20 and applies a duration-based bitrate budget only for oversized delivery copies; local originals remain unchanged.

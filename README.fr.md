@@ -116,4 +116,4 @@ Ne publiez jamais de véritables jetons, identifiants de conversation, réglages
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-Chaque jour à 23:00 (Taïwan), un CSV récapitule les heures, types de déclenchement, personnes et fichiers vidéo. Il est enregistré avec les vidéos du jour et envoyé par Telegram, même sans événement. Après minuit, les événements tardifs entraînent un complément complet. Aucun renvoi sans changement ; la pause et les reprises après redémarrage sont respectées.
+À 23:00 (Taïwan), envoie un CSV de 00:00 inclus à 23:00 exclu, enregistré avec les vidéos. Le CSV quotidien est exempté de la pause liée à l’enregistrement. Les événements ultérieurs sont exclus, sans complément à minuit. Un rapport est envoyé même sans événement ; les échecs et envois manqués sont réessayés.

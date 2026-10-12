@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from record_protocol import atomic_json, read_json, telegram_send_allowed
+from record_protocol import atomic_json, read_json
 from telegram_video import load_credentials
 
 TAIPEI = timezone(timedelta(hours=8), "Asia/Taipei")
@@ -80,13 +80,15 @@ class DailyReports:
         key = day.isoformat() + "_" + phase
         manifest = self.jobs / (key + ".json")
         existing = read_json(manifest)
-        # Reconcile late writes for the just-closed day. Older immutable reports
-        # need no rescans; sent snapshots are never repeatedly dispatched.
-        recent_full = phase == "full" and day >= self.now().date() - timedelta(days=1)
-        if existing and not recent_full:
+        if phase != "2300":
+            raise ValueError("Daily reports cover 00:00-23:00 only")
+        if existing:
+            # Restore an unsent snapshot superseded by the previous full-day policy.
+            if existing.get("superseded") and not existing.get("sent"):
+                existing.pop("superseded", None)
+                atomic_json(manifest, existing)
             return
-        cutoff = datetime.combine(day, datetime.min.time(), TAIPEI) + (
-            timedelta(hours=23) if phase == "2300" else timedelta(days=1))
+        cutoff = datetime.combine(day, datetime.min.time(), TAIPEI) + timedelta(hours=23)
         rows = self.rows(day, cutoff)
         output = io.StringIO(newline="")
         writer = csv.writer(output)
@@ -104,14 +106,8 @@ class DailyReports:
         temporary = path.with_suffix(".csv.tmp")
         temporary.write_bytes(content)
         os.replace(temporary, path)
-        previous_path = self.jobs / (day.isoformat() + "_2300.json")
-        previous = read_json(previous_path, {}) if phase == "full" else {}
-        same_sent = previous.get("sent") and previous.get("digest") == digest
         atomic_json(manifest, dict(day=day.isoformat(), phase=phase, path=str(path),
-            count=len(rows), digest=digest, sent=bool(same_sent), attempts=0, retry_at=0))
-        if phase == "full" and previous and not previous.get("sent"):
-            previous["superseded"] = True
-            atomic_json(previous_path, previous)
+            count=len(rows), digest=digest, sent=False, attempts=0, retry_at=0))
         self.log("DAILY_CSV_SAVED DATE=%s PHASE=%s COUNT=%d" % (day, phase, len(rows)))
 
     def schedule(self, now):
@@ -119,9 +115,7 @@ class DailyReports:
         first = datetime.fromisoformat(state["first_day"]).date()
         day = first
         while day <= now.date():
-            if day < now.date():
-                self.generate(day, "full")
-            elif now.hour >= 23:
+            if day < now.date() or now.hour >= 23:
                 self.generate(day, "2300")
             day += timedelta(days=1)
 
@@ -131,9 +125,9 @@ class DailyReports:
         if not token or not chat:
             raise RuntimeError("Telegram configuration missing")
         with Path(job["path"]).open("rb") as stream:
-            if self.stop_event.is_set() or not telegram_send_allowed(self.root):
+            if self.stop_event.is_set() or job.get("phase") != "2300":
                 return False
-            scope = "00:00–23:00" if job["phase"] == "2300" else "全天完整版"
+            scope = "00:00–23:00"
             response = requests.post("https://api.telegram.org/bot%s/sendDocument" % token,
                 data={"chat_id": chat, "caption": "SuperLive AI 每日觸發總結\n%s %s（台灣時間）\n共 %d 次觸發" % (job["day"], scope, job["count"])},
                 files={"document": (Path(job["path"]).name, stream, "text/csv")}, timeout=(10, 45))
@@ -143,14 +137,14 @@ class DailyReports:
 
     def tick(self):
         now = self.now()
-        self.schedule(now)  # Save CSV at 23:00 even while Telegram is quiet.
+        self.schedule(now)  # Daily CSV is explicitly exempt from video quiet periods.
         for path in sorted(self.jobs.glob("*.json"), reverse=True):
             job = read_json(path)
             if not isinstance(job, dict):
                 raise ValueError("Unreadable report delivery state")
-            if job.get("sent") or job.get("superseded") or job.get("retry_at", 0) > self.clock():
+            if job.get("phase") != "2300" or job.get("sent") or job.get("superseded") or job.get("retry_at", 0) > self.clock():
                 continue
-            if self.stop_event.is_set() or not telegram_send_allowed(self.root, now=self.clock()):
+            if self.stop_event.is_set():
                 return
             try:
                 if not self.send(job):

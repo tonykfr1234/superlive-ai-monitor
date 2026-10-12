@@ -116,4 +116,4 @@ Veröffentliche keine echten Tokens, Chat-IDs, lokalen Einstellungen, Protokolle
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-Täglich um 23:00 Uhr (Taiwan): CSV mit Auslösezeit, Ereignistyp, Personenzahl und Videodateiname im Tagesordner speichern und per Telegram senden, auch bei null Ereignissen. Neue Ereignisse nach 23:00 werden nach Mitternacht als vollständiger Tagesbericht ergänzt. Unveränderte Berichte werden nicht erneut gesendet; Ruhezeiten und Neustarts werden berücksichtigt.
+Täglich um 23:00 (Taiwan) wird eine CSV für 00:00 einschließlich bis 23:00 ausschließlich gesendet und neben den Videos gespeichert. Tagesberichte sind von Aufnahme-Ruhezeiten ausgenommen. Keine Ereignisse nach 23:00 und kein Mitternachtsnachtrag. Auch null Ereignisse werden gemeldet; Fehler und verpasste Termine werden nachgeholt.

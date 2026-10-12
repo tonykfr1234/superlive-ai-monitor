@@ -171,7 +171,7 @@ echo Normal clips last 120 to 300 seconds. Detection continues throughout record
 echo First 120 seconds: no automatic rollover and no new Telegram sends, including old videos and retries.
 echo Movement at or after 120 seconds and before 300 seconds immediately starts a new clip and quiet period.
 echo No movement for 120 continuous seconds ends recording; wait for renewed movement or a new arrival.
-echo Telegram sends completed videos and daily 23:00 Taiwan-time CSV reports after applicable quiet periods.
+echo Videos honor quiet periods. Daily 23:00 Taiwan-time CSV reports are exempt and cover 00:00-23:00 only.
 echo Repeated rollovers can delay queued videos. Already-dispatched network requests may still arrive.
 echo Manual stop or capture failure may save a shorter local clip; no padding or delivery before its quiet deadline.
 echo Preview controls: R = select polygon, C = full frame, Q = stop.

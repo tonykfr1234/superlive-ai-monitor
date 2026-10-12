@@ -58,11 +58,11 @@ class DailyReportTests(unittest.TestCase):
         self.assertEqual(len(self.csv_rows()), 1)
         self.assertEqual(self.report.send.call_args.args[0]['count'], 0)
 
-    def test_save_at_2300_but_wait_for_quiet_end(self):
+    def test_send_at_2300_even_during_quiet_period(self):
         atomic_json(self.root/'runtime/telegram_quiet.json', dict(request_id='active', quiet_until=self.at('2026-10-12T23:01:00')))
         self.tick('2026-10-12T23:00:00')
         self.assertEqual(len(self.csv_rows()), 1)
-        self.report.send.assert_not_called()
+        self.report.send.assert_called_once()
         self.tick('2026-10-12T23:01:00')
         self.report.send.assert_called_once()
 
@@ -81,36 +81,32 @@ class DailyReportTests(unittest.TestCase):
         self.tick('2026-10-12T23:10:00')
         self.report.send.assert_called_once()
 
-    def test_late_trigger_is_in_next_day_complete_report(self):
+    def test_after_2300_is_excluded_and_no_midnight_supplement(self):
         self.trigger('before','2026-10-12T22:59:59')
-        self.tick('2026-10-12T23:00:00')
         self.trigger('after','2026-10-12T23:00:00')
-        self.tick('2026-10-13T00:00:15')
-        self.assertEqual(len(self.csv_rows('full')), 3)
-        self.assertEqual(self.report.send.call_count, 2)
-        self.tick('2026-10-13T00:01:00')
-        self.assertEqual(self.report.send.call_count, 2)
-
-    def test_unchanged_complete_day_is_saved_but_not_resent(self):
         self.tick('2026-10-12T23:00:00')
         self.tick('2026-10-13T00:00:15')
-        self.assertEqual(len(self.csv_rows('full')), 1)
+        self.assertEqual(len(self.csv_rows()),2)
         self.report.send.assert_called_once()
+        self.assertEqual(list(self.report.jobs.glob('*_full.json')),[])
 
-    def test_late_journal_write_corrects_the_just_closed_day(self):
-        self.tick('2026-10-13T00:00:00')
-        self.trigger('delayed','2026-10-12T23:59:59')
+    def test_missed_schedule_keeps_the_2300_cutoff(self):
+        self.trigger('before','2026-10-12T22:59:59')
+        self.trigger('after','2026-10-12T23:59:59')
+        self.tick('2026-10-13T10:00:00')
+        self.assertEqual(len(self.csv_rows()),2)
+        self.assertEqual(self.report.send.call_args.args[0]['phase'],'2300')
+
+    def test_old_full_jobs_are_ignored_and_unsent_snapshot_restored(self):
+        self.report.generate(datetime(2026,10,12).date(),'2300')
+        path=self.report.jobs/'2026-10-12_2300.json'
+        job=read_json(path); job['superseded']=True; atomic_json(path,job)
+        full=dict(job,phase='full',superseded=False)
+        atomic_json(self.report.jobs/'2026-10-12_full.json',full)
         self.tick('2026-10-13T00:00:15')
-        self.assertEqual(len(self.csv_rows('full')),2)
-        self.assertEqual(self.report.send.call_count,2)
-
-    def test_missed_schedule_catches_up_and_supersedes_unsent_snapshot(self):
-        self.report.send.side_effect = RuntimeError()
-        self.tick('2026-10-12T23:00:00')
-        self.report.send = Mock(return_value=True)
-        self.tick('2026-10-14T10:00:00')
-        self.assertTrue(read_json(self.report.jobs/'2026-10-12_2300.json')['superseded'])
-        self.assertEqual([c.args[0]['phase'] for c in self.report.send.call_args_list], ['full','full'])
+        self.report.send.assert_called_once()
+        self.assertEqual(self.report.send.call_args.args[0]['phase'],'2300')
+        self.assertFalse(read_json(path).get('superseded',False))
 
     def test_legacy_evidence_import_and_journal_precedence(self):
         folder = self.root/'events'
@@ -122,16 +118,17 @@ class DailyReportTests(unittest.TestCase):
         self.assertEqual(len(rows),3)
         self.assertEqual(rows[2][2],'2')
 
-    def test_real_send_method_uses_document_and_rechecks_quiet(self):
+    def test_real_send_method_ignores_quiet_but_honors_shutdown(self):
         self.tick('2026-10-12T23:00:00')
         job=read_json(self.report.jobs/'2026-10-12_2300.json')
+        atomic_json(self.root/'runtime/telegram_quiet.json',dict(request_id='active',quiet_until=self.stamp+120))
         with patch('daily_report.load_credentials',return_value=('test-token','test-chat')), \
-                patch('requests.post',return_value=Mock(status_code=200,json=lambda:{'ok':True})) as post, \
-                patch('daily_report.telegram_send_allowed',return_value=True):
+                patch('requests.post',return_value=Mock(status_code=200,json=lambda:{'ok':True})) as post:
             self.assertTrue(DailyReports.send(self.report,job))
             self.assertTrue(post.call_args.args[0].endswith('/sendDocument'))
             self.assertIn('document',post.call_args.kwargs['files'])
+        self.report.stop_event.set()
         with patch('daily_report.load_credentials',return_value=('test-token','test-chat')), \
-                patch('requests.post') as post, patch('daily_report.telegram_send_allowed',return_value=False):
+                patch('requests.post') as post:
             self.assertFalse(DailyReports.send(self.report,job))
             post.assert_not_called()
