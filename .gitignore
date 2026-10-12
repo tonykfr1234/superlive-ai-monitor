@@ -47,3 +47,5 @@ models/*.pt
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+!assets/superlive-ai.png

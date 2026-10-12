@@ -22,7 +22,7 @@ def load_headless_monitor():
     # region selection and file-based request/state handling remain real.
     dependency_names = (
         "cv2", "mss", "numpy", "psutil", "requests", "torch",
-        "win32gui", "win32process", "ultralytics", "winotify",
+        "win32gui", "win32process", "ultralytics", "winotify", "app_branding",
     )
     dependencies = {name: MagicMock(name=name) for name in dependency_names}
     spec = importlib.util.spec_from_file_location(

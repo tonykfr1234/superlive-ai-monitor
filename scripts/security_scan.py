@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed on likely credentials and private runtime files before publishing.
 
-Only the five generated demo assets have a binary-media exception. Findings
+Only the generated demo assets and application icons have a binary-media exception. Findings
 include paths and line numbers, never matched credential values. Local caches
 may be skipped only when the Git index contains no files beneath them.
 """
@@ -22,6 +22,8 @@ FORBIDDEN_SUFFIXES = {'.log', '.pyc', '.pyo', '.zip', '.7z', '.rar', '.tar', '.g
 MAX_TEXT_BYTES = 5 * 1024 * 1024
 MAX_DEMO_BYTES = 50 * 1024 * 1024
 DEMO_MEDIA = {
+    'assets/superlive-ai.png': 'png',
+    'assets/superlive-ai.ico': 'ico',
     'docs/media/polygon-selection.png': 'png',
     'docs/media/activity-recording.png': 'png',
     'docs/media/inactivity-rearm.png': 'png',
@@ -58,6 +60,8 @@ def _tracked_paths(root):
 
 
 def _valid_media(data, kind):
+    if kind == 'ico':
+        return data.startswith(b'\x00\x00\x01\x00')
     if kind == 'png':
         return data.startswith(b'\x89PNG\r\n\x1a\n')
     if kind == 'gif':

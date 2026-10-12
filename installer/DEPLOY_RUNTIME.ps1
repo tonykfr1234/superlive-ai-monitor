@@ -18,8 +18,11 @@ $ScriptMap = [ordered]@{
     'telegram_video.py' = 'telegram_video.py'
     'preview_ui.py' = 'preview_ui.py'
     'capture_region.py' = 'capture_region.py'
+    'app_branding.py' = 'app_branding.py'
+    'hq_video.py' = 'hq_video.py'
 }
 $Scripts = @($ScriptMap.Values)
+if (-not (Test-Path -LiteralPath "$Repo\assets\superlive-ai.ico" -PathType Leaf)) { throw 'Application icon is missing.' }
 $Root = [IO.Path]::GetFullPath($Root).TrimEnd('\')
 
 # Validate the complete package and JSON before touching the installed version.
@@ -63,7 +66,7 @@ if ([string]::IsNullOrWhiteSpace($Recording.record_root)) { throw 'Recording dir
 if (Test-Path -LiteralPath $Root) {
     $Backup = Join-Path $Root ('backups\event_recording_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '_' + [guid]::NewGuid().ToString('N').Substring(0, 6))
     New-Item -ItemType Directory -Force -Path $Backup | Out-Null
-    foreach ($Name in @('scripts', 'config', 'Start_AI_Monitor.bat', 'Stop_AI_Monitor.bat')) {
+    foreach ($Name in @('scripts', 'config', 'assets', 'Start_AI_Monitor.bat', 'Stop_AI_Monitor.bat')) {
         $Source = Join-Path $Root $Name
         if (Test-Path -LiteralPath $Source) { Copy-Item -LiteralPath $Source -Destination $Backup -Recurse -Force }
     }
@@ -136,6 +139,8 @@ if ($InstallUpdateDependencies) {
 }
 
 foreach ($Name in $ScriptMap.Keys) { Copy-Item -LiteralPath "$Repo\src\$Name" -Destination (Join-Path "$Root\scripts" $ScriptMap[$Name]) -Force }
+New-Item -ItemType Directory -Force -Path "$Root\assets" | Out-Null
+Copy-Item -LiteralPath "$Repo\assets\superlive-ai.ico" -Destination "$Root\assets\superlive-ai.ico" -Force
 $Policy | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "$Root\config\notification_policy.json" -Encoding UTF8
 $Recording | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "$Root\config\recording_config.json" -Encoding UTF8
 if (-not (Test-Path -LiteralPath "$Root\config\telegram.env")) {

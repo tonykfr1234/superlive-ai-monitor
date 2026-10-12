@@ -3,6 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">多角形で範囲を選び、人の動きを録画し、Telegram で映像を受け取る。</p>
 <p align="center">
@@ -17,6 +18,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ```
 
 ---
+
+新しいアプリアイコンと高画質録画：元のキャプチャ解像度で H.264 CRF 18 を保存。Telegram は CRF 20 を優先し、サイズ制限を超えた送信用コピーのみ圧縮します。
 
 SuperLive AI Monitor は、Windows の MuMu 上で表示する SuperLive のライブ映像に、人物検出とイベント録画を追加します。YOLO が選択した多角形内の人物を検出し、活動に応じて録画を開始。完成した動画を Telegram に送信します。カメラの RTSP アドレスは不要です。
 

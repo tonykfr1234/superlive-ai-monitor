@@ -3,6 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <strong>Español</strong> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">Selecciona un polígono. Graba la actividad de las personas. Recibe los vídeos en Telegram.</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>

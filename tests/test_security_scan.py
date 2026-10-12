@@ -74,7 +74,7 @@ class PublicationSecurityTests(unittest.TestCase):
         self.assertTrue(any('OVERSIZED UNSCANNED FILE' in item for item in scanner.scan(self.root)))
 
     def test_only_exact_demo_media_paths_are_approved(self):
-        headers = {'png': b'\x89PNG\r\n\x1a\n', 'gif': b'GIF89a', 'mp4': b'\0\0\0\x18ftypmp42'}
+        headers = {'png': b'\x89PNG\r\n\x1a\n', 'gif': b'GIF89a', 'mp4': b'\0\0\0\x18ftypmp42', 'ico': b'\0\0\1\0'}
         for name, kind in scanner.DEMO_MEDIA.items():
             self.write(name, headers[kind] + b'synthetic demo')
         self.assertEqual(scanner.scan(self.root), [])

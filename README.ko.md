@@ -3,6 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">다각형으로 영역을 선택하고, 사람의 활동을 녹화해 Telegram으로 받아보세요.</p>
 <p align="center">
@@ -17,6 +18,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ```
 
 ---
+
+새 앱 아이콘과 고화질 녹화: 원본 캡처 해상도로 H.264 CRF 18 저장. Telegram은 CRF 20을 우선 사용하며 업로드 제한을 넘는 전송 사본만 압축합니다.
 
 SuperLive AI Monitor는 Windows의 MuMu에서 표시하는 SuperLive 실시간 영상에 사람 감지와 이벤트 녹화를 추가합니다. YOLO가 선택한 다각형 안의 사람을 감지하고, 활동이 발생하면 녹화를 시작합니다. 녹화가 종료된 영상은 Telegram으로 전송하며, 카메라의 RTSP 주소는 필요하지 않습니다.
 

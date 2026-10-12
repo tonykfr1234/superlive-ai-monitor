@@ -2,6 +2,9 @@
 
 ## Unreleased - 2026-10-12
 
+- Add a custom multi-size Windows preview/taskbar icon and app identity.
+- Record original capture dimensions directly as H.264 CRF 18. Telegram starts with full-resolution CRF 20 and applies a duration-based bitrate budget only for oversized delivery copies; local originals remain unchanged.
+
 - Retry brief Windows file-sharing locks when atomically replacing recorder state, preserving the previous JSON if replacement still fails.
 
 - Port the current monitor, recorder and shared helpers into the repository's native `src/` layout, with public configuration templates and a shared install/update deployment helper.

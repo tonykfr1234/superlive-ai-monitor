@@ -2,6 +2,7 @@
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a><br>
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <strong>Bahasa Indonesia</strong> · <a href="README.it.md">Italiano</a>
 </p>
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">Pilih area poligon, rekam aktivitas orang, dan terima videonya melalui Telegram.</p>
 <p align="center">
@@ -16,6 +17,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ```
 
 ---
+
+Ikon baru dan rekaman berkualitas tinggi: resolusi tangkapan asli dengan H.264 CRF 18. Telegram mengutamakan CRF 20 dan hanya mengompresi lebih lanjut salinan yang melebihi batas pengiriman.
 
 SuperLive AI Monitor menambahkan perekaman berdasarkan kejadian pada tampilan langsung SuperLive di MuMu pada Windows. YOLO mendeteksi orang di dalam poligon pilihan Anda, lalu video yang selesai dikirim melalui Telegram. Alamat RTSP kamera tidak diperlukan.
 

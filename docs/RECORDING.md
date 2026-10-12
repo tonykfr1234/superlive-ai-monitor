@@ -61,3 +61,9 @@ Rotation deletes the oldest eligible closed MP4 files from the recording folder 
 A thin-provisioned VMware disk can exhaust the host before the guest reaches its threshold. Plan both capacities together. Video size depends on resolution, scene content, codec and FPS; measure actual usage when planning retention.
 
 VMware 精簡配置磁碟可能在 Guest 達門檻前就耗盡 Host 空間，請一起規劃兩端容量。影片大小依解析度、畫面、編碼及 FPS 而變，保留天數請用實際錄影量估算。
+
+## Image quality / 畫質
+
+Local recording uses H.264 CRF 18 at the original captured dimensions (rounded down to even pixels), with a target of 10 FPS. It does not upscale a low-resolution camera view. Telegram first encodes full-resolution CRF 20; oversized copies use a duration-based bitrate budget below 49 MB. The local original is never replaced. Higher quality uses more CPU and disk space.
+
+本機保留擷取原尺寸，H.264 CRF 18、目標 10 FPS；不將低解析度畫面放大偽裝成高畫質。Telegram 優先 CRF 20，只有超過 49 MB 時才調整傳送副本碼率。原片不變；較高畫質會增加 CPU 與磁碟用量。

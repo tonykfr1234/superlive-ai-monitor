@@ -96,6 +96,8 @@ class RecorderTests(unittest.TestCase):
                 atomic_json(recorder.end_request_file, signal)
             return frames[count[0] % 2]
         recorder.capture = capture
+        recorder.make_writer = lambda path, size: recorder.cv2.VideoWriter(
+            str(path), recorder.cv2.VideoWriter_fourcc(*"mp4v"), recorder.fps, size)
         queued = []
         def enqueue(path, request, duration, complete):
             if not real_video:

@@ -84,11 +84,25 @@ class TelegramVideoQueue:
             return destination
         import imageio_ffmpeg
         temporary = destination.with_name(destination.stem + ".encoding.mp4")
-        # 900 kb/s upper rate keeps a 300-second video comfortably below 50 MB.
+        # Try full-resolution constant-quality video first. Only oversized
+        # delivery copies use a duration-based bitrate budget; originals stay HQ.
+        self.encode(job, temporary, ["-crf", "20"])
+        if temporary.stat().st_size > MAX_UPLOAD_BYTES:
+            duration = max(1.0, float(job["duration"]))
+            bitrate = max(64, int(46_000_000 * 8 / duration / 1000))
+            self.encode(job, temporary, ["-b:v", str(bitrate)+"k",
+                "-maxrate", str(bitrate)+"k", "-bufsize", str(bitrate*2)+"k"])
+        if not 0 < temporary.stat().st_size <= MAX_UPLOAD_BYTES:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError("Video exceeds delivery size limit")
+        os.replace(temporary, destination)
+        return destination
+
+    def encode(self, job, temporary, quality):
+        import imageio_ffmpeg
         args = [imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y",
-            "-i", job["path"], "-an", "-vf", "scale=min(1280\\,iw):-2",
-            "-c:v", "libx264", "-preset", "veryfast", "-b:v", "800k",
-            "-maxrate", "900k", "-bufsize", "1800k", "-pix_fmt", "yuv420p",
+            "-i", job["path"], "-an",
+            "-c:v", "libx264", "-preset", "veryfast", "-threads", "2", *quality, "-pix_fmt", "yuv420p",
             "-movflags", "+faststart", str(temporary)]
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -108,11 +122,9 @@ class TelegramVideoQueue:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait(timeout=2)
-        if process.returncode or not temporary.exists() or not 0 < temporary.stat().st_size <= MAX_UPLOAD_BYTES:
+        if process.returncode or not temporary.exists() or temporary.stat().st_size <= 0:
             temporary.unlink(missing_ok=True)
             raise RuntimeError("Video preparation failed")
-        os.replace(temporary, destination)
-        return destination
 
     def send(self, video, job, token, chat_id):
         import requests

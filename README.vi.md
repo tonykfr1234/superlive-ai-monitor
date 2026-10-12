@@ -2,6 +2,7 @@
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a><br>
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <strong>Tiếng Việt</strong> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">Chọn vùng đa giác, ghi lại hoạt động của người và nhận video qua Telegram.</p>
 <p align="center">
@@ -16,6 +17,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ```
 
 ---
+
+Biểu tượng mới và ghi hình chất lượng cao: giữ độ phân giải thu hình gốc với H.264 CRF 18. Telegram ưu tiên CRF 20 và chỉ nén thêm bản gửi vượt giới hạn dung lượng.
 
 SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình ảnh trực tiếp của SuperLive trong MuMu trên Windows. YOLO phát hiện người trong vùng đa giác đã chọn và gửi video hoàn tất qua Telegram. Không cần biết địa chỉ RTSP của camera.
 

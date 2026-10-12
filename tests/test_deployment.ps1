@@ -74,5 +74,9 @@ $FreshPolicy = Get-Content -LiteralPath "$FreshRoot\config\notification_policy.j
 if ($null -ne $FreshPolicy.roi -or $FreshPolicy.roi_coordinate_space -ne 'mumu_content_v1') { throw 'New install ROI defaults incorrect' }
 if (-not (Test-Path -LiteralPath "$FreshRoot\runtime\stop.flag")) { throw 'New install must remain stopped for explicit start' }
 Write-Host 'ISOLATED_DEPLOYMENT_TEST=PASS'
+foreach ($Name in @('app_branding.py', 'hq_video.py')) {
+    if (-not (Test-Path -LiteralPath "$FreshRoot\scripts\$Name")) { throw "Missing new runtime helper: $Name" }
+}
+if ((Get-FileHash "$FreshRoot\assets\superlive-ai.ico").Hash -ne (Get-FileHash "$Kit\assets\superlive-ai.ico").Hash) { throw 'Icon deployment mismatch' }
 # Leave a small fixture for inspection. No recursive deletion is performed.
 Write-Host "FIXTURE=$TestRoot"

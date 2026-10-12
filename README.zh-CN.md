@@ -3,6 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">选好多边形，记录人员活动，通过 Telegram 接收事件视频。</p>
 <p align="center">
@@ -17,6 +18,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ```
 
 ---
+
+新版图标与高画质录像：本地保留采集原尺寸，以 H.264 CRF 18 录制；Telegram 优先使用 CRF 20，仅在超过上传限制时压缩副本，原片不变。
 
 SuperLive AI Monitor 为 Windows 上 MuMu 中的 SuperLive 实时画面添加人员检测与事件录像。YOLO 检测所选多边形内的人员活动，程序录制视频，并通过 Telegram 发送已结束的视频，无需摄像头的 RTSP 地址。
 

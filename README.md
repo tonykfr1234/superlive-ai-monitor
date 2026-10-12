@@ -3,6 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 
+<p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
 <h1 align="center">SuperLive AI Monitor</h1>
 <p align="center">Choose a polygon. Record person activity. Receive the event on Telegram.</p>
 <p align="center">
@@ -19,6 +20,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ```
 
 ---
+
+New application icon and high-quality recording: full capture resolution, H.264 CRF 18 locally; Telegram uses CRF 20 first and compresses only oversized delivery copies.
 
 SuperLive AI Monitor adds event recording to a visible SuperLive camera feed in MuMu on Windows. Select a polygon around the area you care about; YOLO detects people there, records their activity and delivers completed videos through Telegram. No camera RTSP URL is required.
 

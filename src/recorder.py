@@ -12,6 +12,7 @@ from pathlib import Path
 from record_protocol import atomic_json, read_json, valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS
 from telegram_video import TelegramVideoQueue
 from capture_region import capture_frame, CaptureRegionResolver
+from hq_video import HighQualityWriter
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 EVENT_SECONDS = MAX_RECORD_SECONDS
@@ -201,7 +202,7 @@ class Recorder:
             day_dir = self.record_root / now.strftime("%Y-%m-%d")
             day_dir.mkdir(parents=True, exist_ok=True)
             path = day_dir / ("SuperLive_%s_%s.mp4" % (now.strftime("%Y%m%d_%H%M%S"), uuid.uuid4().hex[:8]))
-            writer = self.cv2.VideoWriter(str(path), self.cv2.VideoWriter_fourcc(*"mp4v"), self.fps, size)
+            writer = self.make_writer(path, size)
             if not writer.isOpened():
                 raise RuntimeError("VideoWriter failed")
             started = time.monotonic()
@@ -273,6 +274,9 @@ class Recorder:
                 except Exception as error:
                     raise QueuePersistenceError("Unable to persist video upload") from error
                 self.log("EVENT_RECORD_QUEUED=%s COMPLETE=%s" % (path.name, complete))
+
+    def make_writer(self, path, size):
+        return HighQualityWriter(path, self.fps, size)
 
     def run(self):
         import cv2

@@ -27,6 +27,7 @@ from person_activity import PersonActivityTracker, InactivityTimer
 from region_policy import people_in_region, validate_roi, rebase_roi
 from preview_ui import PreviewController, PreviewLayout, render_preview
 from capture_region import capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
+from app_branding import set_app_identity, apply_window_icon
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -333,7 +334,9 @@ def main():
     ui_actions = []
     message = None
     message_until = 0.0
+    set_app_identity()
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
+    apply_window_icon(WINDOW_NAME)
     cv2.resizeWindow(WINDOW_NAME, 960, 720)
 
     def mouse_callback(event, x, y, flags, userdata):

@@ -23,3 +23,5 @@ Run `python scripts/generate_demo.py` with Pillow, NumPy, imageio-ffmpeg and Mic
 The demo has Traditional Chinese/English captions and compressed time. Show the first-120-second Telegram quiet period and movement-triggered rollover, with a fresh quiet period for the new clip. It illustrates the workflow and is not a detector-accuracy benchmark. Keep that distinction in localized descriptions; do not substitute private camera footage.
 
 `SHA256SUMS.txt` records SHA-256 hashes of committed file bytes, excluding itself. Git may convert text line endings in a Windows checkout; the committed/archive bytes are the reference for verification.
+
+Run `python scripts/generate_icon.py` to regenerate the application PNG and multi-size ICO with Pillow. The original geometric design is code-generated and needs no external image assets.
