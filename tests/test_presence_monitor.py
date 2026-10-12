@@ -111,6 +111,29 @@ class RecorderProtocolTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 self.assertFalse(recorder_ready(invalid, now=100))
 
+    def test_json_retries_transient_windows_lock_and_preserves_on_permanent_failure(self):
+        import record_protocol
+        with tempfile.TemporaryDirectory(dir=BASELINE.parent) as folder:
+            path = Path(folder) / "state.json"
+            atomic_json(path, {"old": True})
+            replace = record_protocol.os.replace
+            calls = [0]
+            def transient(source, destination):
+                calls[0] += 1
+                if calls[0] < 3:
+                    raise PermissionError("sharing violation")
+                replace(source, destination)
+            with patch.object(record_protocol.os, "replace", side_effect=transient), \
+                    patch.object(record_protocol.time, "sleep"):
+                atomic_json(path, {"new": True})
+            self.assertEqual(read_json(path), {"new": True})
+            self.assertEqual(calls[0], 3)
+            with patch.object(record_protocol.os, "replace", side_effect=PermissionError), \
+                    patch.object(record_protocol.time, "sleep"), self.assertRaises(PermissionError):
+                atomic_json(path, {"lost": True})
+            self.assertEqual(read_json(path), {"new": True})
+            self.assertEqual(list(path.parent.glob("*.tmp")), [])
+
     def test_json_replacement_is_valid_and_failed_write_preserves_existing_state(self):
         with tempfile.TemporaryDirectory(dir=BASELINE.parent) as folder:
             path = Path(folder) / "runtime" / "state.json"

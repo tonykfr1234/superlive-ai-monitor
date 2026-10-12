@@ -2,6 +2,8 @@
 
 ## Unreleased - 2026-10-12
 
+- Retry brief Windows file-sharing locks when atomically replacing recorder state, preserving the previous JSON if replacement still fails.
+
 - Port the current monitor, recorder and shared helpers into the repository's native `src/` layout, with public configuration templates and a shared install/update deployment helper.
 - Replace the person/vehicle reminder policy with person-only activity detection in a saved polygon. Support concave polygons, positive-area box overlap and legacy rectangle settings.
 - Add same-window polygon selection, undo, save/cancel and full-frame controls below the preview.

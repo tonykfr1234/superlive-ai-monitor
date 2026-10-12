@@ -22,7 +22,16 @@ def atomic_json(path, data):
             json.dump(data, stream, ensure_ascii=False, indent=2, allow_nan=False)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        # Windows readers/antivirus may briefly hold the destination without
+        # delete sharing. Retry replacement; never truncate the existing JSON.
+        for attempt in range(6):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.01 * (2 ** attempt))
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
