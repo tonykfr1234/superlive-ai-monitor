@@ -56,6 +56,7 @@ class RecorderTests(unittest.TestCase):
 
     def make_fake_recorder(self, real_video=False, stop_after=None, end_after=None, end_reason="NO_MOVEMENT"):
         recorder = Recorder(self.root)
+        recorder.reports = Mock()
         clock = FakeClock()
         recorder.log = Mock()
         recorder.publish = Mock()

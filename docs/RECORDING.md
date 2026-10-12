@@ -23,9 +23,9 @@ Movement is inferred from person-box position/size. Small jitter is filtered and
 
 ## Telegram quiet periods / Telegram 靜默期
 
-**Completed videos are the only automatic Telegram notifications.** Each clip starts a 120-second quiet period. The program does not start new Telegram sends during that period, including older queued clips and retries. Movement-triggered rollover immediately starts another clip and another quiet period, so repeated rollovers can keep the backlog waiting.
+**Automatic Telegram deliveries include completed videos and daily CSV reports.** Each clip starts a 120-second quiet period. The program does not start new Telegram sends during that period, including older queued clips and retries. Movement-triggered rollover immediately starts another clip and another quiet period, so repeated rollovers can keep the backlog waiting.
 
-**Telegram 自動通知只傳送完成影片。** 每段影片開始時都有 120 秒靜默期，期間不啟動新的 Telegram 傳送，舊片與重試也包含在內。移動換片會立即開始新片及新的靜默期，所以連續換片可能讓待傳影片持續等待。
+**Telegram 自動傳送完成影片及每日 CSV 報表。** 每段影片開始時都有 120 秒靜默期，期間不啟動新的 Telegram 傳送，舊片與重試也包含在內。移動換片會立即開始新片及新的靜默期，所以連續換片可能讓待傳影片持續等待。
 
 A network request already dispatched before a quiet period may finish or arrive during it; it cannot be recalled. This rule controls the start of new sends, not the arrival time of an in-flight message. Explicit Telegram setup tests are separate from automatic monitoring.
 
@@ -67,3 +67,11 @@ VMware 精簡配置磁碟可能在 Guest 達門檻前就耗盡 Host 空間，請
 Local recording uses H.264 CRF 18 at the original captured dimensions (rounded down to even pixels), with a target of 10 FPS. It does not upscale a low-resolution camera view. Telegram first encodes full-resolution CRF 20; oversized copies use a duration-based bitrate budget below 49 MB. The local original is never replaced. Higher quality uses more CPU and disk space.
 
 本機保留擷取原尺寸，H.264 CRF 18、目標 10 FPS；不將低解析度畫面放大偽裝成高畫質。Telegram 優先 CRF 20，只有超過 49 MB 時才調整傳送副本碼率。原片不變；較高畫質會增加 CPU 與磁碟用量。
+
+## Daily trigger reports
+
+`daily_report.py` runs in its own recorder worker. Every 15 seconds it checks Taiwan time (UTC+8). At 23:00 it writes `SuperLive_Triggers_YYYY-MM-DD_2300.csv` under the configured recording root's date folder. The report covers 00:00 inclusive to 23:00 exclusive. It includes initial activity and movement rollovers, not every detected frame. UTF-8 BOM CSV columns contain trigger time with offset, type, person count, confidence, request ID and video filename. A trigger can have no playable video if capture/encoding fails. Existing local `events/person_events.csv` entries are imported for compatibility; historical video filenames may be blank.
+
+After midnight it saves `_full.csv`, including the remaining hour, and sends it only if different from the successful 23:00 report. An unsent partial report is superseded by the full one. Late journal writes for the just-closed day are reconciled. A zero-trigger day still sends a header-only CSV with a zero-count caption.
+
+The computer and monitor must be running at 23:00 for timely delivery. Restart catches up missed reports since this feature was first enabled. CSV creation happens even during a recording quiet period; Telegram transmission waits until permitted. A separate durable queue prevents video encoding from blocking report creation. Successful jobs are persisted and not normally resent; an interrupted or timed-out network request may have been accepted by Telegram before its acknowledgement was saved, so rare duplicates are possible. No credentials or event data belong in the public repository.

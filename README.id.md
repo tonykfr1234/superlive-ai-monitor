@@ -65,7 +65,7 @@ Saat memilih area, tangkapan gagal, atau hasil deteksi tidak tersedia, status di
 | Deteksi | Hanya orang; kotak deteksi harus beririsan dengan luas positif, menyentuh tepi saja tidak cukup |
 | Gambar | Menghapus bilah judul/menu MuMu; mempertahankan waktu dan nama kanal pada gambar kamera |
 | Perekaman | Normalnya 120–300 detik; gerakan setelah detik 120 memulai klip baru; berhenti setelah 120 detik terus-menerus tanpa gerakan |
-| Pengiriman | Notifikasi dan bukti lokal saat mulai; Telegram hanya mengirim video H.264 MP4, antrean dan percobaan ulang menunggu masa senyap berakhir |
+| Pengiriman | Notifikasi dan bukti lokal saat mulai; Telegram mengirim video H.264 MP4 dan laporan CSV harian, antrean dan percobaan ulang menunggu masa senyap berakhir |
 | Penyimpanan | 10 FPS; `C:\SuperLive_Recordings`; hapus video lama saat penggunaan disk mencapai 80%, berhenti di 78% |
 | Pemulihan | Percobaan tangkapan ulang dan pengawas terpisah untuk pemantau serta perekam |
 
@@ -117,3 +117,7 @@ Kode berada di `src/`, templat konfigurasi di `config/`, dan pemasang di `instal
 ## Lisensi
 
 [MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Setiap hari pukul 23:00 (Taiwan), CSV berisi waktu pemicu, jenis kejadian, jumlah orang, dan nama video disimpan bersama rekaman hari itu lalu dikirim lewat Telegram, termasuk hari tanpa kejadian. Setelah tengah malam, kejadian setelah 23:00 memicu laporan lengkap; tanpa perubahan tidak dikirim ulang. Masa senyap dihormati dan pengiriman dicoba ulang setelah mulai ulang.

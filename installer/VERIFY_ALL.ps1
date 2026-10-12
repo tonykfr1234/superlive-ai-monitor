@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference='Continue'
+$ErrorActionPreference='Continue'
 $Kit=Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root="$env:USERPROFILE\Downloads\SuperLive_AI"
 $Py="$Root\.venv\Scripts\python.exe"
@@ -39,7 +39,7 @@ if(Test-Path "$Root\config\notification_policy.json"){
   Write-Host 'INACTIVITY_SECONDS=120'
   Write-Host 'NORMAL_CLIP_SECONDS=120_TO_300'
   Write-Host 'ROLLOVER=MOVEMENT_AT_LEAST_120_SECONDS_AND_BEFORE_300_SECONDS'
-  Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_ONLY'
+  Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_AND_DAILY_TRIGGER_CSV'
   Write-Host 'TELEGRAM_QUIET_SECONDS_PER_CLIP=120_INCLUDES_BACKLOG_AND_RETRIES'
   Write-Host 'REARM=PERSON_MOVEMENT_OR_NEW_ARRIVAL'
   Write-Host 'PREVIEW_CONTROLS=R polygon; click 3+ vertices; Enter save; right-click / Backspace undo; Esc cancel; C full frame; Q stop'

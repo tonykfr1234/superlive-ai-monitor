@@ -36,7 +36,7 @@ Normal clips have a 120-second minimum and a 300-second maximum. The minimum cli
 
 `src/recorder.py` independently captures the camera content and writes actual-duration MP4 clips at a target 10 FPS. Normal automatic transitions produce 120–300-second clips. Manual stop or capture failure can leave shorter local partial clips; no padding fabricates footage to reach the minimum. The polygon controls detection, not the saved image boundary.
 
-`telegram_video.py` persists pending deliveries and converts completed clips to H.264 MP4 for Telegram playback. Completed videos are the monitor's only automatic Telegram notifications; Windows alerts and local snapshots remain local at recording start.
+`telegram_video.py` persists pending deliveries and converts completed clips to H.264 MP4 for Telegram playback. Completed videos and daily CSV reports are the monitor's automatic Telegram deliveries; Windows alerts and local snapshots remain local at recording start.
 
 The background worker does not start new Telegram sends during each clip's first 120 seconds. This restriction covers older queued videos and retries as well as the current event. Every rollover starts a fresh quiet period, so repeated rollovers can defer the backlog. A partial clip cannot be automatically delivered before its own quiet deadline; newer quiet periods also apply. Pending jobs survive restart. A network request already dispatched before a quiet period may finish or arrive during it and cannot be recalled.
 

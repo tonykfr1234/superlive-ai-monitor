@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Root = "$env:USERPROFILE\Downloads\SuperLive_AI",
     [string]$Python = '',
     [switch]$InstallUpdateDependencies,
@@ -20,6 +20,7 @@ $ScriptMap = [ordered]@{
     'capture_region.py' = 'capture_region.py'
     'app_branding.py' = 'app_branding.py'
     'hq_video.py' = 'hq_video.py'
+    'daily_report.py' = 'daily_report.py'
 }
 $Scripts = @($ScriptMap.Values)
 if (-not (Test-Path -LiteralPath "$Repo\assets\superlive-ai.ico" -PathType Leaf)) { throw 'Application icon is missing.' }
@@ -170,7 +171,7 @@ echo Normal clips last 120 to 300 seconds. Detection continues throughout record
 echo First 120 seconds: no automatic rollover and no new Telegram sends, including old videos and retries.
 echo Movement at or after 120 seconds and before 300 seconds immediately starts a new clip and quiet period.
 echo No movement for 120 continuous seconds ends recording; wait for renewed movement or a new arrival.
-echo Telegram automatically sends completed videos only, after the applicable quiet periods.
+echo Telegram sends completed videos and daily 23:00 Taiwan-time CSV reports after applicable quiet periods.
 echo Repeated rollovers can delay queued videos. Already-dispatched network requests may still arrive.
 echo Manual stop or capture failure may save a shorter local clip; no padding or delivery before its quiet deadline.
 echo Preview controls: R = select polygon, C = full frame, Q = stop.
@@ -202,7 +203,7 @@ Write-Host 'SEGMENT_MINUTES=5'
 Write-Host 'RECORDING_MODE=NORMAL_MIN_120_MAX_300_SECONDS_MOVEMENT_ROLLOVER'
 Write-Host 'ROLLOVER=MOVEMENT_AT_LEAST_120_SECONDS_AND_BEFORE_300_SECONDS'
 Write-Host 'INACTIVITY_SECONDS=120'
-Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_ONLY'
+Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_AND_DAILY_TRIGGER_CSV'
 Write-Host 'TELEGRAM_QUIET_SECONDS_PER_CLIP=120_INCLUDES_BACKLOG_AND_RETRIES'
 Write-Host 'REARM=PERSON_MOVEMENT_OR_NEW_ARRIVAL'
 Write-Host 'PERSON_ONLY=YES'

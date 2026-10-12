@@ -55,7 +55,7 @@ New person activity inside the polygon
 
 A person first observed after startup counts as new activity. Normal clips last **120–300 seconds**. Before 120 seconds, movement resets the inactivity interval without splitting the clip. From 120 seconds until the 300-second cap, detected movement ends the old clip and starts a new one immediately. Absent and stationary people both count as no movement; after 120 continuous seconds without movement, recording ends and waits for renewed movement or a new arrival.
 
-**Completed videos are the only automatic Telegram notifications.** Starting a clip keeps the Windows alert and local evidence, but sends no Telegram photo. The queue, including older videos and retries, does not start new Telegram sends during the current clip's first 120 seconds. Repeated rollovers can therefore delay the backlog. A send already dispatched before the quiet period may still arrive; it cannot be recalled.
+**Automatic Telegram deliveries include completed videos and daily CSV reports.** Starting a clip keeps the Windows alert and local evidence, but sends no Telegram photo. The queue, including older videos and retries, does not start new Telegram sends during the current clip's first 120 seconds. Repeated rollovers can therefore delay the backlog. A send already dispatched before the quiet period may still arrive; it cannot be recalled.
 
 Manual stop or capture failure may leave a local partial clip shorter than 120 seconds. It is not padded to simulate extra footage and is not automatically sent before its quiet deadline; pending work also waits for any newer clip's quiet period.
 
@@ -70,7 +70,7 @@ Selection or invalid capture/inference is unknown and resets the observation int
 | Camera content | Excludes MuMu title/menu area; keeps camera timestamps and channel labels |
 | Preview | Clickable controls and status below the image |
 | Activity recording | Normal clips 120–300 seconds; movement after 120 seconds rolls over; 120-second inactivity stop |
-| Notifications | Local Windows alert and evidence at start; completed videos only on Telegram |
+| Notifications | Local Windows alert and evidence at start; completed videos and daily CSV reports on Telegram |
 | Video delivery | Actual-duration H.264 MP4; persistent queue/retries; no new sends during each clip's first 120 seconds |
 | Recovery | Capture retry and separate monitor/recorder watchdogs |
 | Storage | 10 FPS; `C:\SuperLive_Recordings`; drive rotation at 80% down to 78% |
@@ -92,7 +92,7 @@ These 36-second, silent demonstrations use the **actual preview renderer with a 
 
 ## Latest changes
 
-Normal clips now last 120–300 seconds. Movement after the first 120 seconds immediately starts a new clip and a fresh Telegram quiet period. Automatic start photos are removed; only completed videos are delivered, with the whole queue deferred during quiet periods. Polygon detection and the 120-second no-movement stop remain. See the [changelog](CHANGELOG.md).
+Normal clips now last 120–300 seconds. Movement after the first 120 seconds immediately starts a new clip and a fresh Telegram quiet period. Automatic start photos are removed; completed videos and daily CSV reports are delivered, with the whole queue deferred during quiet periods. Polygon detection and the 120-second no-movement stop remain. See the [changelog](CHANGELOG.md).
 
 <a id="controls"></a>
 ## Controls
@@ -144,3 +144,7 @@ python .\scripts\security_scan.py .
 ## License
 
 [MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Daily CSV at 23:00 (Asia/Taipei): saves every trigger time, event type, person count and video filename beside that day’s recordings, then sends it through Telegram. Zero-event days get an empty report. After midnight, late events cause a complete-day supplement; unchanged reports are not resent. Quiet periods defer delivery; offline reports retry after restart.

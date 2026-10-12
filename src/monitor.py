@@ -109,7 +109,7 @@ def notify_detection(image, people, roi, request_id, credentials):
     """Save local evidence and a Windows toast; never send a Telegram start alert.
 
     The credentials argument remains for local-call compatibility. Completed
-    videos are the only automatic Telegram notification, managed by the recorder.
+    videos and daily CSV reports are delivered by recorder background workers.
     """
     now = datetime.now()
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -312,7 +312,7 @@ def main():
     RUNTIME.mkdir(parents=True, exist_ok=True)
     EVENT_ROOT.mkdir(parents=True, exist_ok=True)
     cfg = load_policy()
-    credentials = ("", "")  # Telegram credentials belong only to the video uploader.
+    credentials = ("", "")  # Telegram credentials belong to delivery workers.
     interval = 1.0 / float(cfg["target_fps"])
     device = 0 if torch.cuda.is_available() else "cpu"
     model = YOLO(str(MODEL_PATH) if MODEL_PATH.exists() else "yolo11n.pt")

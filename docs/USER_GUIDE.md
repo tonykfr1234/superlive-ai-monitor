@@ -40,7 +40,7 @@ Normal clips last **120–300 seconds**. During the first 120 seconds, movement 
 
 No person and a stationary person both count as no movement. After 120 continuous seconds without movement, the clip closes and monitoring waits for renewed movement or a new arrival; a still person does not immediately retrigger. Selection or invalid capture/inference is unknown and resets the inactivity observation interval. The minimum clip duration and no-movement interval are separate rules.
 
-**Completed videos are the only automatic Telegram notifications.** The program does not start new Telegram sends during the current clip's first 120 seconds, including older queued videos and retries. Repeated rollovers can postpone the backlog. A network request already dispatched before the quiet period can still arrive during it; it cannot be recalled. Explicit Telegram setup tests remain available through `SET_TELEGRAM.bat`.
+**Automatic Telegram deliveries include completed videos and daily CSV reports.** The program does not start new Telegram sends during the current clip's first 120 seconds, including older queued videos and retries. Repeated rollovers can postpone the backlog. A network request already dispatched before the quiet period can still arrive during it; it cannot be recalled. Explicit Telegram setup tests remain available through `SET_TELEGRAM.bat`.
 
 Movement uses changes in person-box position or size, not pose estimation. Small jitter is filtered, and slow displacement accumulates. Camera motion, occlusion or missed detections can affect the result; verify behavior with your camera scene.
 

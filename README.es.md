@@ -113,3 +113,7 @@ No publiques tokens reales, identificadores de chat, ajustes locales, registros,
 ## Licencia
 
 [Licencia MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Cada día a las 23:00 (Taiwán), guarda un CSV con hora, tipo de evento, personas y vídeo junto a las grabaciones y lo envía por Telegram, incluso sin eventos. Después de medianoche envía un informe completo si hubo eventos después de las 23:00. No repite informes sin cambios; respeta el silencio y reintenta tras reiniciar.

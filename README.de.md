@@ -113,3 +113,7 @@ Veröffentliche keine echten Tokens, Chat-IDs, lokalen Einstellungen, Protokolle
 ## Lizenz
 
 [MIT-Lizenz](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Täglich um 23:00 Uhr (Taiwan): CSV mit Auslösezeit, Ereignistyp, Personenzahl und Videodateiname im Tagesordner speichern und per Telegram senden, auch bei null Ereignissen. Neue Ereignisse nach 23:00 werden nach Mitternacht als vollständiger Tagesbericht ergänzt. Unveränderte Berichte werden nicht erneut gesendet; Ruhezeiten und Neustarts werden berücksichtigt.

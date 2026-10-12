@@ -65,7 +65,7 @@ Khi đang chọn vùng, chụp hình thất bại hoặc không có kết quả 
 | Phát hiện | Chỉ phát hiện người; khung người phải chồng lên vùng với diện tích lớn hơn 0, chạm biên là chưa đủ |
 | Hình ảnh | Loại bỏ thanh tiêu đề/menu MuMu; giữ thời gian và tên kênh trong hình camera |
 | Ghi hình | Bình thường 120–300 giây; chuyển động sau giây 120 mở đoạn mới; dừng sau 120 giây liên tục không chuyển động |
-| Gửi kết quả | Thông báo và ảnh cục bộ khi bắt đầu; Telegram chỉ gửi video H.264 MP4, hàng đợi và lượt thử lại chờ hết thời gian tạm hoãn |
+| Gửi kết quả | Thông báo và ảnh cục bộ khi bắt đầu; Telegram gửi video H.264 MP4 và báo cáo CSV hằng ngày, hàng đợi và lượt thử lại chờ hết thời gian tạm hoãn |
 | Lưu trữ | 10 FPS; `C:\SuperLive_Recordings`; xóa video cũ khi ổ đĩa đạt 80%, dừng khi còn 78% |
 | Khôi phục | Thử chụp lại; bộ giám sát riêng cho chương trình theo dõi và ghi hình |
 
@@ -117,3 +117,7 @@ Mã nguồn nằm trong `src/`, mẫu cấu hình trong `config/`, công cụ c�
 ## Giấy phép
 
 [MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Mỗi ngày lúc 23:00 (giờ Đài Loan), tạo CSV gồm thời điểm kích hoạt, loại sự kiện, số người và tên video, lưu cùng video trong ngày và gửi qua Telegram, kể cả khi không có sự kiện. Sau nửa đêm, gửi bản đầy đủ nếu có thêm sự kiện sau 23:00; không gửi lại khi không thay đổi. Tôn trọng thời gian im lặng và thử lại sau khi khởi động.

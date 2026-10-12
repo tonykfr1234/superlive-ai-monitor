@@ -44,7 +44,7 @@ Nouvelle activité d’une personne dans le polygone
 
 Les vidéos normales durent **entre 120 et 300 secondes**. Une personne observée pour la première fois au démarrage compte comme une nouvelle activité. L’absence et l’immobilité comptent toutes deux comme une absence de mouvement ; chaque mouvement détecté relance le délai d’inactivité. Une fois les premières 120 secondes écoulées, un mouvement déclenche également le passage immédiat à la vidéo suivante. Une personne restant immobile ne déclenche pas immédiatement une nouvelle vidéo après la précédente.
 
-Aucune photo Telegram n’est envoyée au démarrage : les envois automatiques concernent uniquement les vidéos terminées. La pause d’envoi de chaque nouvelle vidéo bloque aussi les anciennes vidéos et leurs nouvelles tentatives d’envoi. Des changements de vidéo répétés peuvent retarder toute la file. Ce sont les nouveaux appels d’envoi qui sont bloqués ; un transfert déjà lancé ne peut pas être rappelé et peut arriver pendant la pause.
+Aucune photo Telegram n’est envoyée au démarrage : les envois automatiques concernent les vidéos terminées et les rapports CSV quotidiens. La pause d’envoi de chaque nouvelle vidéo bloque aussi les anciennes vidéos et leurs nouvelles tentatives d’envoi. Des changements de vidéo répétés peuvent retarder toute la file. Ce sont les nouveaux appels d’envoi qui sont bloqués ; un transfert déjà lancé ne peut pas être rappelé et peut arriver pendant la pause.
 
 La sélection d’une zone ou l’absence de résultats valides de capture ou de détection interrompt l’observation. Cette période inconnue ne compte pas comme de l’inactivité : un nouvel intervalle commence après le rétablissement.
 
@@ -113,3 +113,7 @@ Ne publiez jamais de véritables jetons, identifiants de conversation, réglages
 ## Licence
 
 [Licence MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Chaque jour à 23:00 (Taïwan), un CSV récapitule les heures, types de déclenchement, personnes et fichiers vidéo. Il est enregistré avec les vidéos du jour et envoyé par Telegram, même sans événement. Après minuit, les événements tardifs entraînent un complément complet. Aucun renvoi sans changement ; la pause et les reprises après redémarrage sont respectées.

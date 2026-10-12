@@ -13,6 +13,7 @@ from record_protocol import atomic_json, read_json, valid_end_request, MIN_RECOR
 from telegram_video import TelegramVideoQueue
 from capture_region import capture_frame, CaptureRegionResolver
 from hq_video import HighQualityWriter
+from daily_report import DailyReports, TAIPEI
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 EVENT_SECONDS = MAX_RECORD_SECONDS
@@ -91,6 +92,7 @@ class Recorder:
         self.last_publish = 0
         self.capture_resolver = CaptureRegionResolver()
         self.uploader = TelegramVideoQueue(self.root, self.log)
+        self.reports = DailyReports(self.root, self.record_root, self.log)
 
     def log(self, message):
         line = "[%s] %s" % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message)
@@ -130,6 +132,8 @@ class Recorder:
                 return False
         if signal["reason"] == "MOVEMENT":
             self.next_request = deepcopy(signal["next_request"])
+            self.next_request["trigger_type"] = "MOVEMENT_ROLLOVER"
+            self.reports.record_trigger(self.next_request)
             # Close the delivery window before the old clip is enqueued. The
             # next first frame renews this reservation from its actual start.
             self.reserve_quiet(self.next_request["request_id"])
@@ -192,16 +196,18 @@ class Recorder:
         self.next_request = None
         self.request_id = request["request_id"]
         try:
+            self.reports.record_trigger(request)
             hwnd = self.find_window()
             sct = self.mss.MSS() if hasattr(self.mss, "MSS") else self.mss.mss()
             frame = self.capture(sct, hwnd)
             height, width = frame.shape[:2]
             size = (width // 2 * 2, height // 2 * 2)
             frame = self.cv2.resize(frame, size)
-            now = datetime.now()
+            now = datetime.fromtimestamp(request.get("created_at", time.time()), TAIPEI)
             day_dir = self.record_root / now.strftime("%Y-%m-%d")
             day_dir.mkdir(parents=True, exist_ok=True)
             path = day_dir / ("SuperLive_%s_%s.mp4" % (now.strftime("%Y%m%d_%H%M%S"), uuid.uuid4().hex[:8]))
+            self.reports.record_trigger(request, path.name)
             writer = self.make_writer(path, size)
             if not writer.isOpened():
                 raise RuntimeError("VideoWriter failed")
@@ -301,6 +307,7 @@ class Recorder:
         self.pid_file.write_text(str(os.getpid()), encoding="utf-8")
         self.publish("STARTING")
         self.uploader.start()
+        self.reports.start()
         try:
             while not self.stop.exists():
                 if not self.rotate():
@@ -346,6 +353,7 @@ class Recorder:
                         self.heartbeat()
                         time.sleep(0.1)
         finally:
+            self.reports.stop()
             self.uploader.stop()
             self.publish("STOPPED")
             self.pid_file.unlink(missing_ok=True)

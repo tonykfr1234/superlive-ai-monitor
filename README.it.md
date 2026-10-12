@@ -113,3 +113,7 @@ Non pubblicare token reali, identificativi delle chat, impostazioni locali, regi
 ## Licenza
 
 [Licenza MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Ogni giorno alle 23:00 (Taiwan), un CSV raccoglie orari, tipi di evento, persone e nomi dei video. Viene salvato con i video del giorno e inviato via Telegram anche senza eventi. Dopo mezzanotte gli eventi tardivi producono un riepilogo completo; nessun reinvio senza modifiche. Rispetta il silenzio e riprova dopo il riavvio.

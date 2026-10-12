@@ -117,3 +117,7 @@ O código fica em `src/`, os modelos de configuração em `config/` e os instala
 ## Licença
 
 [MIT](LICENSE).
+
+## Daily CSV · 23:00 Asia/Taipei
+
+Todos os dias às 23:00 (Taiwan), um CSV reúne horários, tipos de evento, pessoas e nomes dos vídeos. É salvo junto às gravações do dia e enviado pelo Telegram, mesmo sem eventos. Após a meia-noite, eventos tardios geram um relatório completo; sem mudanças, não há reenvio. Respeita o silêncio e tenta novamente após reiniciar.
