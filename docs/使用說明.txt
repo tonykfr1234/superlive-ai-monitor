@@ -1,0 +1,152 @@
+﻿SuperLive AI 使用說明（繁體中文）
+更新日期：2026-10-20
+
+下載來源與指令對照
+
+本說明同時適用於 GitHub 公開專案與桌面安裝包，請依實際來源選用工具：
+首次安裝：GitHub 使用 installer\INSTALL_FROM_REPO.bat；桌面包使用 INSTALL_ALL.bat。
+更新程式：GitHub 使用 installer\UPDATE_FROM_REPO.bat；桌面包使用 UPDATE_EVENT_RECORDING.bat。
+Telegram 設定：GitHub 使用 installer\SET_TELEGRAM.bat；桌面包使用 SET_TELEGRAM.bat。
+安裝檢查：GitHub 使用 installer\VERIFY_ALL.bat；桌面包使用 VERIFY_ALL.bat。
+以下未加 installer 路徑的安裝指令是桌面包名稱，GitHub 使用者請依上表替換。
+%USERPROFILE% 代表目前登入的 Windows 使用者資料夾，可貼到檔案總管網址列開啟。
+公開版本不包含 Telegram Bot Token、Chat ID、攝影機帳密或私人錄影片段。
+
+一、兩個資料夾的用途
+
+桌面安裝包：
+%USERPROFILE%\Desktop\SuperLive_AI_Universal_OneClick_Installer_WithTelegram
+這是安裝及更新用的來源，內含安裝工具與 baseline 程式碼。
+
+安裝後的執行位置：
+%USERPROFILE%\Downloads\SuperLive_AI
+執行 INSTALL_ALL.bat 後會建立／更新這個資料夾，放入程式、Python 環境、設定和啟停工具。
+換到其他 Windows 帳號時，位置是該帳號的 %USERPROFILE%\Downloads\SuperLive_AI。
+日常使用請從安裝後的資料夾啟動；桌面安裝包保留供重裝、更新使用。
+
+二、第一次安裝
+
+1. 開啟桌面的安裝包資料夾，執行 INSTALL_ALL.bat，依畫面提示完成安裝。
+   安裝需要網路下載相依套件及模型，請等到完成，不要中途關閉。
+2. 準備 MuMu 或逍遙模擬器（MEmu），在模擬器裡安裝 SuperLive、登入帳號，開啟要監控的攝影機即時畫面。
+   安裝包不會代替你登入 SuperLive，也不會自動完成模擬器設定。
+   若已使用逍遙，安裝器詢問是否開啟 MuMu 官網時可選 N。
+3. 確認 Telegram 設定。GitHub 公開版本不附憑證，首次使用須自行設定；既有安裝會保留本機設定。
+   要更換 Bot 或收件人，執行安裝包中的 SET_TELEGRAM.bat，依提示完成。
+   安裝／設定流程可能傳送測試訊息，請確認 Telegram 有收到。
+4. 執行 VERIFY_ALL.bat 檢查安裝。
+   此桌面包部分檢查提示仍使用 MuMu 名稱，不能只憑這個檢查判定逍遙擷取成功；仍需確認實際預覽及錄影片段。
+5. 開啟 %USERPROFILE%\Downloads\SuperLive_AI，執行 Start_AI_Monitor.bat。
+6. 等預覽出現正確攝影機畫面後，設定多邊形區域，實際走入區域測試。
+
+三、已有安裝時更新
+
+執行桌面安裝包中的 UPDATE_EVENT_RECORDING.bat。
+更新器會先備份及停止程式，部署新版程式，保留既有 Telegram、區域和儲存設定。
+更新完成後維持停止；確認模擬器即時畫面正常，再執行安裝目錄中的 Start_AI_Monitor.bat。
+不需要每次使用都重新安裝，也不會新增 Windows 開機自動啟動。
+
+四、每天啟動與停止
+
+啟動：%USERPROFILE%\Downloads\SuperLive_AI\Start_AI_Monitor.bat
+停止：%USERPROFILE%\Downloads\SuperLive_AI\Stop_AI_Monitor.bat
+也可在預覽視窗按 Q 或「停止」。手動停止會結束目前片段，可能留下不足兩分鐘的影片。
+
+Windows 需保持登入、電腦保持開機及清醒。模擬器的攝影機畫面應保持可見，不要最小化或用其他視窗遮住。
+請只開啟一個要監看的模擬器視窗，避免自動選到其他視窗。
+預覽與錄影會等比例縮放，多餘空間補邊，避免畫面拉伸；不會把低解析度來源變成真正高解析度。
+切換模擬器、攝影機、橫直向或攝影機畫面配置後，請重新選取區域。
+
+五、設定多邊形偵測區域
+
+1. 點預覽下方「R 設定區域」，或先點預覽視窗再按 R。
+2. 沿要監看的邊界依序點選至少三個不同頂點。
+3. 右鍵或 Backspace 撤銷最後一點。
+4. 按 Enter／儲存，自動封閉並保存多邊形。
+5. Esc／取消保留原設定；C／全畫面清除區域限制。
+
+可使用凹形多邊形，但邊線不可交叉，必須有面積。
+人員辨識框與多邊形有面積重疊才計入；只碰邊界不算。
+未設定多邊形時，偵測完整攝影機內容。設定會保留至下次啟動。
+Esc 在選取區域時是取消；不在選取模式時會停止監控。
+
+六、錄影與 Telegram 規則
+
+• 區域內首次出現人員或偵測到再次移動時，開始錄影。
+• 正常每段最短兩分鐘、最長五分鐘；錄影期間繼續偵測。
+• 每段前兩分鐘不自動切段，也不啟動 Telegram 影片傳送；舊影片與重試同樣等待。
+• 滿兩分鐘、未滿五分鐘時有人移動，立即結束舊片段並開始新片段。
+  新片段重新計算兩分鐘靜默期。
+• 連續兩分鐘沒有偵測到人員移動，就停止該片段並繼續偵測。
+  沒有人與站著不動都算無移動；再次移動或新人出現才重新觸發。
+• 單段達五分鐘上限就結束，後續依活動偵測觸發。
+• 不傳送錄影開始照片；開始時保留本機快照、紀錄及 Windows 通知。
+• 完成的影片排入背景傳送佇列；連續開始新片可能使舊片持續等待靜默期結束。
+• 已在靜默期開始前送出的網路請求無法撤回，可能稍後才抵達 Telegram。
+• 每日 CSV 是靜默規則的例外，晚上 11 點照常傳送。
+
+手動停止或擷取故障可能產生不足兩分鐘的片段，不會補畫面湊時長。
+區域選取或擷取失敗時，無移動觀察區間會重設。
+移動判斷依人員辨識框的位置、大小變化；請用實際場景確認效果。
+
+七、每日晚上 11 點 CSV 報表
+
+時間：台灣時間每天 23:00。
+範圍：當天 00:00（含）至 23:00（不含）的錄影觸發紀錄。
+內容：每次初次觸發及移動換片的紀錄，不是每一個偵測影格。
+
+CSV 存在當天影片資料夾，同時傳送 Telegram；沒有事件時也會產生只有欄位標題的報表。
+當晚 23:00～24:00 的事件不納入此每日報表，也不補送午夜版本。
+報表不受影片前兩分鐘靜默限制。失敗會保留待傳工作，恢復網路或重啟後重試。
+晚上 11 點準時產生與傳送，需電腦開機、程式運作且網路正常；關機期間不會持續監控。
+
+八、檔案位置與畫質
+
+預設影片根目錄：C:\SuperLive_Recordings
+影片及報表依日期存放，例如：
+C:\SuperLive_Recordings\2026-10-19\
+CSV 名稱範例：SuperLive_Triggers_2026-10-19_2300.csv
+若修改過錄影根目錄，以 config\recording_config.json 的 record_root 為準。
+
+本機錄影使用攝影機擷取尺寸、H.264 CRF 18，預設 10 FPS。
+錄影片段保留完整攝影機內容，不會裁成多邊形，也不含監控程式底部按鈕。
+Telegram 優先傳送完整解析度的壓縮副本；過大才進一步壓縮，本機原片保留。
+
+安裝目錄下：
+config\notification_policy.json：偵測與區域設定。
+config\recording_config.json：錄影儲存等設定。
+config\telegram.env：Telegram 本機設定，請勿公開。
+events：觸發快照及本機事件紀錄。
+logs\Stage5C：錄影程式紀錄。
+runtime：執行狀態與待處理工作，請勿在運作中任意修改。
+
+錄影磁碟總使用率達 80% 時，會開始刪除符合條件的最舊已關閉影片，降至 78% 停止。
+目前錄影與待傳工作保護中的影片不會被這項清理刪除。重要影片請另行備份。
+
+九、常見問題
+
+找不到畫面／畫面黑色：
+確認 MuMu 或逍遙已開啟正確攝影機畫面，沒有最小化、遮住、鎖定 Windows 或休眠。
+逍遙支援已加入，但此版本尚未完成實際攝影機畫面的端到端驗證。
+
+快捷鍵沒反應：
+先點預覽視窗取得焦點，或直接點底部按鈕。
+
+人還在畫面裡，卻不重新錄影：
+站著不動不會再次觸發；等待再次移動或新人進入。
+
+影片錄完但 Telegram 還沒收到：
+確認目前是否仍在新片的前兩分鐘靜默期，並檢查網路及 Telegram 設定。
+
+晚上 11 點沒收到 CSV：
+確認電腦和程式持續運作、網路正常及 Telegram 設定有效；查看錄影日誌是否有待重試工作。
+
+更新後沒有自動啟動：
+這是預期行為。開好即時畫面後，手動執行 Start_AI_Monitor.bat。
+
+十、快速操作順序
+
+首次：INSTALL_ALL.bat → 模擬器開啟 SuperLive 即時畫面 → 確認 Telegram → VERIFY_ALL.bat → Start_AI_Monitor.bat → 設定多邊形。
+平常：開啟即時畫面 → Start_AI_Monitor.bat。
+更新：UPDATE_EVENT_RECORDING.bat → 確認即時畫面 → Start_AI_Monitor.bat。
+停止：Stop_AI_Monitor.bat。

@@ -155,3 +155,6 @@ python .\scripts\security_scan.py .
 支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
 
 MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.
+
+
+[公開版使用說明（繁體中文純文字）](docs/使用說明.txt)
