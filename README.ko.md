@@ -4,8 +4,8 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">다각형으로 영역을 선택하고, 사람의 활동을 녹화해 Telegram으로 받아보세요.</p>
+<h1 align="center">감시 카메라 화면 캡처 기반 사람 움직임 감지</h1>
+<p align="center">SuperLive AI Monitor · MuMu 및 MEmu 안드로이드 에뮬레이터 지원</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">

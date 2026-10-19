@@ -4,8 +4,8 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">选好多边形，记录人员活动，通过 Telegram 接收事件视频。</p>
+<h1 align="center">截取监控画面进行人物移动检测</h1>
+<p align="center">SuperLive AI Monitor · 支持 MuMu 与逍遥（MEmu）安卓模拟器</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">

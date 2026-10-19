@@ -4,8 +4,8 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">Choisissez un polygone. Enregistrez l’activité des personnes. Recevez les vidéos sur Telegram.</p>
+<h1 align="center">Détection des mouvements de personnes par capture de vidéosurveillance</h1>
+<p align="center">SuperLive AI Monitor · Compatible avec les émulateurs Android MuMu et MEmu</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>
 <p align="center"><a href="#quick-start">Démarrage rapide</a> · <a href="#workflow">Fonctionnement</a> · <a href="#features">Fonctions</a> · <a href="#demo">Démonstration</a> · <a href="#faq">Questions fréquentes</a> · <a href="#documentation">Documentation</a></p>
 

@@ -3,8 +3,8 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <strong>Português (Brasil)</strong> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">Selecione um polígono, grave a atividade de pessoas e receba os vídeos no Telegram.</p>
+<h1 align="center">Detecção de movimento de pessoas por captura de câmeras de vigilância</h1>
+<p align="center">SuperLive AI Monitor · Compatível com os emuladores Android MuMu e MEmu</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">

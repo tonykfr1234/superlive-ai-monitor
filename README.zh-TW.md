@@ -4,8 +4,8 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">選好多邊形，錄下人員活動，透過 Telegram 收到事件影片。</p>
+<h1 align="center">擷取監視器畫面進行人物移動偵測</h1>
+<p align="center">SuperLive AI Monitor · 支援 MuMu 與逍遙（MEmu）安卓模擬器</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">
@@ -23,16 +23,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 
 新版圖示與高畫質錄影：本機保留擷取原尺寸，以 H.264 CRF 18 錄製；Telegram 優先使用 CRF 20，只有超過傳送限制時才壓縮副本，本機原片不變。
 
-SuperLive AI Monitor 為 Windows 上 MuMu 裡的 SuperLive 即時畫面加上事件錄影。選出想監控的多邊形，YOLO 就會偵測範圍內的人員、錄製活動，並把完成的影片傳到 Telegram，不需要攝影機的 RTSP 網址。
+SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive 即時畫面加上事件錄影。選出想監控的多邊形，YOLO 就會偵測範圍內的人員、錄製活動，並把完成的影片傳到 Telegram，不需要攝影機的 RTSP 網址。
 
-本專案為非官方社群專案，與 SuperLive／MuMu 原廠無隸屬關係。
+本專案為非官方社群專案，與 SuperLive／MuMu／逍遙原廠無隸屬關係。
 
 12 種 README 語言是文件翻譯，程式預覽介面目前使用繁體中文。
 
 <a id="quick-start"></a>
 ## 快速開始
 
-1. 安裝 MuMu 與 SuperLive，登入並開啟要監控的攝影機即時畫面，保持 Windows 使用者登入。
+1. 安裝 MuMu 或逍遙（MEmu），再安裝 SuperLive，登入並開啟要監控的攝影機即時畫面，保持 Windows 使用者登入。
 2. Clone／下載本 Repo，執行 `installer\INSTALL_FROM_REPO.bat` 或上方 PowerShell 指令。
 3. 執行 `installer\SET_TELEGRAM.bat`，在本機設定自己的 Bot 與 Chat；儲存庫不附憑證。
 4. 保持即時畫面開啟，執行 `installer\VERIFY_ALL.bat`。

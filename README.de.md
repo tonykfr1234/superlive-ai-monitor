@@ -4,8 +4,8 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">Bereich als Polygon auswählen. Personenaktivität aufzeichnen. Ereignisvideos per Telegram erhalten.</p>
+<h1 align="center">Personenbewegung in erfassten Überwachungskamerabildern erkennen</h1>
+<p align="center">SuperLive AI Monitor · Unterstützt die Android-Emulatoren MuMu und MEmu</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>
 <p align="center"><a href="#quick-start">Schnellstart</a> · <a href="#workflow">Ablauf</a> · <a href="#features">Funktionen</a> · <a href="#demo">Demo</a> · <a href="#faq">FAQ</a> · <a href="#documentation">Dokumentation</a></p>
 

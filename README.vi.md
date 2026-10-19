@@ -3,8 +3,8 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <strong>Tiếng Việt</strong> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">Chọn vùng đa giác, ghi lại hoạt động của người và nhận video qua Telegram.</p>
+<h1 align="center">Chụp màn hình camera giám sát để phát hiện chuyển động của người</h1>
+<p align="center">SuperLive AI Monitor · Hỗ trợ trình giả lập Android MuMu và MEmu</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">

@@ -4,8 +4,8 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">SuperLive AI Monitor</h1>
-<p align="center">Choose a polygon. Record person activity. Receive the event on Telegram.</p>
+<h1 align="center">Camera Screen Capture for Person Movement Detection</h1>
+<p align="center">SuperLive AI Monitor · Supports MuMu and MEmu Android emulators</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">
@@ -23,16 +23,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 
 New application icon and high-quality recording: full capture resolution, H.264 CRF 18 locally; Telegram uses CRF 20 first and compresses only oversized delivery copies.
 
-SuperLive AI Monitor adds event recording to a visible SuperLive camera feed in MuMu on Windows. Select a polygon around the area you care about; YOLO detects people there, records their activity and delivers completed videos through Telegram. No camera RTSP URL is required.
+SuperLive AI Monitor adds event recording to a visible SuperLive camera feed in MuMu or MEmu on Windows. Select a polygon around the area you care about; YOLO detects people there, records their activity and delivers completed videos through Telegram. No camera RTSP URL is required.
 
-This is an unofficial community project, not affiliated with the SuperLive or MuMu vendors.
+This is an unofficial community project, not affiliated with the SuperLive, MuMu or MEmu vendors.
 
 The 12 README languages translate the documentation. The application preview currently uses Traditional Chinese.
 
 <a id="quick-start"></a>
 ## Quick start
 
-1. Install MuMu and SuperLive, sign in, and open the intended live camera view. Keep the Windows session logged in.
+1. Install MuMu or MEmu, then SuperLive, sign in, and open the intended live camera view. Keep the Windows session logged in.
 2. Clone/download this repository. Run `installer\INSTALL_FROM_REPO.bat` or the PowerShell command above.
 3. Run `installer\SET_TELEGRAM.bat` to configure your own bot and chat locally. The repository includes no credentials.
 4. Run `installer\VERIFY_ALL.bat` with the live view open.
