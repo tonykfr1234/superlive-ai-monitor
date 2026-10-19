@@ -200,8 +200,8 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
     chinese = ui_font(controller.layout.font_size)[1]
     names = {"IDLE": "偵測中", "RECORDING": "錄影中", "STARTING": "準備錄影",
              "PAUSED": "錄影暫停", "STOPPED": "已停止", "WAITING_FOR_RECORDER": "等待錄影程式",
-             "WAITING_FOR_MUMU": "等待 MuMu 畫面", "CAPTURE_RETRY": "重新擷取畫面",
-             "FINDING_CAMERA_AREA": "正在辨識 MuMu 影像範圍"}
+             "WAITING_FOR_MUMU": "等待 MuMu／逍遙畫面", "CAPTURE_RETRY": "重新擷取畫面",
+             "FINDING_CAMERA_AREA": "正在辨識模擬器影像範圍"}
     title = names.get(status, status) if chinese else status.replace("_", " ")
     if status == "RECORDING" and elapsed is not None:
         seconds = max(0, min(300, int(elapsed)))

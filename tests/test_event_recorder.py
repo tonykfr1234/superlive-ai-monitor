@@ -79,9 +79,10 @@ class RecorderTests(unittest.TestCase):
             recorder.cv2 = cv2
             frames = [np.zeros((120, 160, 3), dtype=np.uint8), np.zeros((160, 120, 3), dtype=np.uint8)]
         else:
+            import numpy as np
             recorder.cv2 = SimpleNamespace(VideoWriter=writer_factory, VideoWriter_fourcc=lambda *x: 0,
-                resize=lambda frame, size: SimpleNamespace(shape=(size[1], size[0], 3)))
-            frames = [SimpleNamespace(shape=(120, 160, 3)), SimpleNamespace(shape=(160, 120, 3))]
+                resize=lambda frame, size: np.zeros((size[1], size[0], 3), dtype=np.uint8))
+            frames = [np.zeros((120, 160, 3), dtype=np.uint8), np.zeros((160, 120, 3), dtype=np.uint8)]
         count = [0]
         def capture(*_):
             # Deliberately slower than 10 FPS, alternating dimensions.
@@ -239,7 +240,7 @@ class RecorderTests(unittest.TestCase):
                 self.assertFalse(telegram_send_allowed(self.root, now=clock.now))
             original_enqueue(path, request, duration, complete)
         recorder.uploader.enqueue = enqueue
-        dependencies = {"cv2": recorder.cv2, "mss": recorder.mss, "numpy": SimpleNamespace(),
+        dependencies = {"cv2": recorder.cv2, "mss": recorder.mss, "numpy": __import__("numpy"),
                         "psutil": SimpleNamespace(pid_exists=lambda _: False),
                         "win32gui": SimpleNamespace(), "win32process": SimpleNamespace()}
         with patch.dict(sys.modules, dependencies), \
@@ -338,7 +339,7 @@ class RecorderTests(unittest.TestCase):
                     recorder.stop.touch()  # End only the synthetic test harness.
         recorder.publish = publish
         dependencies = {
-            "cv2": recorder.cv2, "mss": recorder.mss, "numpy": SimpleNamespace(),
+            "cv2": recorder.cv2, "mss": recorder.mss, "numpy": __import__("numpy"),
             "psutil": SimpleNamespace(pid_exists=lambda _: False),
             "win32gui": SimpleNamespace(), "win32process": SimpleNamespace(),
         }

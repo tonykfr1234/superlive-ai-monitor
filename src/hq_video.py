@@ -37,3 +37,18 @@ class HighQualityWriter:
             if self.process.poll() is None:
                 self.process.kill()
                 self.process.wait(timeout=3)
+
+
+def fit_frame(frame, size, cv2):
+    """Fit a changing capture into the fixed encoder size without stretching."""
+    import numpy as np
+    width, height = size
+    source_height, source_width = frame.shape[:2]
+    scale = min(width / source_width, height / source_height)
+    fitted = (max(1, min(width, round(source_width * scale))),
+              max(1, min(height, round(source_height * scale))))
+    resized = cv2.resize(frame, fitted)
+    canvas = np.zeros((height, width, 3), dtype=frame.dtype)
+    x, y = (width-fitted[0])//2, (height-fitted[1])//2
+    canvas[y:y+fitted[1], x:x+fitted[0]] = resized
+    return canvas

@@ -11,8 +11,8 @@ from pathlib import Path
 
 from record_protocol import atomic_json, read_json, valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS
 from telegram_video import TelegramVideoQueue
-from capture_region import capture_frame, CaptureRegionResolver
-from hq_video import HighQualityWriter
+from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver
+from hq_video import HighQualityWriter, fit_frame
 from daily_report import DailyReports, TAIPEI
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
@@ -163,23 +163,9 @@ class Recorder:
         return self.disk_percent() < self.rotate_start
 
     def find_window(self):
-        choices = []
-        def callback(hwnd, _):
-            try:
-                if not self.win32gui.IsWindowVisible(hwnd):
-                    return
-                _, pid = self.win32process.GetWindowThreadProcessId(hwnd)
-                if self.psutil.Process(pid).name().lower() != "mumunxdevice.exe":
-                    return
-                left, top, right, bottom = self.win32gui.GetWindowRect(hwnd)
-                if right - left >= 200 and bottom - top >= 300:
-                    choices.append(((right-left)*(bottom-top), hwnd))
-            except Exception:
-                pass
-        self.win32gui.EnumWindows(callback, None)
-        if not choices:
-            raise RuntimeError("MuMu window unavailable")
-        hwnd = max(choices)[1]
+        hwnd = find_emulator_window(self.win32gui, self.win32process, self.psutil)
+        if hwnd is None:
+            raise RuntimeError("MuMu / MEmu window unavailable")
         if self.win32gui.IsIconic(hwnd):
             self.win32gui.ShowWindow(hwnd, 9)
         return hwnd
@@ -202,7 +188,7 @@ class Recorder:
             frame = self.capture(sct, hwnd)
             height, width = frame.shape[:2]
             size = (width // 2 * 2, height // 2 * 2)
-            frame = self.cv2.resize(frame, size)
+            frame = fit_frame(frame, size, self.cv2)
             now = datetime.fromtimestamp(request.get("created_at", time.time()), TAIPEI)
             day_dir = self.record_root / now.strftime("%Y-%m-%d")
             day_dir.mkdir(parents=True, exist_ok=True)
@@ -249,7 +235,7 @@ class Recorder:
                 if time.monotonic() < next_slot:
                     continue
                 try:
-                    frame = self.cv2.resize(self.capture(sct, hwnd), size)
+                    frame = fit_frame(self.capture(sct, hwnd), size, self.cv2)
                     failures = 0
                 except Exception as error:
                     failures += 1

@@ -148,3 +148,10 @@ python .\scripts\security_scan.py .
 ## Daily CSV · 23:00 Asia/Taipei
 
 每天 23:00（台灣時間）傳送當日 00:00（含）至 23:00（不含）的觸發紀錄 CSV，並與影片一起儲存。每日 CSV 不受錄影前兩分鐘靜默限制，23:00 照常傳送。23:00 後的事件不列入，不再補送午夜完整版。零觸發也會產生報表，斷線或未開機則於恢復後補送。
+
+
+### 2026-10-19 · MuMu / MEmu（逍遙模擬器）
+
+支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
+
+MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.

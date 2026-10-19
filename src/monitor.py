@@ -26,7 +26,7 @@ from record_protocol import (atomic_json, read_json, recorder_ready, recording_a
 from person_activity import PersonActivityTracker, InactivityTimer
 from region_policy import people_in_region, validate_roi, rebase_roi
 from preview_ui import PreviewController, PreviewLayout, render_preview
-from capture_region import capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
+from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
 from app_branding import set_app_identity, apply_window_icon
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
@@ -136,21 +136,8 @@ def notify_detection(image, people, roi, request_id, credentials):
 
 
 def find_mumu():
-    candidates = []
-    def callback(hwnd, _):
-        if not win32gui.IsWindowVisible(hwnd):
-            return
-        try:
-            _, pid = win32process.GetWindowThreadProcessId(hwnd)
-            if psutil.Process(pid).name().lower() != "mumunxdevice.exe":
-                return
-            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-            if right - left >= 200 and bottom - top >= 300:
-                candidates.append((hwnd, (right - left) * (bottom - top)))
-        except Exception:
-            pass
-    win32gui.EnumWindows(callback, None)
-    return max(candidates, key=lambda item: item[1])[0] if candidates else None
+    # Compatibility name retained for existing callers.
+    return find_emulator_window(win32gui, win32process, psutil)
 
 
 def new_mss():
@@ -335,7 +322,7 @@ def main():
     message = None
     message_until = 0.0
     set_app_identity()
-    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL | cv2.WINDOW_FREERATIO)
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     apply_window_icon(WINDOW_NAME)
     cv2.resizeWindow(WINDOW_NAME, 960, 720)
 

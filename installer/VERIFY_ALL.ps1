@@ -64,15 +64,15 @@ if(Test-Path "$Root\config\recording_config.json"){
   Write-Host "ROTATION_STOP=$($R.rotation_stop_used_percent)"
 }
 
-Write-Host "`n=== MuMu / Capture ==="
-$M=Get-Process -ErrorAction SilentlyContinue|Where-Object{$_.ProcessName -match 'MuMu|Nemu'}
+Write-Host "`n=== MuMu / MEmu / Capture ==="
+$M=Get-Process -ErrorAction SilentlyContinue|Where-Object{$_.ProcessName -match 'MuMu|Nemu|MEmu'}
 if($M){
   $M|Select ProcessName,Id,Path|Format-Table -AutoSize
   Write-Host 'MUMU_PROCESS=PASS'
   if(Test-Path $Py){& $Py "$Kit\vm_capture_probe.py"}
 }else{
   Write-Host 'MUMU_PROCESS=NOT_RUNNING'
-  Write-Host 'ACTION=Install/start MuMu, login SuperLive, open live camera, rerun VERIFY_ALL.bat'
+  Write-Host 'ACTION=Install/start MuMu or MEmu, login SuperLive, open live camera, rerun VERIFY_ALL.bat'
 }
 
 Write-Host "`n=== Compile ==="

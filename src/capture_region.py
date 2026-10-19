@@ -214,6 +214,14 @@ class CaptureRegionResolver:
 def capture_frame(sct, hwnd, win32gui, cv2, np, resolver=None):
     """Return camera BGR pixels plus absolute source/content rectangles."""
     parent = _client_rect(hwnd, win32gui)
+    render = memu_render_rect(hwnd, win32gui)
+    if render is not None:
+        left, top, right, bottom = render
+        shot = sct.grab(dict(left=left, top=top, width=right-left, height=bottom-top))
+        frame = cv2.cvtColor(np.array(shot), cv2.COLOR_BGRA2BGR)
+        if frame.shape[:2] != (bottom-top, right-left):
+            raise CaptureRegionUnavailable("MEmu capture dimensions changed during capture")
+        return frame, CaptureInfo(parent, render, "memu_render_child")
     left, top, right, bottom = parent
     if right-left < 160 or bottom-top < 100:
         raise CaptureRegionUnavailable("MuMu client area is too small")
@@ -224,3 +232,41 @@ def capture_frame(sct, hwnd, win32gui, cv2, np, resolver=None):
     info = (resolver or CaptureRegionResolver()).resolve(frame, hwnd, parent, win32gui, np)
     removed = info.content_rect[1]-parent[1]
     return frame[removed:, :, :].copy(), info
+
+
+def find_emulator_window(gui, processes, psutil):
+    """Select the largest supported visible window, with stable HWND tie-break."""
+    choices = []
+    def candidate(hwnd, _):
+        try:
+            if not gui.IsWindowVisible(hwnd):
+                return
+            _, pid = processes.GetWindowThreadProcessId(hwnd)
+            if psutil.Process(pid).name().lower() not in ("mumunxdevice.exe", "memu.exe"):
+                return
+            left, top, right, bottom = gui.GetWindowRect(hwnd)
+            if gui.IsIconic(hwnd) or (right-left >= 200 and bottom-top >= 180):
+                choices.append(((right-left)*(bottom-top), hwnd))
+        except Exception:
+            pass
+    gui.EnumWindows(candidate, None)
+    return max(choices)[1] if choices else None
+
+
+def memu_render_rect(hwnd, gui):
+    """MEmu's named render widget excludes its title bar and side controls."""
+    choices = []
+    def candidate(child, _):
+        try:
+            if gui.IsWindowVisible(child) and gui.GetWindowText(child) == "RenderWindowWindow":
+                rect = _client_rect(child, gui)
+                width, height = rect[2]-rect[0], rect[3]-rect[1]
+                if width >= 160 and height >= 100:
+                    choices.append((width*height, rect))
+        except Exception:
+            pass
+    try:
+        gui.EnumChildWindows(hwnd, candidate, None)
+    except Exception:
+        pass
+    return max(choices)[1] if choices else None

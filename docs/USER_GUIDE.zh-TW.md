@@ -63,3 +63,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 - **VM 裡推論慢：** 沒有真正 NVIDIA CUDA 時使用 CPU 屬正常；VMware 3D 加速不提供 CUDA 運算。
 - **Telegram 失敗：** 檢查本機設定與網路；靜默期規則允許傳送時，待傳影片會重試。
 - **Recorder 重啟：** 查看安裝目錄的 `logs\Stage5C`，不要把紀錄或影片提交到 Git。
+
+
+### 2026-10-19 · MuMu / MEmu（逍遙模擬器）
+
+支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
+
+MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.
