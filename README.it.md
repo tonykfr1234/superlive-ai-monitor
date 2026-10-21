@@ -17,6 +17,8 @@ SuperLive AI Monitor aggiunge la registrazione degli eventi all’immagine di Su
 
 Per impostazione predefinita sono espansi solo i risultati confermati che corrispondono all’elenco privato con al massimo due modifiche di carattere; gli altri restano in una sezione richiudibile. Fai clic sul nome del video per selezionare l’originale in Esplora file di Windows.
 
+Stato OCR, qualità e avanzamento del gruppo sono accanto ai comandi inferiori. Per impostazione predefinita la telecamera usa tutta la larghezza; “車牌紀錄” apre o chiude la cronologia sotto l’immagine.
+
 <a id="quick-start"></a>
 ## Avvio rapido
 

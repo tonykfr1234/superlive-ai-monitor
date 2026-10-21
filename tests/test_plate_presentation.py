@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from preview_ui import (PreviewController, PreviewLayout, plate_rows, render_preview,
-                        render_plate_panel, status_lines, ui_font, wrap_panel_text)
+                        render_plate_panel, status_lines, ui_font, wrap_panel_text, plate_footer_text)
 from record_protocol import atomic_json, read_json
 import telegram_video
 
@@ -35,7 +35,7 @@ class PlatePreviewTests(unittest.TestCase):
 
     def test_panel_keeps_video_proportional_and_excludes_mouse_roi(self):
         for size in ((1100, 760), (799, 480), (640, 480), (320, 300)):
-            layout = PreviewLayout.create(1920, 1080, *size, show_plates=True)
+            layout = PreviewLayout.create(1920, 1080, *size, show_plates=True, plates_open=True)
             self.assertAlmostEqual(layout.video.width/layout.video.height, 1920/1080, delta=.04)
             self.assertLessEqual(layout.plates.y+layout.plates.height, layout.footer.y)
             self.assertIsNone(layout.image_point(layout.plates.x+5, layout.plates.y+5))
@@ -54,7 +54,7 @@ class PlatePreviewTests(unittest.TestCase):
     def test_model_is_visible_and_render_preserves_evidence(self):
         import numpy as np
         controller = PreviewController()
-        controller.layout = PreviewLayout.create(640, 360, show_plates=True)
+        controller.layout = PreviewLayout.create(640, 360, show_plates=True, plates_open=True)
         controller.plate_events = [event()]
         controller.plate_status = "Ready"
         self.assertIn("YOLO11n", " ".join(status_lines(controller, "IDLE", 1, 25)))
@@ -68,15 +68,17 @@ class PlatePreviewTests(unittest.TestCase):
         for size in ((1100, 760), (800, 480), (799, 480), (640, 480), (320, 300)):
             with self.subTest(size=size):
                 controller = PreviewController()
-                controller.layout = PreviewLayout.create(1600, 900, *size, show_plates=True)
                 controller.plate_status = "ERROR | ADB 1600x900 | 最高（已確認）"
                 controller.plate_error = "辨識程序未回應，正在重新啟動；全畫面人物與車牌持續監看。"
+                controller.layout = PreviewLayout.create(1600, 900, *size, show_plates=True, plates_open=True,
+                                                         plate_status_text=plate_footer_text(controller))
                 controller.plate_events = [dict(event(i, 1000+i), text="ZX%04d" % i,
                                                  matched="AB%04d" % i) for i in range(5)]
                 output = self.panel_text(controller)
-                all_text = "".join(text for _, text, _ in output)
+                all_text = "".join(controller.layout.plate_status_lines)
                 for part in ("車牌辨識錯誤", "ADB 1600x900", "最高（已確認）", controller.plate_error):
                     self.assertIn(part, all_text)
+                    self.assertNotIn(part, "".join(text for _, text, _ in output))
                 panel = controller.layout.plates
                 pages = [output]
                 while controller.plate_scroll < controller.plate_scroll_max:
@@ -121,7 +123,7 @@ class PlatePreviewTests(unittest.TestCase):
 
     def test_wheel_page_keys_and_scrollbar_reach_all_history_without_editing_roi(self):
         controller = PreviewController()
-        controller.layout = PreviewLayout.create(1600, 900, 800, 480, show_plates=True)
+        controller.layout = PreviewLayout.create(1600, 900, 800, 480, show_plates=True, plates_open=True)
         controller.plate_events = [dict(event(i, 1000+i), text="ZX%04d" % i) for i in range(60)]
         controller.command("select")
         self.panel_text(controller)
@@ -155,13 +157,13 @@ class PlatePreviewTests(unittest.TestCase):
 
     def test_history_update_and_resize_clamp_scroll_and_refresh_cache(self):
         controller = PreviewController()
-        controller.layout = PreviewLayout.create(1600, 900, 800, 480, show_plates=True)
+        controller.layout = PreviewLayout.create(1600, 900, 800, 480, show_plates=True, plates_open=True)
         controller.plate_events = [event(i, 1000+i) for i in range(30)]
         self.panel_text(controller)
         controller.key("end")
         self.assertGreater(controller.plate_scroll, 0)
         controller.plate_events = [dict(event(), text="NEW123")]
-        controller.layout = PreviewLayout.create(1600, 900, 1100, 900, show_plates=True)
+        controller.layout = PreviewLayout.create(1600, 900, 1100, 900, show_plates=True, plates_open=True)
         text = "".join(text for _, text, _ in self.panel_text(controller))
         self.assertEqual(controller.plate_scroll, 0)
         self.assertIn("NEW123", text)
@@ -182,13 +184,13 @@ class PlatePreviewTests(unittest.TestCase):
 
     def test_footer_separates_person_and_vehicle_counts_including_selection(self):
         controller = PreviewController()
-        controller.layout = PreviewLayout.create(1600, 900, 1100, 760, show_plates=True)
+        controller.layout = PreviewLayout.create(1600, 900, 1100, 760, show_plates=True, plates_open=True)
         controller.object_counts = dict(person=2, car=1, motorcycle=2, bus=1, truck=1)
         with patch("preview_ui.ui_font", return_value=(None, True)):
             lines = status_lines(controller, "RECORDING", 7, 40, elapsed=60)
             self.assertIn("區域：人物 2／車輛 5", " ".join(lines))
             controller.command("select")
-            controller.layout = PreviewLayout.create(1600, 900, 320, 600, show_plates=True)
+            controller.layout = PreviewLayout.create(1600, 900, 320, 600, show_plates=True, plates_open=True)
             self.assertIn("區域：人物 2／車輛 5", " ".join(status_lines(controller, "IDLE", 7, 40)))
             self.assertIn("區域：人物 --／車輛 --", " ".join(status_lines(controller, "CAPTURE_RETRY", None, None)))
 

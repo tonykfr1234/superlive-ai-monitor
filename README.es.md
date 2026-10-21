@@ -17,6 +17,8 @@ Es un proyecto comunitario no oficial, sin relación con los proveedores de Supe
 
 Por defecto se muestran los resultados confirmados que coinciden con la lista privada con un máximo de dos ediciones de caracteres; los demás se conservan en una sección plegable. Haz clic en el nombre del vídeo para seleccionar el original en el Explorador de archivos de Windows.
 
+El estado del OCR, la calidad y el progreso del lote aparecen junto a los controles inferiores. La cámara usa todo el ancho por defecto; “車牌紀錄” abre o cierra el historial debajo de la imagen.
+
 <a id="quick-start"></a>
 ## Inicio rápido
 

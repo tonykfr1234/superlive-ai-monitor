@@ -17,6 +17,8 @@ Il s’agit d’un projet communautaire non officiel, sans affiliation avec les 
 
 Par défaut, seuls les résultats confirmés correspondant à la liste privée avec au plus deux modifications de caractères sont dépliés. Les autres restent dans une section repliable. Cliquez sur le nom du fichier vidéo pour sélectionner l’original dans l’Explorateur de fichiers Windows.
 
+L’état de l’OCR, la qualité et la progression du lot sont regroupés avec les commandes du bas. L’image utilise toute la largeur par défaut ; « 車牌紀錄 » ouvre ou ferme l’historique en dessous.
+
 <a id="quick-start"></a>
 ## Démarrage rapide
 

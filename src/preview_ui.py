@@ -1,7 +1,7 @@
 """One preview canvas with a bottom control bar and in-window ROI selection.
 
-Geometry and interaction have no OpenCV/Pillow dependency, so they can be tested
-without a camera or desktop. Rendering imports Pillow only when needed.
+Geometry and interaction can be tested without OpenCV, a camera, or a desktop.
+Text measurement and rendering import Pillow only when needed.
 """
 from dataclasses import dataclass
 from copy import deepcopy
@@ -39,48 +39,50 @@ class PreviewLayout:
     line_height: int
     line_count: int
     plates: object = None
+    plate_status_lines: tuple = ()
 
     @classmethod
-    def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False):
+    def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False,
+               plates_open=False, plate_status_text=""):
         width = max(320, int(width))
-        minimum_height = (600 if width < 800 else 480) if show_plates else 300
-        height = max(minimum_height, int(height))
         font_size = max(12, min(18, width // 52))
         line_height = font_size + 6
         button_height = font_size + 20
         line_count = 3 if width >= 640 else 4
-        button_rows = 1 if width >= 640 else 2
-        footer_height = max(130, 24 + line_height * line_count + (button_height + 6) * button_rows)
+        if show_plates:
+            rows = (("select", "full", "stop", "plates", "confirm", "cancel"),) if width >= 900 else (
+                ("select", "full", "stop"), ("plates", "confirm", "cancel"))
+        else:
+            rows = (("select", "full", "stop", "confirm", "cancel"),) if width >= 640 else (
+                ("select", "full", "stop"), ("confirm", "cancel"))
+        plate_lines = tuple(plate_footer_lines(plate_status_text, width, font_size)) if show_plates else ()
+        footer_height = max(130, 24 + line_height * (line_count+len(plate_lines))
+                            + (button_height+6)*len(rows))
+        minimum_height = max(600, footer_height+320) if show_plates and plates_open else max(300, footer_height+120)
+        height = max(minimum_height, int(height))
         image_height = height - footer_height
         image_width = width
         plates = None
-        if show_plates:
-            if width >= 800:
-                panel_width = min(360, max(280, width // 3))
-                image_width -= panel_width
-                plates = Rect(image_width, 0, panel_width, image_height)
-            else:
-                # Stacked layouts leave a readable viewport for scrollable
-                # capture status and the retained recognition history.
-                panel_height = min(20*(font_size+4)+24, image_height - 60)
-                plates = Rect(0, image_height-panel_height, width, panel_height)
-                image_height -= panel_height
+        if show_plates and plates_open:
+            # The opt-in history drawer takes its own space below the complete
+            # letterboxed camera image. It never masks camera pixels.
+            panel_height = min(max(200, height//3), 320, image_height-120)
+            plates = Rect(0, image_height-panel_height, width, panel_height)
+            image_height -= panel_height
         scale = min(image_width / max(1, frame_width), image_height / max(1, frame_height))
         video_width = max(1, int(frame_width * scale))
         video_height = max(1, int(frame_height * scale))
         video = Rect((image_width-video_width)//2, (image_height-video_height)//2, video_width, video_height)
         footer = Rect(0, height-footer_height, width, footer_height)
         margin, gap = 12, 8
-        top = footer.y + 12 + line_height * line_count
-        names = ("select", "full", "stop", "confirm", "cancel") if width >= 640 else ("select", "full", "stop")
-        button_width = (width-margin*2-gap*(len(names)-1))//len(names)
-        buttons = {name: Rect(margin + index*(button_width+gap), top, button_width, button_height)
-                   for index, name in enumerate(names)}
-        if width < 640:
-            second_width = (width-margin*2-gap)//2
-            for index, name in enumerate(("confirm", "cancel")):
-                buttons[name] = Rect(margin+index*(second_width+gap), top+button_height+6, second_width, button_height)
-        return cls(width, height, video, footer, buttons, font_size, line_height, line_count, plates)
+        top = footer.y + 12 + line_height * (line_count+len(plate_lines))
+        buttons = {}
+        for row, names in enumerate(rows):
+            button_width = (width-margin*2-gap*(len(names)-1))//len(names)
+            for index, name in enumerate(names):
+                buttons[name] = Rect(margin+index*(button_width+gap), top+row*(button_height+6),
+                                     button_width, button_height)
+        return cls(width, height, video, footer, buttons, font_size, line_height, line_count, plates, plate_lines)
 
     def button_at(self, x, y):
         return next((name for name, rect in self.buttons.items() if rect.contains(x, y)), None)
@@ -119,6 +121,8 @@ class PreviewController:
         self.pressed_button = None
         self.model_label = "YOLO11n"
         self.plate_events = []
+        self.plate_enabled = False
+        self.plate_panel_open = False
         self.plate_filter_targets = []
         self.plate_other_expanded = False
         self.plate_status = ""
@@ -151,6 +155,13 @@ class PreviewController:
         self.pressed_button = None
 
     def command(self, name):
+        if name == "plates" and self.layout is not None and "plates" in self.layout.buttons:
+            self.plate_panel_open = not self.plate_panel_open
+            self.plate_links, self.plate_group_hits = [], []
+            self.plate_scrollbar = self.plate_scroll_thumb = None
+            self._plate_hit_state = self._pressed_plate = None
+            self._plate_scroll_drag = False
+            return None
         if name == "select":
             self.selecting, self.draft, self.selection_error = True, [], None
             self.pressed_button = None
@@ -496,12 +507,35 @@ def plate_status_parts(controller, chinese=True):
     return parts, (("原因：" if chinese else "Reason: ") + error if error else "")
 
 
+def plate_footer_text(controller, chinese=True):
+    """Compact live health/source/progress text; history headings stay hidden."""
+    parts, error = plate_status_parts(controller, chinese)
+    text = " · ".join(part.strip() for value in parts for part in value.splitlines() if part.strip())
+    return text + ("\n"+error if error else "")
+
+
+@lru_cache(maxsize=128)
+def plate_footer_lines(text, width, font_size):
+    """Measure before layout so errors gain rows without covering controls."""
+    if not str(text).strip():
+        return ()
+    font = ui_font(font_size)[0]
+    class Measure:
+        def textbbox(self, position, value, font):
+            return font.getbbox(value)
+    return tuple(wrap_panel_text(Measure(), text, font, width-24))
+
+
 def render_plate_panel(draw, controller, font, chinese):
     panel = controller.layout.plates
     if panel is None:
+        controller.plate_links, controller.plate_group_hits = [], []
+        controller.plate_scrollbar = controller.plate_scroll_thumb = None
+        controller._plate_hit_state = controller._pressed_plate = None
+        controller._plate_scroll_drag = False
         return
     draw.rectangle(panel.bounds, fill=(15, 24, 35))
-    draw.line((panel.x, panel.y, panel.x, panel.y+panel.height), fill=(52, 93, 123), width=2)
+    draw.line((panel.x, panel.y, panel.x+panel.width, panel.y), fill=(52, 93, 123), width=2)
     size = controller.layout.font_size
     line = size+6
     text_width = panel.width-42
@@ -550,14 +584,7 @@ def render_plate_panel(draw, controller, font, chinese):
     top = y+8
     controller.plate_page_lines = max(1, (panel.y+panel.height-8-top)//line)
 
-    parts, error = plate_status_parts(controller, chinese)
-    entries = []
-    for part in parts:
-        entries.extend((text, colors["detail"], None) for text in wrap_panel_text(draw, part, font, text_width))
-    if error:
-        entries.extend((text, colors["error"], None) for text in wrap_panel_text(draw, error, font, text_width))
-    entries.append(("", colors["detail"], None))
-    entries.extend(row_lines)
+    entries = list(row_lines)
     if not record_count:
         empty = "尚無辨識紀錄" if chinese else "No recognition records yet"
         entries.extend((text, colors["detail"], None) for text in wrap_panel_text(draw, empty, font, text_width))
@@ -617,15 +644,22 @@ def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed
             text = text[:-2].rstrip("…") + "…"
         draw.text((12, layout.footer.y+8+index*layout.line_height), text, font=font,
                   fill=(106, 224, 251) if index == 0 else (224, 233, 242))
+    for index, text in enumerate(layout.plate_status_lines, start=layout.line_count):
+        draw.text((12, layout.footer.y+8+index*layout.line_height), text, font=font,
+                  fill=(255, 172, 141) if text.startswith(("原因：", "Reason:")) else (160, 179, 198))
     labels = ({"select": "R 設定區域", "full": "C 全畫面", "stop": "Q 停止",
-               "confirm": "Enter 儲存", "cancel": "Esc 取消"} if chinese else
+               "confirm": "Enter 儲存", "cancel": "Esc 取消",
+               "plates": "收起紀錄" if controller.plate_panel_open else "車牌紀錄"} if chinese else
               {"select": "R: Region", "full": "C: Full frame", "stop": "Q: Stop",
-               "confirm": "Enter: Save", "cancel": "Esc: Cancel"})
+               "confirm": "Enter: Save", "cancel": "Esc: Cancel",
+               "plates": "Hide plates" if controller.plate_panel_open else "Plate history"})
     for name, rect in layout.buttons.items():
         enabled = (name not in ("confirm", "cancel") or
                    (controller.selecting if name == "cancel" else controller.can_confirm))
         color = (36, 65, 88) if enabled else (30, 39, 51)
         if name == "select" and controller.selecting:
+            color = (25, 103, 119)
+        if name == "plates" and controller.plate_panel_open:
             color = (25, 103, 119)
         if name == "stop":
             color = (115, 49, 58)

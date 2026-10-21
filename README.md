@@ -97,6 +97,7 @@ These 36-second, silent demonstrations use the **actual preview renderer with a 
 - Telegram video captions and the daily CSV separate people, vehicles and vehicle types. A vehicle clip without a confirmed plate says “車牌未確認” (plate unconfirmed); confirmed records retain the actual OCR text, Taiwan time and any fuzzy allowlist match separately.
 - Completed recordings retain a history result even when no plate is confirmed. Batch replay of existing recordings updates local history without sending a flood of old Telegram alerts; replay records are labeled separately from live observations.
 - Confirmed matches to your private allowlist, within two edits, are expanded by default. Other results stay in a collapsible section. Click a video filename to select the original in Windows File Explorer.
+- Capture and OCR status sit beside the bottom controls. The camera uses the full width by default; click “車牌紀錄” to open or close the history drawer beneath it.
 - Plate detection scans the full image and overlapping tiles for small plates. The separate OCR worker recovers from exits, startup failures and stale heartbeats; recognition still depends on visible image detail.
 - Source resolution, quality, OCR status, errors and recognition history wrap within the preview panel. Use the mouse wheel, scrollbar or PageUp/PageDown to browse up to seven days; scans without a recognized plate, unconfirmed candidates and failures remain visible with their recording filename. [Details and setup](docs/PLATE_AND_ADB.zh-TW.md) · [Changelog](CHANGELOG.md).
 

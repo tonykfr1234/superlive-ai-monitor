@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from preview_ui import PreviewController, PreviewLayout, render_preview, status_lines
+from preview_ui import PreviewController, PreviewLayout, render_preview, status_lines, plate_footer_text, ui_font
 
 
 class PreviewLayoutTests(unittest.TestCase):
@@ -245,6 +245,115 @@ class PreviewRenderingTests(unittest.TestCase):
             x, y = controller.layout.canvas_point(point)
             self.assertTrue(np.array_equal(preview[y, x], (80, 208, 255)))
         self.assertTrue(np.array_equal(frame, original))
+
+
+class PlateDrawerLayoutTests(unittest.TestCase):
+    def controller(self):
+        controller = PreviewController([[.1, .1], [.8, .1], [.1, .8]])
+        controller.plate_enabled = True
+        controller.plate_status = "READY | ADB 1600x900 | 最高（已確認）"
+        controller.plate_scan_status = "最近掃描：12:34:56\n原片批次：已完成 45／98 · 確認 3 · 錯誤 0"
+        controller.object_counts = dict(person=1, car=1)
+        controller.plate_events = [dict(id="synthetic", timestamp=1000, confirmed=True, text="AB1234",
+                                        matched="AB1234", distance=0, source_video="synthetic.mp4")]
+        return controller
+
+    def layout(self, controller, size):
+        controller.layout = PreviewLayout.create(1600, 900, *size, show_plates=controller.plate_enabled,
+            plates_open=controller.plate_panel_open, plate_status_text=plate_footer_text(controller))
+        return controller.layout
+
+    def click_history(self, controller):
+        rect = controller.layout.buttons["plates"]
+        self.assertIsNone(controller.mouse("down", rect.x+1, rect.y+1))
+        self.assertIsNone(controller.mouse("up", rect.x+1, rect.y+1))
+
+    def test_closed_default_uses_full_camera_width_and_only_footer_status(self):
+        import numpy as np
+        for size in ((1100, 760), (800, 600), (640, 480), (320, 300)):
+            with self.subTest(size=size):
+                controller = self.controller()
+                self.assertFalse(controller.plate_panel_open)
+                layout = self.layout(controller, size)
+                self.assertIsNone(layout.plates)
+                self.assertEqual(layout.video.x, (layout.width-layout.video.width)//2)
+                scale = min(layout.width/1600, layout.footer.y/900)
+                self.assertEqual(layout.video.width, int(1600*scale))
+                self.assertEqual(layout.video.height, int(900*scale))
+                self.assertLessEqual(layout.video.y+layout.video.height, layout.footer.y)
+                self.assertIn("plates", layout.buttons)
+                self.assertEqual(len({rect.y for rect in layout.buttons.values()}), 1 if size[0] >= 900 else 2)
+                if size[0] == 1100:
+                    self.assertLessEqual(len(layout.plate_status_lines), 2)
+                render_preview(np.zeros((900, 1600, 3), dtype=np.uint8), controller, "IDLE", 2, 30)
+                self.assertEqual(controller.plate_links, [])
+                self.assertIsNone(controller.plate_scrollbar)
+
+    def test_drawer_toggle_preserves_selection_and_never_covers_camera_or_buttons(self):
+        import numpy as np
+        for size in ((1100, 760), (640, 480), (320, 300)):
+            with self.subTest(size=size):
+                controller = self.controller()
+                closed = self.layout(controller, size)
+                controller.command("select")
+                controller.draft = [[.1, .1], [.3, .2]]
+                old_roi, old_draft = controller.roi[:], [point[:] for point in controller.draft]
+                self.click_history(controller)
+                self.assertTrue(controller.plate_panel_open)
+                opened = self.layout(controller, size)
+                panel = opened.plates
+                self.assertEqual((panel.x, panel.width), (0, opened.width))
+                self.assertEqual(panel.y+panel.height, opened.footer.y)
+                self.assertLessEqual(opened.video.y+opened.video.height, panel.y)
+                closed_same_height = PreviewLayout.create(1600, 900, opened.width, opened.height,
+                    show_plates=True, plate_status_text=plate_footer_text(controller))
+                self.assertGreaterEqual(closed_same_height.video.width, opened.video.width)
+                self.assertAlmostEqual(opened.video.width/opened.video.height, 1600/900, delta=.025)
+                for rect in opened.buttons.values():
+                    self.assertGreaterEqual(rect.y, opened.footer.y)
+                    self.assertLessEqual(rect.y+rect.height, opened.height)
+                render_preview(np.zeros((900, 1600, 3), dtype=np.uint8), controller, "IDLE", 2, 30)
+                self.click_history(controller)
+                self.assertFalse(controller.plate_panel_open)
+                self.assertEqual(controller.plate_links, [])
+                self.assertIsNone(controller.plate_scrollbar)
+                self.assertTrue(controller.selecting)
+                self.assertEqual(controller.roi, old_roi)
+                self.assertEqual(controller.draft, old_draft)
+                self.assertIsNone(self.layout(controller, size).plates)
+
+    def test_long_status_wraps_inside_footer_and_never_draws_history_when_closed(self):
+        import numpy as np
+        from PIL import ImageDraw
+        for size in ((1100, 760), (640, 480), (320, 300)):
+            with self.subTest(size=size):
+                controller = self.controller()
+                controller.plate_status = "ERROR | ADB 1600x900 | 最高（已確認）"
+                controller.plate_error = "辨識程序未回應，正在重新啟動。"*5
+                layout = self.layout(controller, size)
+                lines = "".join(layout.plate_status_lines)
+                self.assertIn(controller.plate_error, lines)
+                self.assertIn("ADB 1600x900", lines)
+                self.assertIn("最近掃描：12:34:56", lines)
+                output = []
+                original = ImageDraw.ImageDraw.text
+                def record(draw, position, text, *args, **kwargs):
+                    output.append((text, draw.textbbox(position, text, font=kwargs["font"])))
+                    return original(draw, position, text, *args, **kwargs)
+                with patch.object(ImageDraw.ImageDraw, "text", new=record):
+                    render_preview(np.zeros((900, 1600, 3), dtype=np.uint8), controller,
+                                   "RECORDING", 2, 30, elapsed=60)
+                rendered_text = "".join(text for text, _ in output)
+                self.assertIn("前 2 分鐘不切段", rendered_text)
+                self.assertNotIn("最近 7 天", rendered_text)
+                self.assertNotIn("PgUp", rendered_text)
+                self.assertNotIn("synthetic.mp4", rendered_text)
+                button_top = min(rect.y for rect in layout.buttons.values())
+                for text, box in output[:layout.line_count+len(layout.plate_status_lines)]:
+                    self.assertGreaterEqual(box[0], 0)
+                    self.assertLessEqual(box[2], layout.width)
+                    self.assertGreaterEqual(box[1], layout.footer.y)
+                    self.assertLess(box[3], button_top)
 
 
 if __name__ == "__main__":

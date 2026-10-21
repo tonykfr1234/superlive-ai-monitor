@@ -17,6 +17,8 @@ Dies ist ein unabhängiges Community-Projekt ohne Verbindung zu den Anbietern vo
 
 Bestätigte Treffer der privaten Kennzeichenliste mit höchstens zwei Zeichenänderungen werden standardmäßig aufgeklappt; andere Ergebnisse bleiben eingeklappt erhalten. Ein Klick auf den Videodateinamen markiert die Originaldatei im Windows-Datei-Explorer.
 
+Erkennungsstatus, Bildqualität und Stapelfortschritt stehen bei den unteren Bedienelementen. Das Kamerabild nutzt standardmäßig die volle Breite; „車牌紀錄“ öffnet oder schließt die Verlaufsliste darunter.
+
 <a id="quick-start"></a>
 ## Schnellstart
 

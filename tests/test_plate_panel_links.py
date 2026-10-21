@@ -19,7 +19,9 @@ def record(number=0, **changes):
 class PlatePanelInteractionTests(unittest.TestCase):
     def controller(self, events, targets=("AB1234",), size=(1100, 900)):
         controller = PreviewController()
-        controller.layout = PreviewLayout.create(1600, 900, *size, show_plates=True)
+        controller.plate_enabled = True
+        controller.plate_panel_open = True
+        controller.layout = PreviewLayout.create(1600, 900, *size, show_plates=True, plates_open=True)
         controller.plate_filter_targets = list(targets)
         controller.plate_events = events
         return controller
@@ -80,8 +82,13 @@ class PlatePanelInteractionTests(unittest.TestCase):
         self.assertIsNone(self.click(controller, controller.plate_group_hits[0]))
         self.assertTrue(controller.plate_other_expanded)
         text, _, _ = self.render(controller)
+        while controller.plate_scroll < controller.plate_scroll_max:
+            controller.key("page_down")
+            text += self.render(controller)[0]
         self.assertIn("ZZ9999", text)
         self.assertIn("no-plate.mp4", text)
+        controller.key("home")
+        self.render(controller)
         group = controller.plate_group_hits[0]
         controller.mouse("right_down", group.x+1, group.y+1)
         self.assertEqual(controller.draft, [[.1, .1], [.2, .2]])
@@ -92,7 +99,7 @@ class PlatePanelInteractionTests(unittest.TestCase):
         self.assertEqual(controller.draft, [[.1, .1], [.2, .2]])
 
     def test_every_wrapped_filename_line_returns_event_copy_and_is_blue_underlined(self):
-        filename = "synthetic-long-filename-"*5+".mp4"
+        filename = "synthetic-long-filename-"*14+".mp4"
         source = record(source_video="private/folder/"+filename, evidence=[{"sample": 1}])
         controller = self.controller([source])
         controller.command("select")
@@ -125,7 +132,7 @@ class PlatePanelInteractionTests(unittest.TestCase):
         self.assertNotIn(first["id"], {event["id"] for _, event in controller.plate_links})
         for rect, value in controller.plate_links:
             self.assertEqual(self.click(controller, rect).event["id"], value["id"])
-        controller.layout = PreviewLayout.create(1600, 900, 640, 600, show_plates=True)
+        controller.layout = PreviewLayout.create(1600, 900, 640, 600, show_plates=True, plates_open=True)
         controller.key("home")
         self.render(controller)
         for rect, value in controller.plate_links:

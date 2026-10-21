@@ -28,6 +28,8 @@ Este projeto comunitário não é afiliado aos fabricantes do SuperLive ou do Mu
 
 Por padrão, ficam expandidos apenas os resultados confirmados que correspondem à lista privada com até duas edições de caracteres; os demais permanecem em uma seção recolhível. Clique no nome do vídeo para selecionar o original no Explorador de Arquivos do Windows.
 
+O status do OCR, a qualidade e o progresso do lote ficam junto aos controles inferiores. A câmera usa toda a largura por padrão; “車牌紀錄” abre ou fecha o histórico abaixo da imagem.
+
 <a id="quick-start"></a>
 ## Instalação rápida
 

@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+- Move OCR, capture quality and replay status into the bottom control area. Keep the camera view full-width by default; a “車牌紀錄” button opens and closes the history drawer below the image without covering camera pixels.
+- 辨識狀態、畫質與補辨識進度集中到底部按鈕區；預設不佔用右側，按「車牌紀錄」才展開下方清單。
+
 - Expand only confirmed matches to the local allowlist (up to two edits) by default. Keep other results in a collapsible section without deleting them. Click a recording filename to reveal the original MP4 in Windows File Explorer; local paths remain private.
 - 預設展開符合本機車牌名單、兩碼容錯內的確認結果；其他辨識紀錄收折保留。點擊影片檔名即可開啟檔案總管並選取原片，完整路徑只保留於本機。
 

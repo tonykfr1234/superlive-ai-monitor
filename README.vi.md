@@ -28,6 +28,8 @@ SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình 
 
 Mặc định chỉ mở các kết quả đã xác nhận khớp danh sách riêng với tối đa hai phép chỉnh sửa ký tự; các kết quả khác được giữ trong mục thu gọn. Nhấp tên video để chọn tệp gốc trong Windows File Explorer.
 
+Trạng thái OCR, chất lượng và tiến độ xử lý nằm cùng các nút phía dưới. Mặc định hình camera dùng toàn bộ chiều rộng; nút “車牌紀錄” mở hoặc đóng danh sách lịch sử bên dưới.
+
 <a id="quick-start"></a>
 ## Bắt đầu nhanh
 

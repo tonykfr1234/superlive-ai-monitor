@@ -26,7 +26,7 @@ from record_protocol import (atomic_json, read_json, recorder_ready, recording_a
                              valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS)
 from person_activity import PersonActivityTracker, InactivityTimer
 from region_policy import people_in_region, objects_in_region, object_counts, ACTIVITY_CLASSES, validate_roi, rebase_roi
-from preview_ui import PreviewController, PreviewLayout, render_preview
+from preview_ui import PreviewController, PreviewLayout, render_preview, plate_footer_text
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
 from app_branding import set_app_identity, apply_window_icon
 from adb_capture import AdbStream, settings as capture_settings
@@ -328,6 +328,7 @@ def main():
     last_frame = np.zeros((540, 960, 3), dtype=np.uint8)
     canvas_size = (1100, 760) if plate_service else (960, 720)
     controller = PreviewController(cfg["roi"])
+    controller.plate_enabled = bool(plate_service)
     controller.plate_filter_targets = load_allowlist(ROOT)
     next_plate_filter_read = time.monotonic() + 2
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
@@ -489,7 +490,10 @@ def main():
                     canvas_size = (view_width, view_height)
             except (cv2.error, AttributeError):
                 pass
-            controller.layout = PreviewLayout.create(width, height, *canvas_size, show_plates=bool(plate_service))
+            controller.layout = PreviewLayout.create(width, height, *canvas_size,
+                show_plates=controller.plate_enabled,
+                plates_open=controller.plate_panel_open if plate_service else False,
+                plate_status_text=plate_footer_text(controller) if plate_service else "")
             state = read_json(STATE_FILE)
             status = preview_status(state, REQUEST_FILE.exists(), capture_status)
             elapsed = state.get("elapsed_seconds") if isinstance(state, dict) else None
