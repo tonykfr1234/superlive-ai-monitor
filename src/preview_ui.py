@@ -219,8 +219,8 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
              "WAITING_FOR_MUMU": "等待 MuMu／逍遙畫面", "CAPTURE_RETRY": "重新擷取畫面",
              "FINDING_CAMERA_AREA": "正在辨識模擬器影像範圍",
              "ADB_CONNECTING": "正在連接 ADB", "ADB_QUALITY_CHECK": "設定最高畫質並收起選單",
-             "ADB_QUALITY_UNCONFIRMED": "畫質未確認：請選最高後重新啟動",
-             "ADB_UNAVAILABLE": "ADB 無法連接", "ADB_RECONNECTING": "ADB 串流重新連接",
+             "ADB_QUALITY_UNCONFIRMED": "畫質待確認，將自動重試；請保持監視器即時畫面開啟",
+             "ADB_UNAVAILABLE": "ADB 尚未連上，將自動重試", "ADB_RECONNECTING": "ADB 串流重新連接中",
              "ADB_STREAMING": "等待 ADB 新影格"}
     title = names.get(status, status) if chinese else status.replace("_", " ")
     if status == "RECORDING" and elapsed is not None:

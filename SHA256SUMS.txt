@@ -1,7 +1,7 @@
 e368bb1dc9043d1c21590e6885f180aecc1ce3750f9b429a74a8919439e60af3  ./.gitattributes
 125d254c0b936cbdf26d8f35ac5c72815eb729a6e3769d222d6ca66d4935cd6f  ./.github/workflows/security.yml
 9c771fb2b4c8678fcd30f1b4fba250ae5c9e72222e7afad38d793c99d1ff8f83  ./.gitignore
-89705498913c8df1d5c9df43a355fb1876f592f287206b2cc775e7f0ac8c7481  ./CHANGELOG.md
+914993673f0521e3c56790651100c93c6054f4750cfc5f88ff83c9e583424f49  ./CHANGELOG.md
 63a6a4134de0bf919eeca171c0271727ae26389b5d12212cde1bc7c19b876406  ./CONTRIBUTING.md
 00242ce13a9099dfb54211b511c2501a2f11bfbb9887e2e25162275c2f989c88  ./LICENSE
 c38090b8286ec664ea9468753a2cbcaecf171340e41034312945b70cad87b387  ./README.de.md
@@ -27,7 +27,7 @@ f08c7d2baa9a6acd1189374c41316b4348bca15ad035ffbf5a2c326f9adcb608  ./config/captu
 6a891837e50e9c4e01cb63ff76f7e56c5e2a229928bd1baa166f588af966d0c5  ./docs/ARCHITECTURE.md
 a29506b715c947f93d1bc2ac931a911c0631e59b6c8b5770d6bb44dc71d85caf  ./docs/BASELINE.md
 e58ce370099bd8be63e080be4a94d79d13534310f8364371df15ff27ea420d20  ./docs/HARDWARE.md
-983842f88ffd2133b91f2b0e68a025f7ff48b7411a87bc8a9221e056190832f4  ./docs/PLATE_AND_ADB.zh-TW.md
+00be40f72c3fb9b1890908843acae7effc7e566d188224d83ea9bee3843e7afb  ./docs/PLATE_AND_ADB.zh-TW.md
 aef0ed65fa61a2e827ee99d91f6be363cb19208cb22293b7e34e35d79846af71  ./docs/RECORDING.md
 ca72c5b89399bdcc8a43de45c8e831bc031a30d44f9f84c98b9a52f3a05b43a4  ./docs/SECURITY.zh-TW.md
 c9213c5518f20778c5d33f473d1bb7664efe8e3090997f4d60ecfc33461e2954  ./docs/USER_GUIDE.md
@@ -38,7 +38,7 @@ c0e9ef46c80f48b230c8f10bcef405751fbfd1c5b963ec59ab5db7c25c85f91a  ./docs/VMWARE.
 6b38c1da95a1e6c4fc1ba5cbf3d98ab2aa0037ecd904ea4a285ef3569f0443d8  ./docs/media/polygon-selection.png
 fc56d7e9913bbfe086a936f6b09f3156b50d21fc618355934523f46751f1e52f  ./docs/media/superlive-demo.gif
 b1c5e6c8b433eda7e0a43e0c1785b5255cf42ce67bea17c8fe28fbc762557ffd  ./docs/media/superlive-demo.mp4
-453bfb1bcff65f6848d32130e8da71acfab95ea958c583902544de0d91cc6a85  ./docs/使用說明.txt
+365d5ee5e9a5fc6f25f432656d62036e0b575de0b0c183410d11f1caad2eb045  ./docs/使用說明.txt
 4bbaba1afe413c86d0e096ca92f60e7cfd073e70e0fafcffae7a67200fb6eb2f  ./installer/DEPLOY_RUNTIME.ps1
 eea3839d1b46c422d3b5d82ca92e5e8b165f8aabfb6e0225c17801d69b4e5ed6  ./installer/INSTALL_FROM_REPO.bat
 4fa60670c1fd26164de52b3b64d159f7f687fc8613e9cac97be5768f88e182ea  ./installer/INSTALL_FROM_REPO.ps1
@@ -54,7 +54,7 @@ a1f44783f4ce5236fd86804a8b76b64517fd974325adcf31ad0b67b3510e9991  ./installer/VE
 6d0008e87b53a328e25151e4277529248886b42c014caf6413ebaddb906f1e2d  ./scripts/generate_demo.py
 f399fdc12f06e5e13ddd93592fc24e0359d0e0ffc7f7b0eb5a32767fe94ad961  ./scripts/generate_icon.py
 fa933bed29b82e419ddbb8ca1932de6682754f6ccce59ef8a1cf31d73d94398e  ./scripts/security_scan.py
-fd77fda29af8ea6eb99681b6023538865e21763f8c0a1f02f8033750467b2d1c  ./src/adb_capture.py
+7b427fa54228a555ed9b96433adcdd397a30c89a74de7e19b4a2155b33b50b31  ./src/adb_capture.py
 df48592d17891848ce47b4284d7529e97628f3ad814e00587bf4d87608cc7b29  ./src/app_branding.py
 1c1352d2d95cbce9259f644a4f546f5593af1de05bf269dd0f39bcc62c42a263  ./src/capture_region.py
 c826f042e57f4a26ccf1861d96a9709e5064eee097209d9ac91fa02f0bf10870  ./src/daily_report.py
@@ -62,7 +62,7 @@ c826f042e57f4a26ccf1861d96a9709e5064eee097209d9ac91fa02f0bf10870  ./src/daily_re
 3533f73331f4375762207963dbb16c1e6b25f37334b38f0eaa9e1f070b7b01db  ./src/monitor.py
 c063553db4e76a96393116564106c989e6817f9ba1f971140124da6ad95b14b0  ./src/person_activity.py
 24cd74466d961b166569c06fa3f1320cbe1df27ac9ceccb539ad7e65d70b11d8  ./src/plate_recognition.py
-ed8f02035893af8f9e2e5b05d91f061d2e4b173989ca66bb56ce350bbaa30849  ./src/preview_ui.py
+601fa9c3eb716bc12630ce7a2bec28508a049c8e36a7bcca4e35121ee6edbfdc  ./src/preview_ui.py
 37a242135696de0f2dcd11120e54e583ffdc5ff1c8fc1630d50f0083e5baccf4  ./src/record_protocol.py
 1328284dea51baaffd650289a4f397fa6729641e1f10cac72983a9fc34a59e45  ./src/recorder.py
 bf3e2d1df9131c1a36965bccde93b8fd47c38c9cae52e910de1862ec9ddcef63  ./src/recorder_watchdog.py
@@ -70,7 +70,10 @@ bf3e2d1df9131c1a36965bccde93b8fd47c38c9cae52e910de1862ec9ddcef63  ./src/recorder
 345babfb71ac06a99ecf02eaa4f93a2bd6ab363417dba13e5aab8835baa54d9e  ./src/telegram_video.py
 c7e71764e3e337ba8180049837741cbaa4ef61d5495108c94fbe6940386fac6d  ./src/watchdog.py
 ca3f8b8a499f1437275359323cdcc61634cbf21efb5300da68c71eaab3b42edc  ./tests/test_activity_monitor.py
-e5397e4866ab207a47e74e984953fa70f7bd463774085dcd7c60866a1e4a9d0f  ./tests/test_adb_capture.py
+f3386365e2acda6b92f3c6fcc96cb403777403403ac300d7e47f036f1676418f  ./tests/test_adb_capture.py
+0bccc697546b0fd3c4049bcee9f593bd52b64f9f3aa2ae6bf2a918c27d77f021  ./tests/test_adb_quality.py
+ada4b497db4f38b831d28fa6c711e070d9292fe398341b929558127684647550  ./tests/test_adb_reconnect.py
+0b399a25e7c77af99215019783a22c1a21f758ae1aa432038105cc1268adc6c2  ./tests/test_adb_ui.py
 96a1b85d60cd40f50fc7529f92e04386c3dbfceb622372c533ef1a0d031be89c  ./tests/test_capture_integration.py
 acfcb910ad295bf1728a3abe9a765694746d2c82682aaaa77e6a4c144ca1420d  ./tests/test_capture_region.py
 aaa23118227fa7f06e1eff259677a1e84a7a26797e19a7ff5c821a56720cda03  ./tests/test_content_roi.py

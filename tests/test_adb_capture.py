@@ -104,15 +104,34 @@ class QualitySelectionTests(unittest.TestCase):
         self.client = adb_capture.AdbClient({"adb_path": "mock-adb"})
         self.client.tap = Mock()
         self.client.run = Mock()
-        self.client.screenshot = Mock()
+        self.client.quality_screenshot = Mock()
         sleeper = patch.object(adb_capture.time, "sleep")
         sleeper.start()
         self.addCleanup(sleeper.stop)
 
-    def menu_sequence(self, menu):
-        # Open menu, choose quality, reopen for proof, then close before capture.
-        self.client.ui = Mock(side_effect=[screen(BUTTON), screen(HIGHEST, LOW),
-                                          screen(BUTTON), menu, menu, screen()])
+    def menu_state(self, *, selected=False, accepts=True, closes=True, checked=False):
+        state = {"open": False, "selected": selected}
+        def ui():
+            if state["open"]:
+                highest = dict(HIGHEST)
+                if checked and state["selected"]:
+                    highest["selected"] = "true"
+                return screen(highest, LOW)
+            return screen(BUTTON)
+        def tap(node):
+            if node.get("resource-id") == BUTTON["resource-id"]:
+                state["open"] = True
+            elif node.get("text") == "最高" and accepts:
+                state["selected"] = True
+        def command(*args):
+            if args == ("shell", "input", "keyevent", "4") and closes:
+                state["open"] = False
+        self.client.ui = Mock(side_effect=ui)
+        self.client.tap.side_effect = tap
+        self.client.run.side_effect = command
+        self.client.quality_screenshot.side_effect = lambda: np.full(
+            (20, 20, 3), (220, 190, 30) if state["selected"] else (255, 255, 255), np.uint8)
+        return state
 
     def test_selected_highest_text_or_checked_parent_counts_as_confirmation(self):
         self.assertTrue(adb_capture.quality_selected(screen(dict(HIGHEST, selected="true"))))
@@ -133,37 +152,52 @@ class QualitySelectionTests(unittest.TestCase):
         self.assertFalse(adb_capture.selected_cyan_text(frame, [20, 20, 30, 30]))
 
     def test_visible_white_highest_is_not_a_selection_confirmation_and_menu_is_closed(self):
-        self.menu_sequence(screen(HIGHEST, LOW))
-        self.client.screenshot.return_value = np.full((20, 20, 3), 255, np.uint8)
+        state = self.menu_state(accepts=False)
         self.assertFalse(self.client.highest_quality())
+        self.assertFalse(state["open"])
         self.client.run.assert_called_once_with("shell", "input", "keyevent", "4")
-        self.assertEqual(self.client.tap.call_count, 3)
+        self.assertEqual(self.client.tap.call_count, 2)
 
     def test_cyan_highest_confirmed_only_after_menu_has_disappeared(self):
-        self.menu_sequence(screen(HIGHEST, LOW))
-        self.client.screenshot.return_value = np.full((20, 20, 3), (220, 190, 30), np.uint8)
+        state = self.menu_state()
         self.assertTrue(self.client.highest_quality())
+        self.assertFalse(state["open"])
         self.client.run.assert_called_once_with("shell", "input", "keyevent", "4")
 
     def test_selected_flag_still_fails_if_quality_menu_does_not_close(self):
-        menu = screen(dict(HIGHEST, selected="true"), LOW)
-        self.client.ui = Mock(side_effect=[screen(BUTTON), screen(HIGHEST, LOW), screen(BUTTON), menu]+[menu]*5)
+        state = self.menu_state(selected=True, closes=False, checked=True)
         self.assertFalse(self.client.highest_quality())
-        self.client.screenshot.assert_not_called()
+        self.assertTrue(state["open"])
+        self.client.quality_screenshot.assert_not_called()
+        self.assertEqual(self.client.run.call_count, 2)
 
     def test_missing_highest_option_still_closes_menu_in_finally(self):
-        self.client.ui = Mock(side_effect=[screen(BUTTON), screen(LOW), screen(LOW), screen()])
+        self.client.ui = Mock(side_effect=[screen(BUTTON), screen(LOW), screen(LOW), screen(BUTTON)])
         with self.assertRaisesRegex(RuntimeError, "Highest quality option"):
             self.client.highest_quality()
         self.client.run.assert_called_once_with("shell", "input", "keyevent", "4")
 
     def test_unrelated_app_cannot_receive_quality_taps(self):
-        other = screen(BUTTON, package="example.unrelated")
+        other = screen(BUTTON, HIGHEST, LOW, package="example.unrelated")
         self.client.ui = Mock(return_value=other)
         with self.assertRaisesRegex(RuntimeError, "SuperLive live view"):
             self.client.highest_quality()
         self.client.tap.assert_not_called()
         self.client.run.assert_not_called()
+
+    def test_already_selected_highest_does_not_get_tapped_again(self):
+        state = self.menu_state(selected=True)
+        self.assertTrue(self.client.highest_quality())
+        self.assertFalse(state["open"])
+        self.assertEqual(self.client.tap.call_count, 1)
+        self.assertEqual(self.client.tap.call_args.args[0].get("resource-id"), BUTTON["resource-id"])
+
+    def test_selected_container_with_both_rows_is_not_confirmation(self):
+        root = screen()
+        container = ET.SubElement(root, "node", selected="true")
+        ET.SubElement(container, "node", HIGHEST)
+        ET.SubElement(container, "node", LOW)
+        self.assertFalse(adb_capture.quality_selected(root))
 
 
 if __name__ == "__main__":
