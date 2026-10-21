@@ -8,6 +8,7 @@ from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+import math
 
 from region_policy import roi_vertices, validate_roi
 
@@ -105,6 +106,7 @@ class PreviewLayout:
 class UIAction:
     kind: str
     roi: object = None
+    event: object = None
 
 
 class PreviewController:
@@ -117,6 +119,8 @@ class PreviewController:
         self.pressed_button = None
         self.model_label = "YOLO11n"
         self.plate_events = []
+        self.plate_filter_targets = []
+        self.plate_other_expanded = False
         self.plate_status = ""
         self.plate_error = ""
         self.plate_scan_status = ""
@@ -128,6 +132,10 @@ class PreviewController:
         self.plate_scroll_thumb = None
         self._plate_scroll_drag = False
         self._plate_row_cache = None
+        self.plate_links = []
+        self.plate_group_hits = []
+        self._plate_hit_state = None
+        self._pressed_plate = None
 
     @property
     def can_confirm(self):
@@ -205,6 +213,20 @@ class PreviewController:
             fraction = max(0.0, min(1.0, (y-bar.y)/max(1, bar.height-1)))
             self.plate_scroll = round(fraction*self.plate_scroll_max)
 
+    def _plate_view_state(self):
+        panel = self.layout.plates if self.layout else None
+        return (panel.bounds if panel else None, self.plate_scroll, id(self.plate_events),
+                tuple(plate_filter_targets(self.plate_filter_targets)), self.plate_other_expanded)
+
+    def _plate_hit(self, x, y):
+        # A scroll, resize or history update invalidates old click locations
+        # until the next render publishes the visible rows again.
+        if self._plate_hit_state != self._plate_view_state():
+            return None
+        if any(rect.contains(x, y) for rect in self.plate_group_hits):
+            return ("toggle_other", None)
+        return next((("reveal_video", event) for rect, event in self.plate_links if rect.contains(x, y)), None)
+
     def mouse(self, event, x, y):
         if self.layout is None:
             return None
@@ -212,8 +234,10 @@ class PreviewController:
             if self.layout.plates and self.layout.plates.contains(x, y):
                 self.scroll_plates(-3 if event == "wheel_up" else 3)
             return None
-        if event == "down" and self.plate_scrollbar and self.plate_scrollbar.contains(x, y):
+        if (event == "down" and self.plate_scrollbar and self.plate_scrollbar.contains(x, y)
+                and self._plate_hit_state == self._plate_view_state()):
             self.pressed_button = None
+            self._pressed_plate = None
             self._plate_scroll_drag = True
             self._scrollbar_at(y)
             return None
@@ -223,6 +247,23 @@ class PreviewController:
             if event == "up":
                 self._plate_scroll_drag = False
             return None
+        panel = self.layout.plates
+        if event == "up" and self._pressed_plate is not None:
+            pressed, self._pressed_plate = self._pressed_plate, None
+            if self._plate_hit(x, y) == pressed:
+                if pressed[0] == "toggle_other":
+                    self.plate_other_expanded = not self.plate_other_expanded
+                else:
+                    return UIAction("reveal_video", event=deepcopy(pressed[1]))
+            return None
+        if panel is not None and panel.contains(x, y):
+            if event == "down":
+                self.pressed_button = None
+                self._pressed_plate = self._plate_hit(x, y)
+            # Panel interactions must never add/remove polygon vertices.
+            return None
+        if event == "down":
+            self._pressed_plate = None
         if event == "right_down":
             return self.command("undo")
         if event == "down":
@@ -331,50 +372,87 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
     return [heading, counts, region, message or hint]
 
 
-def plate_rows(events, chinese=True):
-    """Format retained recognition history without inventing OCR for failures.
+def plate_filter_targets(values):
+    """Normalize local targets without embedding a user's private plate in code."""
+    def normalize(value):
+        return "".join(char for char in str(value or "").upper() if char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    return sorted({normalize(value) for value in (values or []) if normalize(value)})
 
-    Retention belongs to the history store. This view renders all supplied
-    entries, including completed replay scans without a confirmed plate.
-    """
-    rows = []
-    def timestamp(item):
-        try:
-            return float(item.get("timestamp", 0))
-        except (TypeError, ValueError, OverflowError):
-            return 0
+
+def _plate_timestamp(item):
+    try:
+        value = float(item.get("timestamp", 0))
+        return value if math.isfinite(value) else 0
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def plate_event_groups(events, targets=()):
+    """Use confirmed matcher evidence, never infer a match from observed text."""
     valid = [event for event in events if isinstance(event, dict) and
              (event.get("confirmed") or event.get("outcome") in ("no_plate", "error", "insufficient"))]
-    for event in sorted(valid, key=timestamp, reverse=True):
-        try:
-            moment = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8)))
-            stamp = moment.strftime("%m/%d %H:%M:%S")
-        except (KeyError, ValueError, TypeError, OSError, OverflowError):
-            stamp = "--:--:--"
-        confirmed = event.get("confirmed")
-        if confirmed:
-            observed = str(event.get("text") or event.get("raw_text") or "?")
-        else:
-            names = ({"no_plate": "未辨識到車牌", "error": "辨識失敗", "insufficient": "有候選但未確認"}
-                     if chinese else {"no_plate": "No plate recognized", "error": "Recognition failed",
-                                      "insufficient": "Candidate not confirmed"})
-            observed = names[event["outcome"]]
-        first = "%s  %s" % (stamp, observed)
-        if confirmed and event.get("matched"):
-            second = (("名單：%s · 差 %s 碼" if chinese else "Match: %s · distance %s") %
-                      (event["matched"], event.get("distance", "?")))
-        elif confirmed:
-            second = "未符合指定名單" if chinese else "No allowlist match"
-        else:
-            second = ""
-        video = str(event.get("source_video") or "").replace("\\", "/").rsplit("/", 1)[-1]
-        if event.get("source") == "recording_replay" or video:
-            source = (("原片補辨識" if chinese else "Recording replay") if event.get("source") == "recording_replay"
-                      else ("錄影片段" if chinese else "Recording"))
-            second += ("\n" if second else "") + source + ("："+video if video else "")
-        if not confirmed and event.get("error"):
-            second += ("\n" if second else "") + ("原因：" if chinese else "Reason: ") + str(event["error"])
-        rows.append((first, second))
+    targets = set(plate_filter_targets(targets))
+    featured, other = [], []
+    for event in sorted(valid, key=_plate_timestamp, reverse=True):
+        selected = event.get("confirmed") is True
+        if selected and targets:
+            matched = plate_filter_targets([event.get("matched")])
+            distance = event.get("distance")
+            selected = (bool(matched) and matched[0] in targets and isinstance(distance, (int, float))
+                        and not isinstance(distance, bool) and distance in (0, 1, 2))
+        (featured if selected else other).append(event)
+    return featured, other
+
+
+def plate_record_parts(event, chinese=True):
+    """Separate metadata from the clickable source filename."""
+    try:
+        moment = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8)))
+        stamp = moment.strftime("%m/%d %H:%M:%S")
+    except (KeyError, ValueError, TypeError, OSError, OverflowError):
+        stamp = "--:--:--"
+    confirmed = event.get("confirmed")
+    if confirmed:
+        observed = str(event.get("text") or event.get("raw_text") or "?")
+    else:
+        names = ({"no_plate": "未辨識到車牌", "error": "辨識失敗", "insufficient": "有候選但未確認"}
+                 if chinese else {"no_plate": "No plate recognized", "error": "Recognition failed",
+                                  "insufficient": "Candidate not confirmed"})
+        observed = names[event["outcome"]]
+    parts = [("observed", "%s  %s" % (stamp, observed))]
+    if confirmed and event.get("matched"):
+        parts.append(("match", (("名單：%s · 差 %s 碼" if chinese else "Match: %s · distance %s") %
+                               (event["matched"], event.get("distance", "?")))))
+    elif confirmed:
+        parts.append(("match", "未符合指定名單" if chinese else "No allowlist match"))
+    video = str(event.get("source_video") or "").replace("\\", "/").rsplit("/", 1)[-1]
+    if event.get("source") == "recording_replay" or video:
+        source = (("原片補辨識" if chinese else "Recording replay") if event.get("source") == "recording_replay"
+                  else ("錄影片段" if chinese else "Recording"))
+        parts.append(("detail", source))
+    if video:
+        parts.append(("video", video))
+    if not confirmed and event.get("error"):
+        parts.append(("error", ("原因：" if chinese else "Reason: ") + str(event["error"])))
+    return parts
+
+
+def plate_rows(events, chinese=True):
+    """Plain-text representation of all retained rows, newest first."""
+    featured, other = plate_event_groups(events)
+    combined = featured+other
+    # Keep this legacy text helper independent of the view's collapsed groups.
+    combined.sort(key=_plate_timestamp, reverse=True)
+    rows = []
+    for event in combined:
+        parts = plate_record_parts(event, chinese)
+        details = []
+        for kind, text in parts[1:]:
+            if kind == "video" and details:
+                details[-1] += "："+text
+            else:
+                details.append(text)
+        rows.append((parts[0][1], "\n".join(details)))
     return rows
 
 
@@ -428,21 +506,38 @@ def render_plate_panel(draw, controller, font, chinese):
     line = size+6
     text_width = panel.width-42
     colors = dict(title=(106, 224, 251), detail=(160, 179, 198), error=(255, 172, 141),
-                  observed=(239, 247, 252), match=(155, 202, 176))
+                  observed=(239, 247, 252), match=(155, 202, 176), video=(105, 184, 255))
     # The history store replaces the list when data changes. Cache its wrapped
     # rows independently of rapidly changing capture/status text.
     events = controller.plate_events
     cache = controller._plate_row_cache
-    cache_key = (len(events), text_width, size, chinese)
+    targets = plate_filter_targets(controller.plate_filter_targets)
+    cache_key = (len(events), text_width, size, chinese, tuple(targets), controller.plate_other_expanded)
     if cache is None or cache[0] is not events or cache[1] != cache_key:
-        rows = plate_rows(events, chinese)
+        featured, other = plate_event_groups(events, targets)
         row_lines = []
-        for observed, match in rows:
-            row_lines.extend((text, colors["observed"]) for text in wrap_panel_text(draw, observed, font, text_width))
-            if match:
-                row_lines.extend((text, colors["match"]) for text in wrap_panel_text(draw, match, font, text_width))
-            row_lines.append(("", colors["detail"]))
-        controller._plate_row_cache = (events, cache_key, row_lines, len(rows))
+        def paragraph(value, color, action=None):
+            row_lines.extend((text, color, action) for text in wrap_panel_text(draw, value, font, text_width))
+        def append_records(records):
+            for record in records:
+                for kind, value in plate_record_parts(record, chinese):
+                    paragraph(value, colors[kind], ("reveal_video", record) if kind == "video" else None)
+                row_lines.append(("", colors["detail"], None))
+        if featured:
+            label = (("符合指定車牌（%d 筆）" if targets else "已確認車牌（%d 筆）") if chinese else
+                     ("Matching plates · %d records" if targets else "Confirmed plates · %d records"))
+            paragraph(label % len(featured), colors["title"])
+            append_records(featured)
+        elif events:
+            paragraph(("尚無符合指定車牌的確認紀錄" if targets else "尚無已確認的車牌") if chinese else
+                      ("No confirmed target matches" if targets else "No confirmed plates"), colors["detail"])
+        if other:
+            label = ("其他辨識紀錄（%d 筆）" if chinese else "Other recognition records · %d") % len(other)
+            paragraph(("[-] " if controller.plate_other_expanded else "[+] ")+label,
+                      colors["video"], ("toggle_other", None))
+            if controller.plate_other_expanded:
+                append_records(other)
+        controller._plate_row_cache = (events, cache_key, row_lines, len(featured)+len(other))
     _, _, row_lines, record_count = controller._plate_row_cache
     heading = (("最近 7 天辨識紀錄（%d 筆）" if chinese else "Last 7 days · %d records") % record_count)
     help_text = "滾輪 / PgUp / PgDn · 點擊捲軸" if chinese else "Wheel / PgUp / PgDn · scrollbar"
@@ -458,28 +553,37 @@ def render_plate_panel(draw, controller, font, chinese):
     parts, error = plate_status_parts(controller, chinese)
     entries = []
     for part in parts:
-        entries.extend((text, colors["detail"]) for text in wrap_panel_text(draw, part, font, text_width))
+        entries.extend((text, colors["detail"], None) for text in wrap_panel_text(draw, part, font, text_width))
     if error:
-        entries.extend((text, colors["error"]) for text in wrap_panel_text(draw, error, font, text_width))
-    entries.append(("", colors["detail"]))
+        entries.extend((text, colors["error"], None) for text in wrap_panel_text(draw, error, font, text_width))
+    entries.append(("", colors["detail"], None))
     entries.extend(row_lines)
     if not record_count:
         empty = "尚無辨識紀錄" if chinese else "No recognition records yet"
-        entries.extend((text, colors["detail"]) for text in wrap_panel_text(draw, empty, font, text_width))
+        entries.extend((text, colors["detail"], None) for text in wrap_panel_text(draw, empty, font, text_width))
     controller.plate_scroll_max = max(0, len(entries)-controller.plate_page_lines)
     controller.scroll_plates(0)
     start = controller.plate_scroll
-    for index, (text, color) in enumerate(entries[start:start+controller.plate_page_lines]):
+    controller.plate_links, controller.plate_group_hits = [], []
+    for index, (text, color, action) in enumerate(entries[start:start+controller.plate_page_lines]):
         box = draw.textbbox((0, 0), text, font=font)
         position = top+index*line
         if position+box[3] <= panel.y+panel.height-4:
             draw.text((panel.x+12, position), text, font=font, fill=color)
+            if action:
+                hit = Rect(panel.x+12, position, max(1, box[2]-box[0]), line)
+                if action[0] == "reveal_video":
+                    draw.line((hit.x, position+box[3], hit.x+hit.width, position+box[3]), fill=color)
+                    controller.plate_links.append((hit, action[1]))
+                else:
+                    controller.plate_group_hits.append(hit)
 
     track = Rect(panel.x+panel.width-19, top, 11, controller.plate_page_lines*line)
     thumb_height = max(20, round(track.height*min(1, controller.plate_page_lines/max(1, len(entries)))))
     thumb_y = track.y + round((track.height-thumb_height)*start/max(1, controller.plate_scroll_max))
     thumb = Rect(track.x, thumb_y, track.width, thumb_height)
     controller.plate_scrollbar, controller.plate_scroll_thumb = track, thumb
+    controller._plate_hit_state = controller._plate_view_state()
     draw.rounded_rectangle(track.bounds, radius=4, fill=(27, 44, 60))
     draw.rounded_rectangle(thumb.bounds, radius=4, fill=(85, 169, 193) if controller.plate_scroll_max else (63, 92, 111))
 

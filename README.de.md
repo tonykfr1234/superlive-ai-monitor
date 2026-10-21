@@ -15,6 +15,8 @@ Dies ist ein unabhängiges Community-Projekt ohne Verbindung zu den Anbietern vo
 
 **Aktualisierung vom 21.10.2026:** Bewegungen von Personen oder Fahrzeugen (Autos, Motorräder, Busse, Lkw) können eine Aufnahme auslösen. Die 120-Sekunden-Sendepause und 120–300 Sekunden pro Clip bleiben; tägliche CSV-Berichte sind ausgenommen. Telegram unterscheidet Personen, Fahrzeugtypen und tatsächlich gelesene Kennzeichen; unbestätigte bleiben als solche markiert. Vollbild und überlappende Ausschnitte werden geprüft, der OCR-Prozess startet bei Fehlern automatisch neu. Bis zu sieben Tage Erkennungshistorie sind per Mausrad, Scrollleiste und PageUp/PageDown verfügbar, einschließlich nachträglich ausgewerteter Originalvideos, fehlender Erkennung, unbestätigter Kandidaten und Fehler.
 
+Bestätigte Treffer der privaten Kennzeichenliste mit höchstens zwei Zeichenänderungen werden standardmäßig aufgeklappt; andere Ergebnisse bleiben eingeklappt erhalten. Ein Klick auf den Videodateinamen markiert die Originaldatei im Windows-Datei-Explorer.
+
 <a id="quick-start"></a>
 ## Schnellstart
 

@@ -26,6 +26,8 @@ SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình 
 
 **Cập nhật 21/10/2026:** Chuyển động của người hoặc xe (ô tô, xe máy, xe buýt, xe tải) đều có thể kích hoạt ghi hình. Giữ nguyên 120 giây tạm hoãn gửi và video 120–300 giây; CSV hằng ngày là ngoại lệ. Telegram phân biệt người, loại xe và biển số thực sự đọc được; chưa xác nhận sẽ được ghi rõ. OCR quét toàn ảnh cùng các vùng chồng lấp và tự khôi phục khi lỗi. Dùng con lăn, thanh cuộn hoặc PageUp/PageDown để xem tối đa bảy ngày lịch sử, gồm nhận dạng lại video gốc, không đọc được biển số, ứng viên chưa xác nhận và lỗi.
 
+Mặc định chỉ mở các kết quả đã xác nhận khớp danh sách riêng với tối đa hai phép chỉnh sửa ký tự; các kết quả khác được giữ trong mục thu gọn. Nhấp tên video để chọn tệp gốc trong Windows File Explorer.
+
 <a id="quick-start"></a>
 ## Bắt đầu nhanh
 

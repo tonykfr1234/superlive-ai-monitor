@@ -26,6 +26,8 @@ Este projeto comunitário não é afiliado aos fabricantes do SuperLive ou do Mu
 
 **Atualização de 21/10/2026:** O movimento de pessoas ou veículos (carros, motos, ônibus, caminhões) pode iniciar a gravação. Permanecem os 120 segundos de silêncio e vídeos de 120–300 segundos; o CSV diário é exceção. O Telegram distingue pessoas, tipos de veículo e placas realmente lidas, indicando as não confirmadas. O OCR analisa a imagem inteira e regiões sobrepostas, com recuperação automática após falhas. Roda do mouse, barra de rolagem e PageUp/PageDown permitem consultar até sete dias de histórico, incluindo análise de vídeos originais, ausência de leitura, candidatos não confirmados e erros.
 
+Por padrão, ficam expandidos apenas os resultados confirmados que correspondem à lista privada com até duas edições de caracteres; os demais permanecem em uma seção recolhível. Clique no nome do vídeo para selecionar o original no Explorador de Arquivos do Windows.
+
 <a id="quick-start"></a>
 ## Instalação rápida
 

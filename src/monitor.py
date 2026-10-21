@@ -10,6 +10,7 @@ import uuid
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+from queue import Empty, SimpleQueue
 
 import cv2
 import mss
@@ -30,7 +31,8 @@ from capture_region import find_emulator_window, capture_frame, CaptureRegionRes
 from app_branding import set_app_identity, apply_window_icon
 from adb_capture import AdbStream, settings as capture_settings
 from capture_region import CaptureInfo
-from plate_recognition import PlateService
+from plate_recognition import PlateService, load_allowlist
+from video_location import reveal_video, VideoLocationError
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -326,11 +328,24 @@ def main():
     last_frame = np.zeros((540, 960, 3), dtype=np.uint8)
     canvas_size = (1100, 760) if plate_service else (960, 720)
     controller = PreviewController(cfg["roi"])
+    controller.plate_filter_targets = load_allowlist(ROOT)
+    next_plate_filter_read = time.monotonic() + 2
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     detection_session = DetectionSession()
     ui_actions = []
     message = None
     message_until = 0.0
+    reveal_results = SimpleQueue()
+    reveal_thread = None
+
+    def reveal_in_background(event):
+        try:
+            path = reveal_video(ROOT, event)
+            reveal_results.put("已在檔案總管選取：" + path.name)
+        except VideoLocationError as error:
+            reveal_results.put(str(error))
+        except Exception:
+            reveal_results.put("無法開啟影片位置，請稍後再試")
     set_app_identity()
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     apply_window_icon(WINDOW_NAME)
@@ -441,6 +456,9 @@ def main():
             controller.object_counts = object_counts(people) if count is not None else None
 
             if plate_service:
+                if time.monotonic() >= next_plate_filter_read:
+                    controller.plate_filter_targets = load_allowlist(ROOT)
+                    next_plate_filter_read = time.monotonic() + 2
                 if capture_ok:
                     plate_service.submit(frame, time.time(), None)
                 else:
@@ -475,6 +493,11 @@ def main():
             state = read_json(STATE_FILE)
             status = preview_status(state, REQUEST_FILE.exists(), capture_status)
             elapsed = state.get("elapsed_seconds") if isinstance(state, dict) else None
+            try:
+                message = reveal_results.get_nowait()
+                message_until = time.monotonic() + 6
+            except Empty:
+                pass
             current_message = message if time.monotonic() < message_until else None
             if cfg.get("roi_reselect_required"):
                 current_message = "原區域無法轉換至攝影機影像，請重新點選多邊形並儲存"
@@ -484,11 +507,17 @@ def main():
             action = controller.key(key)
             if action is not None:
                 ui_actions.append(action)
-            changed = bool(ui_actions)
+            changed = any(item.kind in ("save", "selection_started", "selection_cancelled", "stop")
+                          for item in ui_actions)
             while ui_actions:
                 action = ui_actions.pop(0)
                 if action.kind == "stop":
                     STOP_FLAG.write_text("STOP", encoding="utf-8")
+                elif action.kind == "reveal_video":
+                    if reveal_thread is None or not reveal_thread.is_alive():
+                        reveal_thread = threading.Thread(target=reveal_in_background,
+                            args=(deepcopy(action.event),), name="RevealRecording", daemon=True)
+                        reveal_thread.start()
                 elif action.kind == "save":
                     try:
                         save_roi(cfg, action.roi)

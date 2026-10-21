@@ -65,6 +65,7 @@ $Mapping = @{
     'preview_ui.py'='preview_ui.py'; 'capture_region.py'='capture_region.py'
     'adb_capture.py'='adb_capture.py'; 'plate_recognition.py'='plate_recognition.py'
     'plate_history.py'='plate_history.py'; 'plate_replay.py'='plate_replay.py'
+    'video_location.py'='video_location.py'
 }
 foreach ($Name in $Mapping.Keys) {
     if ((Get-FileHash -LiteralPath "$Kit\src\$Name").Hash -ne (Get-FileHash -LiteralPath (Join-Path "$InstallRoot\scripts" $Mapping[$Name])).Hash) {

@@ -48,6 +48,25 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(load_history(self.root, self.now)[0]["source_video"], "clip.mp4")
         self.assertEqual(len(list((self.root/"runtime/plate_history").glob("*.json"))), 1)
 
+    def test_full_source_path_is_local_metadata_and_input_event_is_unchanged(self):
+        source = (self.root/"private"/"clip.mp4").resolve()
+        event = dict(id="path", timestamp=self.now, confirmed=True, source_video=str(source))
+        record_result(self.root, event, self.now)
+        result = load_history(self.root, self.now)[0]
+        self.assertEqual(result["source_video"], "clip.mp4")
+        self.assertEqual(result["source_video_path"], str(source))
+        self.assertNotIn("source_video_path", event)
+        self.assertEqual(event["source_video"], str(source))
+        self.assertFalse((self.root/"runtime/plate_events").exists())
+
+    def test_same_basename_different_full_paths_do_not_remove_other_summary(self):
+        first, second = self.root/"one/clip.mp4", self.root/"two/clip.mp4"
+        record_result(self.root, dict(id="first", timestamp=self.now, confirmed=False,
+                                     outcome="no_plate", source_video=str(first)), self.now)
+        record_result(self.root, dict(id="second", timestamp=self.now, confirmed=True,
+                                     source_video=str(second)), self.now)
+        self.assertEqual(len(load_history(self.root, self.now)), 2)
+
     def test_completed_clip_has_negative_or_error_not_fake_plate(self):
         state = self.root/"runtime/plate_recognition/state.json"
         atomic_json(state, dict(status="READY", last_sample_at=self.now+20,
@@ -59,6 +78,7 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(results["first.mp4"]["outcome"], "no_plate")
         self.assertEqual(results["failed.mp4"]["outcome"], "error")
         self.assertNotIn("text", results["first.mp4"])
+        self.assertEqual(results["first.mp4"]["source_video_path"], str((self.root/"first.mp4").resolve()))
 
     def test_completed_clip_enriches_confirmed_result_without_negative(self):
         record_result(self.root, dict(id="a", timestamp=self.now+1, confirmed=True, text="ABC123"), self.now+3)
@@ -66,6 +86,7 @@ class HistoryTests(unittest.TestCase):
         result = load_history(self.root, self.now+3)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["source_video"], "clip.mp4")
+        self.assertEqual(result[0]["source_video_path"], str((self.root/"clip.mp4").resolve()))
 
     def test_confirmed_replay_replaces_old_negative_summary(self):
         record_result(self.root, dict(id="old", timestamp=self.now, confirmed=False,

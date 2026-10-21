@@ -15,6 +15,8 @@ SuperLive AI Monitor aggiunge la registrazione degli eventi all’immagine di Su
 
 **Aggiornamento del 21/10/2026:** Il movimento di persone o veicoli (auto, moto, autobus, camion) può avviare la registrazione. Restano la pausa di 120 secondi e i video da 120–300 secondi; i CSV giornalieri sono esenti. Telegram distingue persone, tipi di veicolo e targhe effettivamente lette, indicando quelle non confermate. L’OCR analizza l’immagine intera e zone sovrapposte, con ripristino automatico dopo un errore. Rotellina, barra di scorrimento e PageUp/PageDown mostrano fino a sette giorni di cronologia, comprese analisi dei video originali, letture assenti, candidati non confermati ed errori.
 
+Per impostazione predefinita sono espansi solo i risultati confermati che corrispondono all’elenco privato con al massimo due modifiche di carattere; gli altri restano in una sezione richiudibile. Fai clic sul nome del video per selezionare l’originale in Esplora file di Windows.
+
 <a id="quick-start"></a>
 ## Avvio rapido
 

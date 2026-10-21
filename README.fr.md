@@ -15,6 +15,8 @@ Il s’agit d’un projet communautaire non officiel, sans affiliation avec les 
 
 **Mise à jour du 21/10/2026 :** Les mouvements de personnes ou de véhicules (voitures, motos, bus, camions) déclenchent l’enregistrement. La pause de 120 secondes et les vidéos de 120–300 secondes restent inchangées ; les CSV quotidiens sont exemptés. Telegram distingue personnes, types de véhicules et plaques réellement lues, avec un statut explicite si non confirmées. L’OCR analyse l’image entière et des zones qui se chevauchent, puis redémarre automatiquement en cas de panne. La molette, la barre de défilement et PageUp/PageDown donnent accès à sept jours d’historique, y compris l’analyse des vidéos originales, les absences de lecture, les candidats non confirmés et les erreurs.
 
+Par défaut, seuls les résultats confirmés correspondant à la liste privée avec au plus deux modifications de caractères sont dépliés. Les autres restent dans une section repliable. Cliquez sur le nom du fichier vidéo pour sélectionner l’original dans l’Explorateur de fichiers Windows.
+
 <a id="quick-start"></a>
 ## Démarrage rapide
 

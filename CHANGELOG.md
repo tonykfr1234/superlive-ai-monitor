@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+- Expand only confirmed matches to the local allowlist (up to two edits) by default. Keep other results in a collapsible section without deleting them. Click a recording filename to reveal the original MP4 in Windows File Explorer; local paths remain private.
+- 預設展開符合本機車牌名單、兩碼容錯內的確認結果；其他辨識紀錄收折保留。點擊影片檔名即可開啟檔案總管並選取原片，完整路徑只保留於本機。
+
 - Retain up to seven days of recognition history, including recordings with no plate, unconfirmed candidates and scan failures. Show filenames and distinguish recording replay from live observations; batch replay updates local history without bulk Telegram notifications. Add mouse-wheel, draggable scrollbar and PageUp/PageDown navigation.
 
 - Trigger recording on person **or vehicle** movement inside the polygon: people, cars, motorcycles, buses and trucks. Keep the 120–300-second clip boundaries, movement rollover, continuous 120-second inactivity stop and initial 120-second Telegram quiet period unchanged; the daily CSV remains exempt.

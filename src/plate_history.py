@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 
 from record_protocol import atomic_json, read_json
+from video_location import _absolute_video
 
 RETENTION_SECONDS = 7 * 24 * 60 * 60
 TAIPEI = timezone(timedelta(hours=8))
@@ -32,6 +33,15 @@ def record_result(root, event, now=None):
     if not _is_result(event) or not now-RETENTION_SECONDS <= stamp <= now+60:
         return False
     result = dict(event)
+    source_path = (_absolute_video(result.get("source_video_path"))
+                   or _absolute_video(result.get("source_video")))
+    if source_path is not None:
+        # Private runtime metadata only. The caller's live/Telegram event is
+        # left untouched, and the visible filename remains a basename.
+        result["source_video_path"] = str(source_path)
+        result["source_video"] = source_path.name
+    else:
+        result.pop("source_video_path", None)
     if result.get("source_video"):
         result["source_video"] = str(result["source_video"]).replace("\\", "/").rsplit("/", 1)[-1]
     digest = hashlib.sha256(str(result["id"]).encode("utf-8")).hexdigest()
@@ -46,7 +56,9 @@ def record_result(root, event, now=None):
                 continue
             previous = read_json(path, {})
             if (_is_result(previous) and previous.get("confirmed") is not True
-                    and previous.get("source_video") == result["source_video"]):
+                    and previous.get("source_video") == result["source_video"]
+                    and not (previous.get("source_video_path") and result.get("source_video_path")
+                             and previous["source_video_path"] != result["source_video_path"])):
                 try:
                     path.unlink(missing_ok=True)
                 except OSError:
@@ -158,13 +170,15 @@ def prune_history(root, now=None):
 def record_clip_result(root, video, started_at, duration, now=None):
     """Keep a result for every completed clip, including unreadable plates."""
     now = time.time() if now is None else float(now)
+    video = Path(video)
+    video = video.resolve() if video.is_absolute() else (Path(root)/video).resolve()
     start, end = float(started_at), float(started_at)+float(duration)
     history, history_readable = _read_history(root, now)
     events = [event for event in history if event.get("confirmed") is True
               and start <= float(event["timestamp"]) <= end]
     if events:
         for event in events:
-            record_result(root, dict(event, source_video=Path(video).name), now)
+            record_result(root, dict(event, source_video=video.name, source_video_path=str(video)), now)
         return
     state = read_json(Path(root)/"runtime"/"plate_recognition"/"state.json")
     available, candidates = False, 0
@@ -182,5 +196,5 @@ def record_clip_result(root, video, started_at, duration, now=None):
     record_result(root, dict(id="clip:"+Path(video).stem, timestamp=start,
         time=datetime.fromtimestamp(start, TAIPEI).isoformat(timespec="seconds"),
         confirmed=False, outcome=outcome,
-        source="live_recording", source_video=Path(video).name,
+        source="live_recording", source_video=video.name, source_video_path=str(video),
         error="" if available else "本段沒有可用的車牌掃描結果"), now)

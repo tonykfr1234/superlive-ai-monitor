@@ -25,6 +25,7 @@ $ScriptMap = [ordered]@{
     'plate_recognition.py' = 'plate_recognition.py'
     'plate_history.py' = 'plate_history.py'
     'plate_replay.py' = 'plate_replay.py'
+    'video_location.py' = 'video_location.py'
 }
 $Scripts = @($ScriptMap.Values)
 if (-not (Test-Path -LiteralPath "$Repo\assets\superlive-ai.ico" -PathType Leaf)) { throw 'Application icon is missing.' }

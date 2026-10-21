@@ -15,6 +15,8 @@ Es un proyecto comunitario no oficial, sin relación con los proveedores de Supe
 
 **Actualización del 21/10/2026:** El movimiento de personas o vehículos (coches, motos, autobuses, camiones) puede iniciar la grabación. Se mantienen el silencio de 120 segundos y los clips de 120–300 segundos; el CSV diario es una excepción. Telegram distingue personas, tipos de vehículos y matrículas realmente leídas, indicando las no confirmadas. El OCR analiza la imagen completa y zonas superpuestas, y se recupera automáticamente de fallos. La rueda, la barra y PageUp/PageDown permiten consultar hasta siete días de historial, incluidos análisis de vídeos originales, lecturas ausentes, candidatos sin confirmar y errores.
 
+Por defecto se muestran los resultados confirmados que coinciden con la lista privada con un máximo de dos ediciones de caracteres; los demás se conservan en una sección plegable. Haz clic en el nombre del vídeo para seleccionar el original en el Explorador de archivos de Windows.
+
 <a id="quick-start"></a>
 ## Inicio rápido
 

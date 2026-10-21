@@ -26,6 +26,8 @@ Ini adalah proyek komunitas tidak resmi yang tidak berafiliasi dengan penyedia S
 
 **Pembaruan 21-10-2026:** Gerakan orang atau kendaraan (mobil, sepeda motor, bus, truk) dapat memicu rekaman. Masa senyap 120 detik dan klip 120–300 detik tetap berlaku; CSV harian dikecualikan. Telegram membedakan orang, jenis kendaraan, dan pelat yang benar-benar terbaca; hasil belum terkonfirmasi ditandai jelas. OCR memindai gambar penuh serta area bertumpang tindih dan pulih otomatis setelah kegagalan. Roda mouse, bilah gulir, dan PageUp/PageDown menampilkan riwayat maksimal tujuh hari, termasuk analisis video asli, tidak terbaca, kandidat belum terkonfirmasi, dan kesalahan.
 
+Secara bawaan, hanya hasil terkonfirmasi yang cocok dengan daftar pribadi hingga dua perubahan karakter yang ditampilkan terbuka; hasil lain disimpan dalam bagian yang dapat dilipat. Klik nama video untuk memilih file asli di Windows File Explorer.
+
 <a id="quick-start"></a>
 ## Mulai cepat
 
