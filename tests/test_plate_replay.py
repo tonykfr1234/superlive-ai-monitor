@@ -61,7 +61,8 @@ def observation(text="AX1239", confidence=0.9):
 class ReplayTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        # Windows CI may supply TEMP through its 8.3 short-path alias.
+        self.root = Path(self.temporary.name).resolve()
         self.video = self.make_video("SuperLive_20300608_100000_example.mp4")
         self.history = []
 
