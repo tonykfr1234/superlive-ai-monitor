@@ -42,6 +42,97 @@ class ControlLeaseTests(unittest.TestCase):
         self.assertEqual(lease.inspect(dict(self.control(), session="new", heartbeat="bad"), wall_now=100, now=0), "wait")
 
 
+class SampleReadTests(unittest.TestCase):
+    def setUp(self):
+        self.control = dict(session="s", generation=1, active=True, heartbeat=100)
+        self.metadata = dict(session="s", generation=1, timestamp=100, sample_id="frame-1", roi=None)
+        self.frame = np.arange(27, dtype=np.uint8).reshape(3, 3, 3)
+
+    def test_brief_open_lock_recovers_and_closes_real_archive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"sample.npz"
+            np.savez(path, frame=self.frame, metadata=json.dumps(self.metadata))
+            original_load, opened = np.load, []
+            def load(*args, **kwargs):
+                if not opened:
+                    opened.append(None)
+                    raise PermissionError("fixture sharing lock")
+                archive = original_load(*args, **kwargs)
+                opened.append(archive)
+                return archive
+            with patch.object(np, "load", side_effect=load) as mocked, patch.object(plates.time, "sleep") as sleep:
+                frame, metadata = plates.read_plate_sample(path, self.control, 100)
+            np.testing.assert_array_equal(frame, self.frame)
+            self.assertEqual(metadata, self.metadata)
+            self.assertEqual(mocked.call_count, 2)
+            sleep.assert_called_once_with(.02)
+            self.assertIsNone(opened[1].zip)
+
+    def test_lazy_read_and_copy_locks_close_before_retry(self):
+        for failing_stage in ("metadata", "frame", "copy"):
+            with self.subTest(stage=failing_stage):
+                archives = []
+                metadata, frame = self.metadata, self.frame
+                class Archive:
+                    def __init__(self, fails):
+                        self.fails, self.closed = fails, False
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        self.closed = True
+                    def __getitem__(self, name):
+                        if self.fails and name == failing_stage:
+                            raise PermissionError("fixture lazy read lock")
+                        if name == "metadata":
+                            return np.array(json.dumps(metadata))
+                        if self.fails and failing_stage == "copy":
+                            return SimpleNamespace(copy=Mock(side_effect=PermissionError("fixture copy lock")))
+                        return frame
+                def load(*args, **kwargs):
+                    archive = Archive(not archives)
+                    archives.append(archive)
+                    return archive
+                def wait(delay):
+                    self.assertEqual(delay, .02)
+                    self.assertTrue(all(archive.closed for archive in archives))
+                with patch.object(np, "load", side_effect=load), patch.object(plates.time, "sleep", side_effect=wait):
+                    result, actual = plates.read_plate_sample("fixture.npz", self.control, 100)
+                np.testing.assert_array_equal(result, frame)
+                self.assertEqual(actual, metadata)
+                self.assertEqual(len(archives), 2)
+                self.assertTrue(all(archive.closed for archive in archives))
+
+    def test_persistent_lock_is_bounded_and_still_raises(self):
+        error = PermissionError("fixture persistent lock")
+        with patch.object(np, "load", side_effect=error) as load, patch.object(plates.time, "sleep") as sleep:
+            with self.assertRaises(PermissionError) as raised:
+                plates.read_plate_sample("fixture.npz", self.control, 100)
+        self.assertIs(raised.exception, error)
+        self.assertEqual(load.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [.02, .04])
+
+    def test_other_read_errors_are_never_retried(self):
+        for error in (FileNotFoundError("missing"), ValueError("bad archive"), KeyError("metadata")):
+            with self.subTest(error=type(error).__name__), \
+                 patch.object(np, "load", side_effect=error) as load, patch.object(plates.time, "sleep") as sleep:
+                with self.assertRaises(type(error)):
+                    plates.read_plate_sample("fixture.npz", self.control, 100)
+                load.assert_called_once()
+                sleep.assert_not_called()
+
+    def test_duplicate_stale_and_changed_source_samples_stay_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"sample.npz"
+            np.savez(path, frame=self.frame, metadata=json.dumps(self.metadata))
+            cases = ((self.control, 100, "frame-1"), (self.control, 200, None),
+                     (dict(self.control, generation=2), 100, None),
+                     (dict(self.control, session="new"), 100, None))
+            with patch.object(plates.time, "sleep") as sleep:
+                for control, now, last in cases:
+                    self.assertIsNone(plates.read_plate_sample(path, control, now, last))
+                sleep.assert_not_called()
+
+
 class WorkerSupervisionTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

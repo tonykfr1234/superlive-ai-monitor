@@ -192,6 +192,24 @@ def valid_sample(metadata, control, now):
         return False
 
 
+def read_plate_sample(path, control, now, last_sample=None):
+    """Retry brief Windows sharing locks across the complete NPZ read only."""
+    import numpy as np
+    for attempt in range(3):
+        try:
+            with np.load(path, allow_pickle=False) as data:
+                metadata = json.loads(str(data["metadata"].item()))
+                if metadata.get("sample_id") == last_sample or not valid_sample(metadata, control, now):
+                    return None
+                frame = data["frame"].copy()
+            return frame, metadata
+        except PermissionError:
+            if attempt == 2:
+                raise
+            # The context manager closes any opened archive before the wait.
+            time.sleep(0.02 * (2 ** attempt))
+
+
 def recognition_candidates(alpr, frame, prediction):
     """Try one crop enlargement; choose by OCR confidence, never by allowlist.
 
@@ -747,12 +765,11 @@ def run_worker(root, session):
             time.sleep(0.1)
             continue
         try:
-            with np.load(runtime / "sample.npz", allow_pickle=False) as data:
-                metadata = json.loads(str(data["metadata"].item()))
-                if metadata.get("sample_id") == last_sample or not valid_sample(metadata, control, now):
-                    time.sleep(0.05)
-                    continue
-                frame = data["frame"].copy()
+            sample = read_plate_sample(runtime / "sample.npz", control, now, last_sample)
+            if sample is None:
+                time.sleep(0.05)
+                continue
+            frame, metadata = sample
             last_sample = metadata["sample_id"]
             predictions = detect_plate_observations(alpr, frame)
             # Pause/ROI/source changes can happen while inference is running.

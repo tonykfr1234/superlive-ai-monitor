@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+- Retry brief Windows permission errors while reading plate samples with a small bounded delay; persistent failures remain visible and inference errors are not retried as file locks.
+- 車牌影像遇到 Windows 短暫檔案鎖時會有限次重試；持續失敗仍顯示錯誤。
+
 - Move OCR, capture quality and replay status into the bottom control area. Keep the camera view full-width by default; a “車牌紀錄” button opens and closes the history drawer below the image without covering camera pixels.
 - 辨識狀態、畫質與補辨識進度集中到底部按鈕區；預設不佔用右側，按「車牌紀錄」才展開下方清單。
 
