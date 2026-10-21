@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 from region_policy import roi_vertices, validate_roi
 
@@ -36,10 +37,11 @@ class PreviewLayout:
     font_size: int
     line_height: int
     line_count: int
+    plates: object = None
 
     @classmethod
-    def create(cls, frame_width, frame_height, width=960, height=720):
-        width, height = max(320, int(width)), max(300, int(height))
+    def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False):
+        width, height = max(320, int(width)), max(480 if show_plates else 300, int(height))
         font_size = max(12, min(18, width // 52))
         line_height = font_size + 6
         button_height = font_size + 20
@@ -47,11 +49,22 @@ class PreviewLayout:
         button_rows = 1 if width >= 640 else 2
         footer_height = max(130, 24 + line_height * line_count + (button_height + 6) * button_rows)
         image_height = height - footer_height
-        scale = min(width / max(1, frame_width), image_height / max(1, frame_height))
+        image_width = width
+        plates = None
+        if show_plates:
+            if width >= 800:
+                panel_width = min(360, max(280, width // 3))
+                image_width -= panel_width
+                plates = Rect(image_width, 0, panel_width, image_height)
+            else:
+                panel_height = min(12*(font_size+4)+24, image_height - 60)
+                plates = Rect(0, image_height-panel_height, width, panel_height)
+                image_height -= panel_height
+        scale = min(image_width / max(1, frame_width), image_height / max(1, frame_height))
         video_width = max(1, int(frame_width * scale))
         video_height = max(1, int(frame_height * scale))
-        video = Rect((width-video_width)//2, (image_height-video_height)//2, video_width, video_height)
-        footer = Rect(0, image_height, width, footer_height)
+        video = Rect((image_width-video_width)//2, (image_height-video_height)//2, video_width, video_height)
+        footer = Rect(0, height-footer_height, width, footer_height)
         margin, gap = 12, 8
         top = footer.y + 12 + line_height * line_count
         names = ("select", "full", "stop", "confirm", "cancel") if width >= 640 else ("select", "full", "stop")
@@ -62,7 +75,7 @@ class PreviewLayout:
             second_width = (width-margin*2-gap)//2
             for index, name in enumerate(("confirm", "cancel")):
                 buttons[name] = Rect(margin+index*(second_width+gap), top+button_height+6, second_width, button_height)
-        return cls(width, height, video, footer, buttons, font_size, line_height, line_count)
+        return cls(width, height, video, footer, buttons, font_size, line_height, line_count, plates)
 
     def button_at(self, x, y):
         return next((name for name, rect in self.buttons.items() if rect.contains(x, y)), None)
@@ -98,6 +111,9 @@ class PreviewController:
         self.draft = None
         self.selection_error = None
         self.pressed_button = None
+        self.model_label = "YOLO11n"
+        self.plate_events = []
+        self.plate_status = ""
 
     @property
     def can_confirm(self):
@@ -201,7 +217,11 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
     names = {"IDLE": "偵測中", "RECORDING": "錄影中", "STARTING": "準備錄影",
              "PAUSED": "錄影暫停", "STOPPED": "已停止", "WAITING_FOR_RECORDER": "等待錄影程式",
              "WAITING_FOR_MUMU": "等待 MuMu／逍遙畫面", "CAPTURE_RETRY": "重新擷取畫面",
-             "FINDING_CAMERA_AREA": "正在辨識模擬器影像範圍"}
+             "FINDING_CAMERA_AREA": "正在辨識模擬器影像範圍",
+             "ADB_CONNECTING": "正在連接 ADB", "ADB_QUALITY_CHECK": "設定最高畫質並收起選單",
+             "ADB_QUALITY_UNCONFIRMED": "畫質未確認：請選最高後重新啟動",
+             "ADB_UNAVAILABLE": "ADB 無法連接", "ADB_RECONNECTING": "ADB 串流重新連接",
+             "ADB_STREAMING": "等待 ADB 新影格"}
     title = names.get(status, status) if chinese else status.replace("_", " ")
     if status == "RECORDING" and elapsed is not None:
         seconds = max(0, min(300, int(elapsed)))
@@ -214,7 +234,8 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
         vertices = roi_vertices(controller.roi)
         region = ("指定多邊形：%d 個頂點" if chinese else "Polygon ROI: %d vertices") % len(vertices)
     heading = ("狀態：" if chinese else "Status: ")+title
-    counts = ("區域人數：%s   YOLO：%s" if chinese else "People in ROI: %s   YOLO: %s") % (people, inference)
+    model = str(getattr(controller, "model_label", "YOLO11n"))
+    counts = ("區域人數：%s   %s：%s" if chinese else "People in ROI: %s   %s: %s") % (people, model, inference)
     if controller.selecting:
         points = len(controller.draft)
         instruction = ("點擊頂點（至少 3 點），已選 %d 點" if chinese else
@@ -231,8 +252,8 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
             shortcuts = ("Enter 儲存・右鍵 / Backspace 撤銷・Esc 取消" if chinese else
                          "Enter: save | Right-click / Backspace: undo | Esc: cancel")
             return [heading + "   |   " + counts, instruction, shortcuts]
-        compact_status = (("人數：%s  YOLO：%s" if chinese else "People: %s  YOLO: %s") %
-                          (people, inference))
+        compact_status = (("人數：%s  %s：%s" if chinese else "People: %s  %s: %s") %
+                          (people, model, inference))
         return [heading + " | " + compact_status, instruction,
                 "Enter 儲存・Esc 取消" if chinese else "Enter: save | Esc: cancel",
                 "右鍵 / Backspace 撤銷" if chinese else "Right-click / Backspace: undo"]
@@ -247,6 +268,52 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
     if controller.layout.line_count == 3:
         return [heading + "   |   " + counts, region, message or hint]
     return [heading, counts, region, message or hint]
+
+
+def plate_rows(events, chinese=True):
+    """Keep observed OCR and allowlist matches visibly distinct, newest first."""
+    rows = []
+    valid = [event for event in events if isinstance(event, dict) and event.get("confirmed")]
+    for event in sorted(valid, key=lambda item: float(item.get("timestamp", 0)), reverse=True)[:5]:
+        try:
+            moment = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8)))
+            stamp = moment.strftime("%m/%d %H:%M:%S")
+        except (KeyError, ValueError, TypeError, OSError):
+            stamp = "--:--:--"
+        observed = str(event.get("text") or event.get("raw_text") or "?")
+        first = "%s  %s" % (stamp, observed)
+        if event.get("matched"):
+            second = (("名單：%s · 差 %s 碼" if chinese else "Match: %s · distance %s") %
+                      (event["matched"], event.get("distance", "?")))
+        else:
+            second = "未符合指定名單" if chinese else "No allowlist match"
+        rows.append((first, second))
+    return rows
+
+
+def render_plate_panel(draw, controller, font, chinese):
+    panel = controller.layout.plates
+    if panel is None:
+        return
+    draw.rectangle(panel.bounds, fill=(15, 24, 35))
+    draw.line((panel.x, panel.y, panel.x, panel.y+panel.height), fill=(52, 93, 123), width=2)
+    def label(text, y, color):
+        text = str(text)
+        while len(text) > 1 and draw.textbbox((0, 0), text, font=font)[2] > panel.width-24:
+            text = text[:-2].rstrip("…")+"…"
+        draw.text((panel.x+12, y), text, font=font, fill=color)
+    line = controller.layout.font_size+4
+    label("最近五筆車牌（辨識結果）" if chinese else "Latest 5 plates (observed OCR)", panel.y+8, (106, 224, 251))
+    label(controller.plate_status or ("等待車牌辨識" if chinese else "Waiting for plate detection"), panel.y+8+line, (160, 179, 198))
+    rows = plate_rows(controller.plate_events, chinese)
+    available = panel.height-(line*2+20)
+    row_height = max(line*2, available//5)
+    for index, (observed, match) in enumerate(rows):
+        y = panel.y+line*2+16+index*row_height
+        label(observed, y, (239, 247, 252))
+        label(match, y+line, (155, 202, 176))
+    if not rows:
+        label("尚無已確認的車牌" if chinese else "No confirmed plates yet", panel.y+line*2+20, (160, 179, 198))
 
 
 def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed=None, message=None):
@@ -271,6 +338,7 @@ def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed
     draw.rectangle(layout.footer.bounds, fill=(20, 30, 44))
     draw.line((0, layout.footer.y, layout.width, layout.footer.y), fill=(52, 93, 123), width=2)
     font, chinese = ui_font(layout.font_size)
+    render_plate_panel(draw, controller, font, chinese)
     for index, text in enumerate(status_lines(controller, status, count, infer_ms, elapsed, message)):
         # Fit narrow windows without pushing text outside the single footer.
         while len(text) > 1 and draw.textbbox((0, 0), text, font=font)[2] > layout.width-24:

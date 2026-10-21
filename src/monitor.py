@@ -28,6 +28,9 @@ from region_policy import people_in_region, validate_roi, rebase_roi
 from preview_ui import PreviewController, PreviewLayout, render_preview
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
 from app_branding import set_app_identity, apply_window_icon
+from adb_capture import AdbStream, settings as capture_settings
+from capture_region import CaptureInfo
+from plate_recognition import PlateService
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -306,6 +309,8 @@ def main():
     print("POLICY=PERSON_ACTIVITY_REGION_MIN_120S_ROLLOVER_MAX_300S_QUIET_120S", flush=True)
     print("AI_DEVICE=%s" % device, flush=True)
     print("ROI=%s" % (cfg["roi"] if cfg["roi"] is not None else "FULL_FRAME"), flush=True)
+    adb_stream = AdbStream(ROOT) if capture_settings(ROOT).get("source") == "adb" else None
+    plate_service = PlateService(ROOT) if cfg.get("plate_enabled", False) else None
     sct = new_mss()
     capture_resolver = CaptureRegionResolver()
     last_capture_area = None
@@ -315,8 +320,9 @@ def main():
     next_capture = 0.0
     capture_status = "WAITING_FOR_MUMU"
     last_frame = np.zeros((540, 960, 3), dtype=np.uint8)
-    canvas_size = (960, 720)
+    canvas_size = (1100, 760) if plate_service else (960, 720)
     controller = PreviewController(cfg["roi"])
+    controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     detection_session = DetectionSession()
     ui_actions = []
     message = None
@@ -324,7 +330,7 @@ def main():
     set_app_identity()
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     apply_window_icon(WINDOW_NAME)
-    cv2.resizeWindow(WINDOW_NAME, 960, 720)
+    cv2.resizeWindow(WINDOW_NAME, *canvas_size)
 
     def mouse_callback(event, x, y, flags, userdata):
         events = {cv2.EVENT_LBUTTONDOWN: "down", cv2.EVENT_MOUSEMOVE: "move",
@@ -337,47 +343,64 @@ def main():
 
     cv2.setMouseCallback(WINDOW_NAME, mouse_callback)
     try:
+        if adb_stream:
+            adb_stream.start()
+        if plate_service:
+            plate_service.start()
         while not STOP_FLAG.exists():
             if time.monotonic() < next_frame:
                 time.sleep(max(0, min(next_frame - time.monotonic(), 0.01)))
                 continue
             capture_ok = False
-            if time.monotonic() >= next_capture:
-                if hwnd is None or not win32gui.IsWindow(hwnd):
-                    hwnd = find_mumu()
-                    if hwnd is None:
-                        capture_status = "WAITING_FOR_MUMU"
-                        next_capture = time.monotonic() + 1.0
-                    elif win32gui.IsIconic(hwnd):
-                        win32gui.ShowWindow(hwnd, 9)
-                if hwnd is not None:
-                    try:
-                        last_frame, capture_info = capture_frame(
-                            sct, hwnd, win32gui, cv2, np, resolver=capture_resolver)
-                        area = (capture_info.parent_client_rect, capture_info.content_rect)
-                        if area != last_capture_area:
-                            print("CAPTURE_AREA=%s METHOD=%s" % (capture_info.content_rect, capture_info.method), flush=True)
-                            last_capture_area = area
-                        if ensure_content_roi(cfg, capture_info):
-                            controller.roi = deepcopy(cfg["roi"])
-                        elif not controller.selecting:
-                            controller.roi = None
-                            controller.command("select")
-                        failures, capture_ok, capture_status = 0, True, None
-                    except CaptureRegionUnavailable:
-                        # Keep controls responsive without recording an uncertain menu area.
-                        capture_status = "FINDING_CAMERA_AREA"
-                        next_capture = time.monotonic() + 1.0
-                    except Exception as error:
-                        failures += 1
-                        print("CAPTURE_ERROR=%s count=%d" % (type(error).__name__, failures), flush=True)
-                        sct.close()
-                        sct = new_mss()
-                        hwnd = None
-                        capture_status = "CAPTURE_RETRY"
-                        if failures >= int(cfg["capture_max_failures"]):
-                            raise RuntimeError("Capture failed repeatedly; watchdog will retry")
-                        next_capture = time.monotonic() + float(cfg["capture_retry_seconds"])
+            if adb_stream:
+                try:
+                    last_frame = adb_stream.capture()
+                    h, w = last_frame.shape[:2]
+                    capture_info = CaptureInfo((0, 0, w, h), (0, 0, w, h), "adb_stream")
+                    if ensure_content_roi(cfg, capture_info):
+                        controller.roi = deepcopy(cfg["roi"])
+                    elif not controller.selecting:
+                        controller.command("select")
+                    capture_ok, capture_status = True, None
+                except Exception:
+                    capture_status = adb_stream.status
+            else:
+                if time.monotonic() >= next_capture:
+                    if hwnd is None or not win32gui.IsWindow(hwnd):
+                        hwnd = find_mumu()
+                        if hwnd is None:
+                            capture_status = "WAITING_FOR_MUMU"
+                            next_capture = time.monotonic() + 1.0
+                        elif win32gui.IsIconic(hwnd):
+                            win32gui.ShowWindow(hwnd, 9)
+                    if hwnd is not None:
+                        try:
+                            last_frame, capture_info = capture_frame(
+                                sct, hwnd, win32gui, cv2, np, resolver=capture_resolver)
+                            area = (capture_info.parent_client_rect, capture_info.content_rect)
+                            if area != last_capture_area:
+                                print("CAPTURE_AREA=%s METHOD=%s" % (capture_info.content_rect, capture_info.method), flush=True)
+                                last_capture_area = area
+                            if ensure_content_roi(cfg, capture_info):
+                                controller.roi = deepcopy(cfg["roi"])
+                            elif not controller.selecting:
+                                controller.roi = None
+                                controller.command("select")
+                            failures, capture_ok, capture_status = 0, True, None
+                        except CaptureRegionUnavailable:
+                            # Keep controls responsive without recording an uncertain menu area.
+                            capture_status = "FINDING_CAMERA_AREA"
+                            next_capture = time.monotonic() + 1.0
+                        except Exception as error:
+                            failures += 1
+                            print("CAPTURE_ERROR=%s count=%d" % (type(error).__name__, failures), flush=True)
+                            sct.close()
+                            sct = new_mss()
+                            hwnd = None
+                            capture_status = "CAPTURE_RETRY"
+                            if failures >= int(cfg["capture_max_failures"]):
+                                raise RuntimeError("Capture failed repeatedly; watchdog will retry")
+                            next_capture = time.monotonic() + float(cfg["capture_retry_seconds"])
             frame = last_frame
             height, width = frame.shape[:2]
             evidence = frame.copy()
@@ -405,13 +428,23 @@ def main():
                     cv2.rectangle(evidence, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 count = len(people)
 
+            if plate_service:
+                if capture_ok and not controller.selecting and not cfg.get("roi_reselect_required"):
+                    plate_service.submit(frame, time.time(), None)
+                else:
+                    plate_service.pause()
+                plate_state = plate_service.snapshot()
+                controller.plate_events = plate_state.get("recent", [])
+                controller.plate_status = plate_state.get("status", "")
+                if adb_stream:
+                    controller.plate_status += " | ADB %dx%d | %s" % (width, height, adb_stream.quality)
             try:
                 _, _, view_width, view_height = cv2.getWindowImageRect(WINDOW_NAME)
                 if view_width >= 320 and view_height >= 300:
                     canvas_size = (view_width, view_height)
             except (cv2.error, AttributeError):
                 pass
-            controller.layout = PreviewLayout.create(width, height, *canvas_size)
+            controller.layout = PreviewLayout.create(width, height, *canvas_size, show_plates=bool(plate_service))
             state = read_json(STATE_FILE)
             status = preview_status(state, REQUEST_FILE.exists(), capture_status)
             elapsed = state.get("elapsed_seconds") if isinstance(state, dict) else None
@@ -456,6 +489,10 @@ def main():
             next_frame = time.monotonic() + interval
     finally:
         sct.close()
+        if plate_service:
+            plate_service.stop()
+        if adb_stream:
+            adb_stream.stop()
         cv2.destroyAllWindows()
         print("MONITOR_STOPPED", flush=True)
 

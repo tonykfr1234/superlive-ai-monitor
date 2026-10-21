@@ -8,6 +8,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from telegram_video import MAX_UPLOAD_BYTES, TelegramVideoQueue
+from hq_video import HighQualityWriter
 
 AVAILABLE = all(importlib.util.find_spec(name) is not None for name in ('cv2', 'numpy', 'imageio_ffmpeg'))
 
@@ -21,7 +22,7 @@ class RealEncoderTests(unittest.TestCase):
             root = Path(folder)
             original = root / 'synthetic.mp4'
             prepared = root / 'synthetic_telegram.mp4'
-            writer = cv2.VideoWriter(str(original), cv2.VideoWriter_fourcc(*'mp4v'), 10, (320, 240))
+            writer = HighQualityWriter(original, 10, (320, 240))
             self.assertTrue(writer.isOpened())
             try:
                 for index in range(3000):
@@ -33,6 +34,8 @@ class RealEncoderTests(unittest.TestCase):
                 writer.release()
             queue = TelegramVideoQueue(root, lambda message: None)
             output = queue.prepare({'path': str(original), 'prepared_path': str(prepared)})
+            self.assertEqual(output, original)
+            self.assertFalse(prepared.exists())
             self.assertGreater(output.stat().st_size, 0)
             self.assertLessEqual(output.stat().st_size, MAX_UPLOAD_BYTES)
             video = cv2.VideoCapture(str(output))

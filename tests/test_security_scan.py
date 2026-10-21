@@ -36,6 +36,8 @@ class PublicationSecurityTests(unittest.TestCase):
     def test_empty_and_placeholder_configuration_examples_are_allowed(self):
         self.write('config/telegram.env.example', 'BOT_TOKEN=\nCHAT_ID=\n')
         self.write('.env.example', 'BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN\nCHAT_ID=YOUR_NUMERIC_CHAT_ID\n')
+        self.write('config/plate_allowlist.example.json', '[]')
+        self.write('config/capture_config.example.json', '{"source":"window","serial":""}')
         self.assertEqual(scanner.scan(self.root), [])
 
     def test_example_word_cannot_exempt_a_numeric_chat_id_anywhere_in_file(self):
@@ -57,7 +59,8 @@ class PublicationSecurityTests(unittest.TestCase):
 
     def test_private_names_are_case_insensitive_and_cover_local_variants(self):
         for name in ('Telegram.Env', '.ENV', '.Env.Local', 'Telegram_Profile.json',
-                     'TELEGRAM_PROFILE.backup', 'credentials.private.json', 'SECRETS.json'):
+                     'TELEGRAM_PROFILE.backup', 'credentials.private.json', 'SECRETS.json',
+                     'Plate_Allowlist.json', 'Capture_Config.json'):
             with self.subTest(name=name):
                 path = self.write(name, '')
                 self.assertTrue(any('FORBIDDEN FILE' in item for item in scanner.scan(self.root)))
@@ -100,14 +103,17 @@ class PublicationSecurityTests(unittest.TestCase):
         subprocess.run(['git', 'init', '--quiet', str(self.root)], capture_output=True, check=True)
         self.write('.vscode/note.txt', synthetic_token())
         self.write('.venv/runtime/status.json', '{}')
+        self.write('.plate-venv/config/device.txt', 'synthetic device')
         subprocess.run(['git', '-C', str(self.root), 'add', '--force', '.vscode/note.txt',
-                        '.venv/runtime/status.json'], capture_output=True, check=True)
+                        '.venv/runtime/status.json', '.plate-venv/config/device.txt'], capture_output=True, check=True)
         findings = scanner.scan(self.root)
         self.assertTrue(any('Telegram bot token' in item for item in findings))
         self.assertTrue(any('PRIVATE RUNTIME PATH' in item for item in findings))
+        self.assertTrue(any('.plate-venv' in item and 'PRIVATE RUNTIME PATH' in item for item in findings))
 
     def test_untracked_local_cache_does_not_scan_installed_dependencies(self):
         self.write('.venv/installed.py', 'dependency source')
+        self.write('.plate-venv/installed.py', 'OCR dependency source')
         self.write('__pycache__/module.pyc', b'compiled cache')
         self.assertEqual(scanner.scan(self.root), [])
 

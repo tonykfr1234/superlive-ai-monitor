@@ -158,3 +158,6 @@ MuMu and MEmu are supported. Keep one emulator camera window visible and reselec
 
 
 [公開版使用說明（繁體中文純文字）](docs/使用說明.txt)
+
+
+[ADB、最高畫質與車牌辨識使用說明](docs/PLATE_AND_ADB.zh-TW.md)

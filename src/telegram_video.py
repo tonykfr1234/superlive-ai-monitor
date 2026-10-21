@@ -11,11 +11,27 @@ import subprocess
 import threading
 import time
 import uuid
+import hashlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from record_protocol import atomic_json, read_json, telegram_send_allowed
 
 MAX_UPLOAD_BYTES = 49_000_000
+
+
+def event_line(event):
+    """Plain text preserves the observed plate separately from its fuzzy match."""
+    def compact(value):
+        return " ".join(str(value).split())[:64]
+    stamp = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8))).strftime("%m/%d %H:%M:%S")
+    observed = compact(event.get("text") or event.get("raw_text") or "?")
+    text = "%s 辨識：%s" % (stamp, observed)
+    if event.get("matched"):
+        text += "；名單：%s（差 %s 碼）" % (compact(event["matched"]), compact(event.get("distance", "?")))
+    else:
+        text += "；未符合指定名單"
+    return text
 
 
 class TelegramDeferred(Exception):
@@ -43,6 +59,10 @@ class TelegramVideoQueue:
         self.stop_event = threading.Event()
         self.thread = None
         self.lock = threading.Lock()
+        self.plate_directory = self.root / "runtime" / "plate_events"
+        self.plate_delivery = self.root / "runtime" / "telegram_plate_delivery"
+        self.plate_delivery.mkdir(parents=True, exist_ok=True)
+        self.sent_in_process = set()
 
     def enqueue(self, path, request, duration, complete):
         path = Path(path).resolve()
@@ -50,6 +70,7 @@ class TelegramVideoQueue:
             request_id=request.get("request_id"), count=request.get("count", 1),
             roi=request.get("roi"), duration=duration, complete=complete,
             created_at=time.time(), attempts=0, retry_at=0)
+        job["clip_started_at"] = request.get("clip_started_at", job["created_at"]-duration)
         manifest = self.directory / (uuid.uuid4().hex + ".json")
         with self.lock:
             atomic_json(manifest, job)
@@ -79,7 +100,12 @@ class TelegramVideoQueue:
             self.thread.join(timeout=6)
 
     def prepare(self, job):
+        source = Path(job["path"])
+        if 0 < source.stat().st_size <= MAX_UPLOAD_BYTES:
+            return source
         destination = Path(job["prepared_path"])
+        if destination.resolve() == source.resolve():
+            raise ValueError("Delivery copy must not overwrite original")
         if destination.exists() and 0 < destination.stat().st_size <= MAX_UPLOAD_BYTES:
             return destination
         import imageio_ffmpeg
@@ -126,12 +152,93 @@ class TelegramVideoQueue:
             temporary.unlink(missing_ok=True)
             raise RuntimeError("Video preparation failed")
 
+    def cleanup_delivery_copy(self, job):
+        """Remove only this job's conventional derivative, never its original."""
+        source = Path(job["path"]).resolve()
+        expected = source.with_name(source.stem + "_telegram.mp4")
+        prepared = Path(job.get("prepared_path", expected)).resolve()
+        if prepared != expected or prepared == source:
+            return True
+        cleaned = True
+        for path in (prepared, prepared.with_name(prepared.stem + ".encoding.mp4")):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                cleaned = False
+                self.log("TELEGRAM_TEMP_CLEANUP=FAILED FILE=%s" % path.name)
+        return cleaned
+
+    def plate_events(self):
+        result = []
+        for manifest in self.plate_directory.glob("*.json"):
+            event = read_json(manifest, {})
+            try:
+                if event.get("confirmed") and event.get("id") and float(event["timestamp"]) > 0:
+                    event_line(event)  # Reject malformed timestamps without blocking other events.
+                    result.append(event)
+            except (ValueError, TypeError, KeyError, OSError, OverflowError):
+                continue
+        return sorted(result, key=lambda item: float(item["timestamp"]))
+
+    def caption(self, job):
+        scope = "指定區域" if job.get("roi") else "全畫面"
+        text = "SuperLive AI：%s偵測到人員\n錄影：%.1f 秒\n人數：%s" % (scope, job["duration"], job.get("count", 1))
+        if not job.get("complete"):
+            text += "\n錄影因停止或擷取中斷而提前結束"
+        start = float(job.get("clip_started_at", job.get("created_at", 0)-float(job["duration"])))
+        end = start+float(job["duration"])
+        events = [event for event in self.plate_events() if start <= float(event["timestamp"]) <= end]
+        if events:
+            text += "\n車牌紀錄（台灣時間）："
+        for index, event in enumerate(events):
+            line = "\n"+event_line(event)
+            if len(text)+len(line) > 960:
+                text += "\n另有 %d 筆，詳見車牌通知。" % (len(events)-index)
+                break
+            text += line
+        return text[:1024]
+
+    def send_plate(self, event, token, chat_id):
+        import requests
+        if self.stop_event.is_set() or not telegram_send_allowed(self.root):
+            raise TelegramDeferred("Telegram dispatch is currently deferred")
+        response = requests.post("https://api.telegram.org/bot%s/sendMessage" % token,
+            data=dict(chat_id=chat_id, text="SuperLive AI 車牌紀錄（台灣時間）\n"+event_line(event)), timeout=(15, 30))
+        if response.status_code != 200 or not response.json().get("ok"):
+            raise RuntimeError("Telegram plate delivery failure")
+
+    def process_plates_once(self, now):
+        for event in self.plate_events():
+            if self.stop_event.is_set() or not telegram_send_allowed(self.root, now=now):
+                return
+            key = "plate:"+str(event["id"])
+            digest = hashlib.sha256(str(event["id"]).encode("utf-8")).hexdigest()
+            manifest = self.plate_delivery / (digest+".json")
+            state = read_json(manifest, {})
+            if state.get("sent_at") or state.get("retry_at", 0) > now:
+                continue
+            try:
+                if key not in self.sent_in_process:
+                    token, chat_id = load_credentials(self.root / "config" / "telegram.env")
+                    if not token or not chat_id:
+                        raise RuntimeError("Telegram configuration missing")
+                    self.send_plate(event, token, chat_id)
+                    self.sent_in_process.add(key)
+                atomic_json(manifest, dict(event_id=event["id"], sent_at=now))
+                self.log("TELEGRAM_PLATE=PASS")
+            except TelegramDeferred:
+                return
+            except Exception as error:
+                if self.stop_event.is_set():
+                    return
+                attempts = int(state.get("attempts", 0))+1
+                atomic_json(manifest, dict(event_id=event["id"], attempts=attempts,
+                    retry_at=now+min(300, 10*2**min(attempts, 5))))
+                self.log("TELEGRAM_PLATE=RETRY TYPE=%s ATTEMPT=%d" % (type(error).__name__, attempts))
+
     def send(self, video, job, token, chat_id):
         import requests
-        scope = "指定區域" if job.get("roi") else "全畫面"
-        caption = "SuperLive AI：%s偵測到人員\n錄影：%.1f 秒\n人數：%s" % (scope, job["duration"], job.get("count", 1))
-        if not job.get("complete"):
-            caption += "\n錄影因停止或擷取中斷而提前結束"
+        caption = self.caption(job)
         with Path(video).open("rb") as stream:
             # Encoding can take minutes. Re-read the shared guard at dispatch,
             # including a new clip or rollover that began during preparation.
@@ -148,6 +255,7 @@ class TelegramVideoQueue:
 
     def process_once(self, now=None):
         now = time.time() if now is None else now
+        self.process_plates_once(now)
         jobs = [(manifest, read_json(manifest, {})) for manifest in self.directory.glob("*.json")]
         jobs.sort(key=lambda item: item[1].get("created_at", 0))
         for manifest, job in jobs:
@@ -156,15 +264,22 @@ class TelegramVideoQueue:
             if not job or job.get("retry_at", 0) > now:
                 continue
             try:
-                token, chat_id = load_credentials(self.root / "config" / "telegram.env")
-                if not token or not chat_id:
-                    raise RuntimeError("Telegram configuration missing")
-                video = self.prepare(job)
-                if self.stop_event.is_set():
-                    return
-                self.send(video, job, token, chat_id)
+                key = "video:"+manifest.name
+                if not job.get("sent_at") and key not in self.sent_in_process:
+                    token, chat_id = load_credentials(self.root / "config" / "telegram.env")
+                    if not token or not chat_id:
+                        raise RuntimeError("Telegram configuration missing")
+                    video = self.prepare(job)
+                    if self.stop_event.is_set():
+                        return
+                    self.send(video, job, token, chat_id)
+                    self.sent_in_process.add(key)
+                job["sent_at"] = job.get("sent_at") or now
                 with self.lock:
-                    manifest.unlink(missing_ok=True)
+                    atomic_json(manifest, job)
+                if self.cleanup_delivery_copy(job):
+                    with self.lock:
+                        manifest.unlink(missing_ok=True)
                 self.log("TELEGRAM_VIDEO=PASS FILE=%s" % Path(job["path"]).name)
             except TelegramDeferred:
                 # The job, its retry deadline and its failure count are intact.

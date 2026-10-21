@@ -1,0 +1,6 @@
+{
+  "source": "window",
+  "adb_path": "C:/Program Files/Microvirt/MEmu/adb.exe",
+  "serial": "",
+  "ensure_highest": true
+}

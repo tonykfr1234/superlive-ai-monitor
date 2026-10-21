@@ -451,6 +451,27 @@ class UploadQueueTests(unittest.TestCase):
         self.assertTrue(self.path.exists())
         self.assertFalse(restarted.protected_paths())
 
+    def test_success_removes_only_derivative_and_preserves_original(self):
+        job = read_json(self.manifest)
+        derivative = Path(job["prepared_path"])
+        derivative.write_bytes(b"temporary")
+        self.queue.send = Mock()
+        with patch.object(telegram_video, "load_credentials", return_value=("fake", "fake")):
+            self.queue.process_once(now=100)
+        self.assertTrue(self.path.exists())
+        self.assertFalse(derivative.exists())
+        self.assertEqual(self.queue.send.call_args.args[0], self.path.resolve())
+
+    def test_failure_keeps_derivative_and_original_for_retry(self):
+        derivative = Path(read_json(self.manifest)["prepared_path"])
+        derivative.write_bytes(b"temporary")
+        self.queue.send = Mock(side_effect=RuntimeError("failed"))
+        with patch.object(telegram_video, "load_credentials", return_value=("fake", "fake")):
+            self.queue.process_once(now=100)
+        self.assertTrue(self.path.exists())
+        self.assertTrue(derivative.exists())
+        self.assertTrue(self.manifest.exists())
+
     def test_missing_telegram_config_retains_local_clip_and_job(self):
         self.queue.prepare = Mock()
         self.queue.send = Mock()
@@ -462,6 +483,8 @@ class UploadQueueTests(unittest.TestCase):
         self.assertTrue(self.path.exists())
 
     def test_stop_terminates_and_reaps_owned_encoder_child(self):
+        with self.path.open("wb") as stream:
+            stream.truncate(telegram_video.MAX_UPLOAD_BYTES+1)
         started = threading.Event()
         processes = []
         errors = []

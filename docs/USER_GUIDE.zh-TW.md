@@ -70,3 +70,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
 
 MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.
+
+
+2026-10-21 更新：ADB 與車牌辨識
+目前人物模型為 YOLO11n，GUI 會顯示名稱。車牌另用 YOLO 車牌模型與 CCT OCR，顯示最近五筆台灣時間及讀取文字；以本機名單比對，忽略大小寫及連字號，最多容錯兩碼（漏字、多字、錯字合計）。原始讀值與比對結果分開呈現，須多影格確認。
+ADB 模式直接擷取 Android 內部解析度，不受桌面遮擋或視窗尺寸影響；開始監控前確認 SuperLive「最高」，收起選單再啟動偵測，不每小時操作。無法確認時暫停等待，不會誤報最高畫質。
+ADB 仍有編碼與傳輸延遲；每180秒串流重連可能短暫中斷。實際畫質仍受攝影機串流限制。Windows 桌面擷取模式則仍需畫面保持可見。
+Telegram 改成直接傳送高畫質原片；僅超過傳送大小限制時才製作暫時壓縮副本，成功後移除副本。車牌訊息與影片說明附時間及實際辨識值，同樣遵守前兩分鐘靜默；每日23:00 CSV仍是例外。
+設定與詳情請見 docs/PLATE_AND_ADB.zh-TW.md（GitHub 專案）；實際車牌名單、帳密、攝影機影像與訓練素材不公開上傳。

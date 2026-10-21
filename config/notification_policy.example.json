@@ -9,5 +9,6 @@
     0
   ],
   "capture_max_failures": 5,
-  "capture_retry_seconds": 1.0
+  "capture_retry_seconds": 1.0,
+  "plate_enabled": true
 }

@@ -9,6 +9,7 @@
 
 # Runtime
 .venv/
+.plate-venv/
 venv/
 __pycache__/
 *.py[cod]
@@ -49,3 +50,7 @@ Thumbs.db
 Desktop.ini
 
 !assets/superlive-ai.png
+
+# Local camera/device selection and private plate allowlists
+**/capture_config.json
+**/plate_allowlist.json

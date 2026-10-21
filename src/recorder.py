@@ -13,6 +13,7 @@ from record_protocol import atomic_json, read_json, valid_end_request, MIN_RECOR
 from telegram_video import TelegramVideoQueue
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver
 from hq_video import HighQualityWriter, fit_frame
+from adb_capture import SharedAdbReader, settings as capture_settings
 from daily_report import DailyReports, TAIPEI
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
@@ -91,6 +92,7 @@ class Recorder:
         self.next_request = None
         self.last_publish = 0
         self.capture_resolver = CaptureRegionResolver()
+        self.adb_reader = SharedAdbReader(self.root) if capture_settings(self.root).get("source") == "adb" else None
         self.uploader = TelegramVideoQueue(self.root, self.log)
         self.reports = DailyReports(self.root, self.record_root, self.log)
 
@@ -163,6 +165,8 @@ class Recorder:
         return self.disk_percent() < self.rotate_start
 
     def find_window(self):
+        if getattr(self, "adb_reader", None):
+            return 0
         hwnd = find_emulator_window(self.win32gui, self.win32process, self.psutil)
         if hwnd is None:
             raise RuntimeError("MuMu / MEmu window unavailable")
@@ -171,6 +175,8 @@ class Recorder:
         return hwnd
 
     def capture(self, sct, hwnd):
+        if getattr(self, "adb_reader", None):
+            return self.adb_reader.capture()
         frame, _ = capture_frame(sct, hwnd, self.win32gui, self.cv2, self.np,
                                  resolver=self.capture_resolver)
         return frame
@@ -197,6 +203,7 @@ class Recorder:
             writer = self.make_writer(path, size)
             if not writer.isOpened():
                 raise RuntimeError("VideoWriter failed")
+            request = dict(request, clip_started_at=time.time())
             started = time.monotonic()
             timeline = FrameTimeline(self.fps, started)
             self.reserve_quiet(request["request_id"])

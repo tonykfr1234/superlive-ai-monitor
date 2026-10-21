@@ -21,6 +21,8 @@ $ScriptMap = [ordered]@{
     'app_branding.py' = 'app_branding.py'
     'hq_video.py' = 'hq_video.py'
     'daily_report.py' = 'daily_report.py'
+    'adb_capture.py' = 'adb_capture.py'
+    'plate_recognition.py' = 'plate_recognition.py'
 }
 $Scripts = @($ScriptMap.Values)
 if (-not (Test-Path -LiteralPath "$Repo\assets\superlive-ai.ico" -PathType Leaf)) { throw 'Application icon is missing.' }
@@ -36,12 +38,18 @@ foreach ($Name in $ScriptMap.Keys) {
 }
 $Policy = Get-Content -LiteralPath "$Repo\config\notification_policy.example.json" -Raw | ConvertFrom-Json
 $Recording = Get-Content -LiteralPath "$Repo\config\recording_config.example.json" -Raw | ConvertFrom-Json
+foreach ($Name in @('capture_config', 'plate_allowlist')) {
+    $null = Get-Content -LiteralPath "$Repo\config\$Name.example.json" -Raw | ConvertFrom-Json
+}
+if (-not (Test-Path -LiteralPath "$Repo\requirements-plates.txt" -PathType Leaf)) {
+    throw 'Isolated plate OCR requirements are missing. No installed files were modified.'
+}
 if (-not (Test-Path -LiteralPath "$Repo\config\telegram.env.example" -PathType Leaf)) {
     throw 'Telegram configuration example is missing. No installed files were modified.'
 }
 if (Test-Path -LiteralPath "$Root\config\notification_policy.json") {
     $ExistingPolicy = Get-Content -LiteralPath "$Root\config\notification_policy.json" -Raw | ConvertFrom-Json
-    foreach ($Name in @('roi', 'roi_coordinate_space', 'roi_reselect_required', 'target_fps', 'confidence', 'imgsz', 'capture_max_failures', 'capture_retry_seconds')) {
+    foreach ($Name in @('roi', 'roi_coordinate_space', 'roi_reselect_required', 'target_fps', 'confidence', 'imgsz', 'capture_max_failures', 'capture_retry_seconds', 'plate_enabled')) {
         if ($null -ne $ExistingPolicy.PSObject.Properties[$Name]) {
             $Policy | Add-Member -MemberType NoteProperty -Name $Name -Value $ExistingPolicy.$Name -Force
         }
@@ -139,11 +147,30 @@ if ($InstallUpdateDependencies) {
     if ($LASTEXITCODE -ne 0) { throw 'Video encoder dependency check failed.' }
 }
 
+if ($InstallDependencies -or $InstallUpdateDependencies) {
+    # Headless OpenCV must never replace the GUI-enabled cv2 in the person venv.
+    $PlatePython = Join-Path $Root '.plate-venv\Scripts\python.exe'
+    if (-not (Test-Path -LiteralPath $PlatePython -PathType Leaf)) {
+        & $Python -m venv "$Root\.plate-venv"
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to create the isolated plate OCR environment.' }
+    }
+    & $PlatePython -m pip install -r "$Repo\requirements-plates.txt"
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated plate OCR dependency installation failed. No production files were replaced.' }
+    & $PlatePython -c "import fast_alpr, fast_plate_ocr, onnxruntime; print('PLATE_OCR_ENVIRONMENT=PASS')"
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated plate OCR dependency check failed.' }
+}
+
 foreach ($Name in $ScriptMap.Keys) { Copy-Item -LiteralPath "$Repo\src\$Name" -Destination (Join-Path "$Root\scripts" $ScriptMap[$Name]) -Force }
 New-Item -ItemType Directory -Force -Path "$Root\assets" | Out-Null
 Copy-Item -LiteralPath "$Repo\assets\superlive-ai.ico" -Destination "$Root\assets\superlive-ai.ico" -Force
 $Policy | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "$Root\config\notification_policy.json" -Encoding UTF8
 $Recording | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "$Root\config\recording_config.json" -Encoding UTF8
+Copy-Item -LiteralPath "$Repo\requirements-plates.txt" -Destination "$Root\requirements-plates.txt" -Force
+foreach ($Name in @('capture_config', 'plate_allowlist')) {
+    if (-not (Test-Path -LiteralPath "$Root\config\$Name.json")) {
+        Copy-Item -LiteralPath "$Repo\config\$Name.example.json" -Destination "$Root\config\$Name.json"
+    }
+}
 if (-not (Test-Path -LiteralPath "$Root\config\telegram.env")) {
     Copy-Item -LiteralPath "$Repo\config\telegram.env.example" -Destination "$Root\config\telegram.env"
     Write-Host 'TELEGRAM_CONFIG=TEMPLATE_INSTALLED'

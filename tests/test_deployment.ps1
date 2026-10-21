@@ -6,21 +6,29 @@ $InstallRoot = Join-Path $TestRoot 'installed'
 $RecordingRoot = Join-Path $TestRoot 'recordings'
 New-Item -ItemType Directory -Force -Path "$InstallRoot\config", "$InstallRoot\scripts" | Out-Null
 # The deployment helper only sees this fixture, never the live installation.
-@{roi=@(0.2,0.3,0.8,0.9); confidence=0.42; target_fps=7; moving_notify_seconds=300} | ConvertTo-Json | Set-Content "$InstallRoot\config\notification_policy.json" -Encoding UTF8
+@{roi=@(0.2,0.3,0.8,0.9); confidence=0.42; target_fps=7; moving_notify_seconds=300; plate_enabled=$false} | ConvertTo-Json | Set-Content "$InstallRoot\config\notification_policy.json" -Encoding UTF8
 @{record_root=$RecordingRoot; target_fps=8; segment_minutes=30; rotation_start_used_percent=85; rotation_stop_used_percent=82; capture_max_failures=5; capture_retry_seconds=1; disk_check_seconds=60} | ConvertTo-Json | Set-Content "$InstallRoot\config\recording_config.json" -Encoding UTF8
 Set-Content "$InstallRoot\config\telegram.env" -Value 'TEST_FIXTURE_NO_REAL_CREDENTIALS' -Encoding ASCII
 Set-Content "$InstallRoot\scripts\stage4b_motion_monitor.py" -Value '# old fixture' -Encoding ASCII
 $CredentialHash = (Get-FileHash "$InstallRoot\config\telegram.env").Hash
+@{source='adb'; adb_path='D:/Emulator/adb.exe'; serial='fixture-device'; ensure_highest=$false} | ConvertTo-Json | Set-Content "$InstallRoot\config\capture_config.json" -Encoding UTF8
+Set-Content "$InstallRoot\config\plate_allowlist.json" -Value '["TEST-42"]' -Encoding UTF8
+$CaptureHash = (Get-FileHash "$InstallRoot\config\capture_config.json").Hash
+$AllowlistHash = (Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash
 # Isolate process discovery; the fixture has no running processes.
 function Get-CimInstance { @() }
 & "$Kit\installer\DEPLOY_RUNTIME.ps1" -Root $InstallRoot -Python $Python
 $Policy = Get-Content "$InstallRoot\config\notification_policy.json" -Raw | ConvertFrom-Json
 $Recording = Get-Content "$InstallRoot\config\recording_config.json" -Raw | ConvertFrom-Json
 if (($Policy.roi -join ',') -ne '0.2,0.3,0.8,0.9' -or $Policy.confidence -ne 0.42) { throw 'ROI/confidence not preserved' }
+if ($Policy.plate_enabled -ne $false) { throw 'User plate enablement preference not preserved' }
 if ($null -ne $Policy.PSObject.Properties['roi_coordinate_space']) { throw 'Legacy ROI incorrectly marked as converted' }
 if (($Policy.watch_classes -join ',') -ne '0' -or $null -ne $Policy.PSObject.Properties['moving_notify_seconds']) { throw 'Old motion policy survived' }
 if ($Recording.segment_minutes -ne 5 -or $Recording.record_root -ne $RecordingRoot -or $Recording.rotation_start_used_percent -ne 85 -or $Recording.rotation_stop_used_percent -ne 82) { throw 'Recording settings not migrated/preserved' }
 if ((Get-FileHash "$InstallRoot\config\telegram.env").Hash -ne $CredentialHash) { throw 'Credentials modified' }
+if ((Get-FileHash "$InstallRoot\config\capture_config.json").Hash -ne $CaptureHash) { throw 'Existing ADB device settings modified' }
+if ((Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash -ne $AllowlistHash) { throw 'Private plate allowlist modified' }
+if (Test-Path "$InstallRoot\.plate-venv") { throw 'Deployment without dependency flags must not create an OCR environment' }
 foreach ($Name in @('record_protocol.py','region_policy.py','person_activity.py','telegram_video.py', 'preview_ui.py', 'capture_region.py','stage4b_motion_monitor.py','stage5c_recorder.py')) {
     if (-not (Test-Path -LiteralPath "$InstallRoot\scripts\$Name")) { throw "Missing $Name" }
 }
@@ -55,6 +63,7 @@ $Mapping = @{
     'record_protocol.py'='record_protocol.py'; 'region_policy.py'='region_policy.py'
     'person_activity.py'='person_activity.py'; 'telegram_video.py'='telegram_video.py'
     'preview_ui.py'='preview_ui.py'; 'capture_region.py'='capture_region.py'
+    'adb_capture.py'='adb_capture.py'; 'plate_recognition.py'='plate_recognition.py'
 }
 foreach ($Name in $Mapping.Keys) {
     if ((Get-FileHash -LiteralPath "$Kit\src\$Name").Hash -ne (Get-FileHash -LiteralPath (Join-Path "$InstallRoot\scripts" $Mapping[$Name])).Hash) {
@@ -73,6 +82,12 @@ if ($Template -notcontains 'BOT_TOKEN=' -or $Template -notcontains 'CHAT_ID=') {
 $FreshPolicy = Get-Content -LiteralPath "$FreshRoot\config\notification_policy.json" -Raw | ConvertFrom-Json
 if ($null -ne $FreshPolicy.roi -or $FreshPolicy.roi_coordinate_space -ne 'mumu_content_v1') { throw 'New install ROI defaults incorrect' }
 if (-not (Test-Path -LiteralPath "$FreshRoot\runtime\stop.flag")) { throw 'New install must remain stopped for explicit start' }
+$Capture = Get-Content -LiteralPath "$FreshRoot\config\capture_config.json" -Raw | ConvertFrom-Json
+if ($Capture.source -ne 'window' -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }
+$Allowlist = Get-Content -LiteralPath "$FreshRoot\config\plate_allowlist.json" -Raw
+if ($Allowlist -notmatch '^\s*\[\s*\]\s*$') { throw 'Public installation must not contain a private plate target' }
+if ((Get-FileHash "$FreshRoot\requirements-plates.txt").Hash -ne (Get-FileHash "$Kit\requirements-plates.txt").Hash) { throw 'Isolated OCR requirements missing' }
+if ((Get-FileHash "$InstallRoot\config\capture_config.json").Hash -ne $CaptureHash -or (Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash -ne $AllowlistHash) { throw 'Repeated upgrades changed local camera or plate settings' }
 Write-Host 'ISOLATED_DEPLOYMENT_TEST=PASS'
 foreach ($Name in @('app_branding.py', 'hq_video.py', 'daily_report.py')) {
     if (-not (Test-Path -LiteralPath "$FreshRoot\scripts\$Name")) { throw "Missing new runtime helper: $Name" }

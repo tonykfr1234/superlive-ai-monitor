@@ -14,8 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-SKIP_DIRS = {'.venv', 'venv', '__pycache__', '.idea', '.vscode'}
-PRIVATE_CACHE_DIRS = {'.venv', 'venv', '__pycache__'}
+SKIP_DIRS = {'.venv', '.plate-venv', 'venv', '__pycache__', '.idea', '.vscode'}
+PRIVATE_CACHE_DIRS = {'.venv', '.plate-venv', 'venv', '__pycache__'}
 FORBIDDEN_DIR_PARTS = {'logs', 'events', 'runtime', 'recordings', 'superlive_recordings', 'backup', 'backups'}
 FORBIDDEN_SUFFIXES = {'.log', '.pyc', '.pyo', '.zip', '.7z', '.rar', '.tar', '.gz', '.pt', '.onnx',
                       '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.mp4', '.avi', '.mkv', '.mov', '.webm'}
@@ -47,6 +47,7 @@ def _forbidden_name(name):
         return False
     return (name == '.env' or name.startswith('.env.')
             or name == 'telegram.env' or name.startswith('telegram.env.')
+            or name in {'plate_allowlist.json', 'capture_config.json'}
             or name.startswith(('telegram_profile', 'credentials', 'secrets')))
 
 

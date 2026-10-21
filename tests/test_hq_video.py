@@ -36,6 +36,8 @@ class HighQualityTests(unittest.TestCase):
             self.assertLess(np.mean(np.abs(decoded.astype(float)-frame)), 2)
             queue = TelegramVideoQueue(folder)
             prepared = queue.prepare(dict(path=str(path), prepared_path=str(Path(folder)/'delivery.mp4'), duration=2))
+            self.assertEqual(prepared, path)
+            self.assertFalse((Path(folder)/"delivery.mp4").exists())
             capture = cv2.VideoCapture(str(prepared))
             width, height = capture.get(cv2.CAP_PROP_FRAME_WIDTH), capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
             capture.release()
@@ -45,7 +47,8 @@ class HighQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             original = root/'source.mp4'
-            original.write_bytes(b'original')
+            with original.open('wb') as stream:
+                stream.truncate(MAX_UPLOAD_BYTES+1)
             queue = TelegramVideoQueue(root)
             settings=[]
             def encode(job, temporary, quality):
@@ -56,4 +59,4 @@ class HighQualityTests(unittest.TestCase):
                 queue.prepare(dict(path=str(original), prepared_path=str(root/'out.mp4'), duration=300))
             self.assertEqual(settings[0], ['-crf','20'])
             self.assertIn('-b:v', settings[1])
-            self.assertEqual(original.read_bytes(), b'original')
+            self.assertEqual(original.stat().st_size, MAX_UPLOAD_BYTES+1)
