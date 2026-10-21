@@ -4,14 +4,16 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Personenbewegung in erfassten Überwachungskamerabildern erkennen</h1>
+<h1 align="center">Personen- und Fahrzeugbewegung in erfassten Überwachungskamerabildern erkennen</h1>
 <p align="center">SuperLive AI Monitor · Unterstützt die Android-Emulatoren MuMu und MEmu</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>
 <p align="center"><a href="#quick-start">Schnellstart</a> · <a href="#workflow">Ablauf</a> · <a href="#features">Funktionen</a> · <a href="#demo">Demo</a> · <a href="#faq">FAQ</a> · <a href="#documentation">Dokumentation</a></p>
 
-SuperLive AI Monitor ergänzt das sichtbare Kamerabild von SuperLive in MuMu unter Windows um ereignisgesteuerte Aufnahmen. Wähle einen polygonalen Bereich: YOLO erkennt dort Personen, und abgeschlossene Videos werden über Telegram versendet. Eine RTSP-Adresse der Kamera ist nicht erforderlich.
+SuperLive AI Monitor ergänzt das sichtbare Kamerabild von SuperLive in MuMu unter Windows um ereignisgesteuerte Aufnahmen. Wähle einen polygonalen Bereich: YOLO erkennt dort Personen und Fahrzeuge, und abgeschlossene Videos werden über Telegram versendet. Eine RTSP-Adresse der Kamera ist nicht erforderlich.
 
 Dies ist ein unabhängiges Community-Projekt ohne Verbindung zu den Anbietern von SuperLive oder MuMu. Die zwölf README-Sprachen betreffen die Dokumentation; die Programmoberfläche verwendet derzeit traditionelles Chinesisch.
+
+**Aktualisierung vom 21.10.2026:** Bewegungen von Personen oder Fahrzeugen (Autos, Motorräder, Busse, Lkw) können eine Aufnahme auslösen. Die 120-Sekunden-Sendepause und 120–300 Sekunden pro Clip bleiben; tägliche CSV-Berichte sind ausgenommen. Telegram unterscheidet Personen, Fahrzeugtypen und tatsächlich gelesene Kennzeichen; unbestätigte bleiben als solche markiert. Vollbild und überlappende Ausschnitte werden geprüft, der OCR-Prozess startet bei Fehlern automatisch neu. Bis zu sieben Tage Erkennungshistorie sind per Mausrad, Scrollleiste und PageUp/PageDown verfügbar, einschließlich nachträglich ausgewerteter Originalvideos, fehlender Erkennung, unbestätigter Kandidaten und Fehler.
 
 <a id="quick-start"></a>
 ## Schnellstart
@@ -32,9 +34,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ## Ablauf
 
 ```text
-Neue Personenaktivität im ausgewählten Bereich
+Neue Personen- oder Fahrzeugaktivität im ausgewählten Bereich
   → Aufnahme starten; in den ersten 120 Sekunden keine neuen automatischen Telegram-Sendungen
-  → Personen während der gesamten Aufnahme weiter erkennen
+  → Personen und Fahrzeuge während der gesamten Aufnahme weiter erkennen
   → Bewegung ab Sekunde 120 und vor Sekunde 300: Clip sofort beenden und nächsten starten
   → jeder neue Clip beginnt wieder mit 120 Sekunden Telegram-Sendepause
   → bei 120 Sekunden ohne Bewegung oder spätestens nach 300 Sekunden beenden
@@ -42,9 +44,9 @@ Neue Personenaktivität im ausgewählten Bereich
   → weiter überwachen; bei neuer Bewegung oder neu eintretender Person erneut aufnehmen
 ```
 
-Normale Clips dauern **mindestens 120 und höchstens 300 Sekunden**. Eine beim Programmstart erstmals erkannte Person zählt als neue Aktivität. Abwesenheit und Stillstand zählen beide als fehlende Bewegung; erkannte Bewegung setzt die Inaktivitätsfrist zurück. Nach Ablauf der ersten 120 Sekunden löst Bewegung zusätzlich den sofortigen Wechsel zum nächsten Clip aus. Eine reglos verbleibende Person startet nach Aufnahmeende nicht sofort einen neuen Clip.
+Normale Clips dauern **mindestens 120 und höchstens 300 Sekunden**. Eine beim Programmstart erstmals erkannte Person oder ein Fahrzeug zählt als neue Aktivität. Abwesenheit und Stillstand zählen beide als fehlende Bewegung; erkannte Bewegung setzt die Inaktivitätsfrist zurück. Nach Ablauf der ersten 120 Sekunden löst Bewegung zusätzlich den sofortigen Wechsel zum nächsten Clip aus. Eine reglos verbleibende Person startet nach Aufnahmeende nicht sofort einen neuen Clip.
 
-Beim Start wird kein Telegram-Foto gesendet; automatische Telegram-Sendungen bestehen ausschließlich aus abgeschlossenen Videos. Die Sendepause jedes neuen Clips gilt auch für ältere Videos und Wiederholungsversuche. Häufige Clipwechsel können die gesamte Warteschlange verzögern. Gesperrt werden neue Sendeaufrufe: Eine bereits laufende Übertragung lässt sich nicht zurückrufen und kann während der Pause zugestellt werden.
+Beim Start wird kein Telegram-Foto gesendet; automatische Telegram-Sendungen umfassen abgeschlossene Videos, bestätigte Kennzeichen und tägliche CSV-Berichte. Die Sendepause jedes neuen Clips gilt auch für ältere Videos und Wiederholungsversuche. Häufige Clipwechsel können die gesamte Warteschlange verzögern. Gesperrt werden neue Sendeaufrufe: Eine bereits laufende Übertragung lässt sich nicht zurückrufen und kann während der Pause zugestellt werden.
 
 Bereichsauswahl oder fehlende gültige Aufnahme-/Erkennungsergebnisse unterbrechen die Beobachtung. Diese unbekannte Zeit zählt nicht als Inaktivität; nach der Wiederherstellung beginnt das Beobachtungsintervall neu.
 
@@ -54,10 +56,10 @@ Bereichsauswahl oder fehlende gültige Aufnahme-/Erkennungsergebnisse unterbrech
 | Funktion | Verhalten |
 | --- | --- |
 | Erkennungsbereich | Konvexe und konkave Polygone; bisherige Rechtecke bleiben verwendbar |
-| Personenzuordnung | Der Personenrahmen muss den Bereich mit positiver Fläche überlappen; reine Randberührung zählt nicht |
+| Personen- und Fahrzeugzuordnung | Der Erkennungsrahmen muss den Bereich mit positiver Fläche überlappen; reine Randberührung zählt nicht |
 | Kamerabild | MuMu-Titel und Menü werden ausgeschlossen; Zeitstempel und Kanalnamen im Kamerabild bleiben erhalten |
 | Aufnahmen | Normalerweise 2–5 Minuten; ab Sekunde 120 startet Bewegung sofort den nächsten Clip; Ende auch nach 120 Sekunden ohne Bewegung |
-| Meldungen und Versand | Lokale Windows-Meldungen; nur abgeschlossene H.264-MP4-Videos per Telegram; alle Sendungen warten während der ersten 120 Sekunden jedes Clips |
+| Meldungen und Versand | Lokale Windows-Meldungen; abgeschlossene H.264-MP4-Videos, Kennzeichen und tägliche CSV-Berichte per Telegram; alle Sendungen warten während der ersten 120 Sekunden jedes Clips |
 | Betrieb und Speicher | Separate Watchdogs, Wiederholungsversuche beim Erfassen; standardmäßig 10 FPS und `C:\SuperLive_Recordings` |
 
 Bei 80 % Belegung des Aufnahmelaufwerks beginnt die Löschung geeigneter ältester Videos und endet bei 78 %. Aktuelle Aufnahmen und für ausstehende Übertragungen geschützte Dateien bleiben erhalten. Das Video enthält den vollständigen zugeschnittenen Kamerainhalt, nicht nur die Polygonfläche.
@@ -95,7 +97,7 @@ Die **36 Sekunden langen, stummen Beispiele** verwenden den tatsächlichen Vorsc
 
 **Warum wird eine stillstehende Person nicht erneut aufgenommen?** Ein neuer Clip benötigt erneute Bewegung oder eine neu eintretende Person. Beim Programmstart zählt die erste Beobachtung als Aktivität. Eine Telegram-Startmeldung wird nicht gesendet.
 
-**Was gilt als Bewegung?** Änderungen der Position oder Größe des erkannten Personenrahmens. Kleine Schwankungen werden gefiltert, langsame Verschiebungen sammeln sich an. Dies ist keine Körperhaltungsanalyse: Bewegungen ohne Änderung des Rahmens können unbemerkt bleiben. Kamerabewegung, Verdeckung und Erkennungsfehler können das Ergebnis beeinflussen.
+**Was gilt als Bewegung?** Änderungen der Position oder Größe des erkannten Personen- oder Fahrzeugrahmens. Kleine Schwankungen werden gefiltert, langsame Verschiebungen sammeln sich an. Dies ist keine Körperhaltungsanalyse: Bewegungen ohne Änderung des Rahmens können unbemerkt bleiben. Kamerabewegung, Verdeckung und Erkennungsfehler können das Ergebnis beeinflussen.
 
 **Ist jeder Clip fünf Minuten lang?** Nein. Normalerweise dauert ein Clip 2–5 Minuten. Bewegung zwischen Sekunde 120 einschließlich und Sekunde 300 beendet ihn sofort und startet den nächsten; 120 Sekunden ohne Bewegung beenden ihn ebenfalls. Manuelles Stoppen oder ein Fehler kann einen kürzeren Teilclip erzeugen. Dieser bleibt lokal erhalten; vor Ablauf der noch geltenden Sendepause beginnt kein Upload.
 

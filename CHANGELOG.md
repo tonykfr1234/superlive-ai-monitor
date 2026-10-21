@@ -2,11 +2,20 @@
 
 ## 2026-10-21
 
+- Retain up to seven days of recognition history, including recordings with no plate, unconfirmed candidates and scan failures. Show filenames and distinguish recording replay from live observations; batch replay updates local history without bulk Telegram notifications. Add mouse-wheel, draggable scrollbar and PageUp/PageDown navigation.
+
+- Trigger recording on person **or vehicle** movement inside the polygon: people, cars, motorcycles, buses and trucks. Keep the 120–300-second clip boundaries, movement rollover, continuous 120-second inactivity stop and initial 120-second Telegram quiet period unchanged; the daily CSV remains exempt.
+- Separate people, vehicle counts and vehicle types in Telegram video captions and daily CSV columns. Vehicle clips without a confirmed plate explicitly say “車牌未確認”. Preserve actual OCR text, Taiwan event time and fuzzy allowlist results separately; replay-derived records identify the source basename and clip offset as “原片補辨識”.
+- Scan the full camera image plus overlapping tiles for small plates, independently of the recording polygon or person/vehicle detections. Keep multi-frame confirmation and deduplicate candidates from the same frame.
+- Recover the isolated plate worker after exits, startup timeouts and stale heartbeats with bounded retries, while keeping the preview and movement detector responsive. Show the scan state and failure reason without inventing a plate result.
+- Wrap source resolution, quality, OCR health, errors and up to seven days of recognition history within the preview panel; show separate people and vehicle counts. Narrow windows use a taller bottom panel to keep text clear of the controls.
+- 新增人物或車輛（汽車／機車／巴士／卡車）移動觸發；原有兩分鐘靜默、兩至五分鐘片長及每日 23:00 CSV 例外規則不變。Telegram 與 CSV 區分人物、車輛與車牌，沒有確認讀值就標示未確認。
+- 車牌改以全畫面加重疊區塊掃描，異常辨識程序自動恢復；來源、畫質、錯誤原因及最多七天的歷史紀錄自動換行，可透過滾輪、可拖曳捲軸及 PageUp／PageDown 檢視，避免欄位截字及遮擋。
 - Recover automatically from unavailable ADB devices, unconfirmed highest quality and stalled H.264 streams. Connect configured TCP devices, retry with bounded backoff, and close quality popups before capture; no manual monitor restart is required.
 - 修正啟動時畫質確認失敗後永久黑畫面的問題；ADB 自動連線、持續重試，串流卡住時自動恢復，畫質選單確認後收起。
 - Send the original high-quality MP4 directly when under the Telegram size limit. Oversized delivery copies are temporary and removed after successful delivery.
 - Add optional full-resolution ADB H.264 capture shared by detector and recorder, with stale-frame rejection. Verify highest SuperLive quality and dismiss controls before monitoring.
-- Show YOLO11n and the latest five confirmed plate observations. Add isolated FastALPR/CCT OCR, temporal confirmation, private allowlist matching with up to two edits, and quiet-period-aware Telegram plate messages. Preserve observed text separately from fuzzy matches.
+- Show YOLO11n and retained recognition history. Add isolated FastALPR/CCT OCR, temporal confirmation, private allowlist matching with up to two edits, and quiet-period-aware Telegram plate messages. Preserve observed text separately from fuzzy matches.
 - 車牌名單與攝影機畫面保留本機；兩碼容錯是名單比對，不代表 OCR 每碼正確。
 
 

@@ -1,8 +1,9 @@
-"""Person activity and continuous inactivity, independent of camera/YOLO APIs.
+"""Person/vehicle activity and continuous inactivity, independent of camera APIs.
 
 ``PersonActivityTracker.update(people, width, height, now)`` accepts the filtered
-person dictionaries from ``people_in_region`` and returns whether anyone moved
-or arrived. Keep this tracker across recording boundaries; call ``reset()``
+object dictionaries from ``objects_in_region`` and returns whether one moved
+or arrived. The legacy class name remains compatible. Keep this tracker across
+recording boundaries; call ``reset()``
 when the selected region changes. Coordinates are normalized, so resizing the
 capture does not count as motion. ``now`` must be a monotonic timestamp.
 
@@ -53,6 +54,7 @@ def _timestamp(now):
 class _Track:
     box: tuple
     anchor: tuple
+    category: str = "person"
     missing_since: object = None
 
 
@@ -80,6 +82,7 @@ class PersonActivityTracker:
         if self._last_update is not None and now < self._last_update:
             raise ValueError("now must not move backwards")
         boxes = []
+        categories = []
         for person in people:
             try:
                 left, top, right, bottom = map(float, person["box"])
@@ -89,6 +92,9 @@ class PersonActivityTracker:
                     or right <= left or bottom <= top):
                 raise ValueError("person box must be finite and have positive area")
             boxes.append((left/width, top/height, right/width, bottom/height))
+            # Car/bus/truck classification can fluctuate for one vehicle, but
+            # a nearby person must never inherit that vehicle's motion anchor.
+            categories.append("person" if person.get("class_id", 0) == 0 else "vehicle")
 
         # Only observed absence starts expiry. A slow inference, paused startup,
         # or recording rollover must not turn an unchanged person into an arrival.
@@ -98,6 +104,8 @@ class PersonActivityTracker:
         for track_index, track in enumerate(tracks):
             previous = _geometry(track.box)
             for person_index, box in enumerate(boxes):
+                if track.category != categories[person_index]:
+                    continue
                 current = _geometry(box)
                 distance = math.hypot(current[0]-previous[0], current[1]-previous[1])
                 overlap = _iou(track.box, box)
@@ -130,7 +138,7 @@ class PersonActivityTracker:
                 track.missing_since = now
         for index, box in enumerate(boxes):
             if index not in matched_people:
-                tracks.append(_Track(box, _geometry(box)))
+                tracks.append(_Track(box, _geometry(box), categories[index]))
                 moving = True
         self._tracks = tracks
         self._last_update = now

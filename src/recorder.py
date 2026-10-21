@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from record_protocol import atomic_json, read_json, valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS
+from plate_history import record_clip_result
 from telegram_video import TelegramVideoQueue
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver
 from hq_video import HighQualityWriter, fit_frame
@@ -273,6 +274,11 @@ class Recorder:
                 except Exception as error:
                     raise QueuePersistenceError("Unable to persist video upload") from error
                 self.log("EVENT_RECORD_QUEUED=%s COMPLETE=%s" % (path.name, complete))
+                try:
+                    record_clip_result(self.root, path, request.get("clip_started_at", request["created_at"]),
+                                       timeline.written / self.fps)
+                except Exception as error:
+                    self.log("PLATE_HISTORY_ERROR=" + type(error).__name__)
 
     def make_writer(self, path, size):
         return HighQualityWriter(path, self.fps, size)

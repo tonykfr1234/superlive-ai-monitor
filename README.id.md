@@ -3,7 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <strong>Bahasa Indonesia</strong> · <a href="README.it.md">Italiano</a>
 </p>
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Deteksi Gerakan Orang melalui Tangkapan Layar Kamera Pengawas</h1>
+<h1 align="center">Deteksi Gerakan Orang dan Kendaraan melalui Tangkapan Layar Kamera Pengawas</h1>
 <p align="center">SuperLive AI Monitor · Mendukung emulator Android MuMu dan MEmu</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
@@ -18,11 +18,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 
 ---
 
-Ikon baru dan rekaman berkualitas tinggi: resolusi tangkapan asli dengan H.264 CRF 18. Telegram mengutamakan CRF 20 dan hanya mengompresi lebih lanjut salinan yang melebihi batas pengiriman.
+Ikon baru dan rekaman berkualitas tinggi: resolusi tangkapan asli dengan H.264 CRF 18. Telegram mengirim video asli yang sama; hanya berkas di atas batas ukuran yang memakai salinan sementara terkompresi, lalu salinan dihapus setelah berhasil dikirim.
 
-SuperLive AI Monitor menambahkan perekaman berdasarkan kejadian pada tampilan langsung SuperLive di MuMu pada Windows. YOLO mendeteksi orang di dalam poligon pilihan Anda, lalu video yang selesai dikirim melalui Telegram. Alamat RTSP kamera tidak diperlukan.
+SuperLive AI Monitor menambahkan perekaman berdasarkan kejadian pada tampilan langsung SuperLive di MuMu pada Windows. YOLO mendeteksi orang dan kendaraan di dalam poligon pilihan Anda, lalu video yang selesai dikirim melalui Telegram. Alamat RTSP kamera tidak diperlukan.
 
 Ini adalah proyek komunitas tidak resmi yang tidak berafiliasi dengan penyedia SuperLive atau MuMu. Dua belas bahasa README hanya menerjemahkan dokumentasi; antarmuka pratinjau aplikasi saat ini tetap menggunakan bahasa Tionghoa tradisional.
+
+**Pembaruan 21-10-2026:** Gerakan orang atau kendaraan (mobil, sepeda motor, bus, truk) dapat memicu rekaman. Masa senyap 120 detik dan klip 120–300 detik tetap berlaku; CSV harian dikecualikan. Telegram membedakan orang, jenis kendaraan, dan pelat yang benar-benar terbaca; hasil belum terkonfirmasi ditandai jelas. OCR memindai gambar penuh serta area bertumpang tindih dan pulih otomatis setelah kegagalan. Roda mouse, bilah gulir, dan PageUp/PageDown menampilkan riwayat maksimal tujuh hari, termasuk analisis video asli, tidak terbaca, kandidat belum terkonfirmasi, dan kesalahan.
 
 <a id="quick-start"></a>
 ## Mulai cepat
@@ -39,7 +41,7 @@ Ini adalah proyek komunitas tidak resmi yang tidak berafiliasi dengan penyedia S
 ## Alur kerja
 
 ```text
-Aktivitas orang baru teramati di dalam poligon
+Aktivitas orang atau kendaraan baru teramati di dalam poligon
   → mulai merekam, notifikasi Windows, dan gambar bukti lokal
   → 120 detik pertama: tanpa pergantian klip otomatis atau pengiriman Telegram baru
   → gerakan dari detik 120 hingga sebelum 300: akhiri klip lama dan langsung mulai klip baru
@@ -48,9 +50,9 @@ Aktivitas orang baru teramati di dalam poligon
   → video selesai menunggu di antrean hingga masa senyap saat ini berakhir
 ```
 
-Orang yang pertama kali terlihat setelah program dimulai dihitung sebagai aktivitas baru. Klip yang selesai otomatis dalam kondisi normal berdurasi **120–300 detik**. Sebelum detik 120, gerakan mengatur ulang hitungan tanpa gerakan tanpa membagi klip. Mulai detik 120 hingga sebelum batas 300, gerakan mengakhiri klip saat ini dan langsung memulai klip baru. Tidak ada orang dan orang diam sama-sama berarti tidak ada gerakan; setelah 120 detik terus-menerus tanpa gerakan, perekaman berhenti dan menunggu gerakan atau kedatangan baru.
+Orang atau kendaraan yang pertama kali terlihat setelah program dimulai dihitung sebagai aktivitas baru. Klip yang selesai otomatis dalam kondisi normal berdurasi **120–300 detik**. Sebelum detik 120, gerakan mengatur ulang hitungan tanpa gerakan tanpa membagi klip. Mulai detik 120 hingga sebelum batas 300, gerakan mengakhiri klip saat ini dan langsung memulai klip baru. Tidak ada objek atau semua objek diam sama-sama berarti tidak ada gerakan; setelah 120 detik terus-menerus tanpa gerakan, perekaman berhenti dan menunggu gerakan atau kedatangan baru.
 
-**Hanya video yang selesai menjadi notifikasi Telegram otomatis.** Saat mulai, notifikasi Windows dan bukti lokal tetap dibuat, tanpa foto awal ke Telegram. Tidak ada pengiriman baru yang dimulai selama 120 detik pertama klip saat ini, termasuk video lama dan percobaan ulang. Pergantian klip berturut-turut dapat memperpanjang penantian antrean. Permintaan jaringan yang sudah dikirim sebelum masa senyap masih dapat tiba selama masa tersebut dan tidak dapat ditarik kembali.
+**Video selesai, pelat terkonfirmasi, dan laporan CSV harian dikirim otomatis melalui Telegram.** Saat mulai, notifikasi Windows dan bukti lokal tetap dibuat, tanpa foto awal ke Telegram. Tidak ada pengiriman baru yang dimulai selama 120 detik pertama klip saat ini, termasuk video lama dan percobaan ulang. Pergantian klip berturut-turut dapat memperpanjang penantian antrean. Permintaan jaringan yang sudah dikirim sebelum masa senyap masih dapat tiba selama masa tersebut dan tidak dapat ditarik kembali.
 
 Penghentian manual atau kegagalan tangkapan dapat meninggalkan klip parsial lokal di bawah 120 detik. Program tidak menambah gambar untuk membuat durasi palsu; pengiriman otomatis menunggu tenggat senyap klip itu serta masa senyap klip yang lebih baru, jika ada.
 
@@ -62,14 +64,14 @@ Saat memilih area, tangkapan gagal, atau hasil deteksi tidak tersedia, status di
 | Fitur | Perilaku |
 | --- | --- |
 | Area | Poligon cembung atau cekung; mendukung pengaturan persegi panjang lama |
-| Deteksi | Hanya orang; kotak deteksi harus beririsan dengan luas positif, menyentuh tepi saja tidak cukup |
+| Deteksi | Orang dan kendaraan; kotak deteksi harus beririsan dengan luas positif, menyentuh tepi saja tidak cukup |
 | Gambar | Menghapus bilah judul/menu MuMu; mempertahankan waktu dan nama kanal pada gambar kamera |
 | Perekaman | Normalnya 120–300 detik; gerakan setelah detik 120 memulai klip baru; berhenti setelah 120 detik terus-menerus tanpa gerakan |
 | Pengiriman | Notifikasi dan bukti lokal saat mulai; Telegram mengirim video H.264 MP4 dan laporan CSV harian, antrean dan percobaan ulang menunggu masa senyap berakhir |
 | Penyimpanan | 10 FPS; `C:\SuperLive_Recordings`; hapus video lama saat penggunaan disk mencapai 80%, berhenti di 78% |
 | Pemulihan | Percobaan tangkapan ulang dan pengawas terpisah untuk pemantau serta perekam |
 
-Gerakan diperkirakan dari perubahan posisi/ukuran kotak orang, bukan analisis pose. Goyangan kecil disaring dan perpindahan lambat diakumulasikan. Gerakan kamera, objek yang menghalangi, serta kesalahan deteksi tetap dapat memengaruhi hasil. Video menyimpan seluruh gambar kamera yang telah dipotong, bukan hanya bentuk poligonnya.
+Gerakan diperkirakan dari perubahan posisi/ukuran kotak orang atau kendaraan, bukan analisis pose. Goyangan kecil disaring dan perpindahan lambat diakumulasikan. Gerakan kamera, objek yang menghalangi, serta kesalahan deteksi tetap dapat memengaruhi hasil. Video menyimpan seluruh gambar kamera yang telah dipotong, bukan hanya bentuk poligonnya.
 
 <a id="demo"></a>
 ## Demo

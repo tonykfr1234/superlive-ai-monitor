@@ -12,12 +12,28 @@ import threading
 import time
 import uuid
 import hashlib
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from record_protocol import atomic_json, read_json, telegram_send_allowed
 
 MAX_UPLOAD_BYTES = 49_000_000
+VEHICLE_TYPES = (("car", "汽車"), ("motorcycle", "機車"), ("bus", "巴士"), ("truck", "卡車"))
+
+
+def event_object_counts(event):
+    """Old journals count people; new requests explicitly distinguish classes."""
+    def count(value):
+        try:
+            result = int(value)
+            return result if not isinstance(value, bool) and result >= 0 and result == float(value) else 0
+        except (ValueError, TypeError, OverflowError):
+            return 0
+    source = event.get("object_counts")
+    if not isinstance(source, dict):
+        source = {"person": event.get("count", 1)}
+    return {name: count(source.get(name, 0)) for name in ("person", *(name for name, _ in VEHICLE_TYPES))}
 
 
 def event_line(event):
@@ -31,6 +47,17 @@ def event_line(event):
         text += "；名單：%s（差 %s 碼）" % (compact(event["matched"]), compact(event.get("distance", "?")))
     else:
         text += "；未符合指定名單"
+    if event.get("source") == "recording_replay":
+        text += "；原片補辨識"
+        video = str(event.get("source_video") or "").replace("\\", "/").rsplit("/", 1)[-1]
+        if video:
+            text += "：" + compact(video)
+        try:
+            offset = float(event["offset_seconds"])
+            if math.isfinite(offset) and offset >= 0:
+                text += "（影片 +%.1f 秒）" % offset
+        except (KeyError, ValueError, TypeError, OverflowError):
+            pass
     return text
 
 
@@ -71,6 +98,8 @@ class TelegramVideoQueue:
             roi=request.get("roi"), duration=duration, complete=complete,
             created_at=time.time(), attempts=0, retry_at=0)
         job["clip_started_at"] = request.get("clip_started_at", job["created_at"]-duration)
+        if isinstance(request.get("object_counts"), dict):
+            job["object_counts"] = event_object_counts(request)
         manifest = self.directory / (uuid.uuid4().hex + ".json")
         with self.lock:
             atomic_json(manifest, job)
@@ -182,7 +211,13 @@ class TelegramVideoQueue:
 
     def caption(self, job):
         scope = "指定區域" if job.get("roi") else "全畫面"
-        text = "SuperLive AI：%s偵測到人員\n錄影：%.1f 秒\n人數：%s" % (scope, job["duration"], job.get("count", 1))
+        counts = event_object_counts(job)
+        vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
+        kind = "人物與車輛" if counts["person"] and vehicles else "車輛" if vehicles else "人物" if counts["person"] else "物件"
+        text = ("SuperLive AI：%s移動觸發錄影\n觸發時類型：%s\n錄影：%.1f 秒\n人物：%d；車輛：%d" %
+                (scope, kind, job["duration"], counts["person"], vehicles))
+        if vehicles:
+            text += "\n車種：" + "、".join("%s %d" % (label, counts[name]) for name, label in VEHICLE_TYPES if counts[name])
         if not job.get("complete"):
             text += "\n錄影因停止或擷取中斷而提前結束"
         start = float(job.get("clip_started_at", job.get("created_at", 0)-float(job["duration"])))
@@ -190,6 +225,8 @@ class TelegramVideoQueue:
         events = [event for event in self.plate_events() if start <= float(event["timestamp"]) <= end]
         if events:
             text += "\n車牌紀錄（台灣時間）："
+        elif vehicles:
+            text += "\n車牌未確認"
         for index, event in enumerate(events):
             line = "\n"+event_line(event)
             if len(text)+len(line) > 960:
@@ -203,7 +240,7 @@ class TelegramVideoQueue:
         if self.stop_event.is_set() or not telegram_send_allowed(self.root):
             raise TelegramDeferred("Telegram dispatch is currently deferred")
         response = requests.post("https://api.telegram.org/bot%s/sendMessage" % token,
-            data=dict(chat_id=chat_id, text="SuperLive AI 車牌紀錄（台灣時間）\n"+event_line(event)), timeout=(15, 30))
+            data=dict(chat_id=chat_id, text="SuperLive AI 車牌／車輛紀錄（台灣時間）\n"+event_line(event)), timeout=(15, 30))
         if response.status_code != 200 or not response.json().get("ok"):
             raise RuntimeError("Telegram plate delivery failure")
 

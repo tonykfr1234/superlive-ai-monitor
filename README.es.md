@@ -4,14 +4,16 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Detección de movimiento de personas mediante captura de cámaras de vigilancia</h1>
+<h1 align="center">Detección de movimiento de personas y vehículos mediante captura de cámaras de vigilancia</h1>
 <p align="center">SuperLive AI Monitor · Compatible con los emuladores Android MuMu y MEmu</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>
 <p align="center"><a href="#quick-start">Inicio rápido</a> · <a href="#workflow">Funcionamiento</a> · <a href="#features">Funciones</a> · <a href="#demo">Demostración</a> · <a href="#faq">Preguntas frecuentes</a> · <a href="#documentation">Documentación</a></p>
 
-SuperLive AI Monitor añade grabación por eventos a la imagen de SuperLive visible en MuMu en Windows. Selecciona un área poligonal: YOLO detecta personas en ella y los vídeos terminados se envían por Telegram. No hace falta una dirección RTSP de la cámara.
+SuperLive AI Monitor añade grabación por eventos a la imagen de SuperLive visible en MuMu en Windows. Selecciona un área poligonal: YOLO detecta personas y vehículos en ella y los vídeos terminados se envían por Telegram. No hace falta una dirección RTSP de la cámara.
 
 Es un proyecto comunitario no oficial, sin relación con los proveedores de SuperLive o MuMu. Los doce idiomas del README corresponden a la documentación; la interfaz del programa utiliza actualmente chino tradicional.
+
+**Actualización del 21/10/2026:** El movimiento de personas o vehículos (coches, motos, autobuses, camiones) puede iniciar la grabación. Se mantienen el silencio de 120 segundos y los clips de 120–300 segundos; el CSV diario es una excepción. Telegram distingue personas, tipos de vehículos y matrículas realmente leídas, indicando las no confirmadas. El OCR analiza la imagen completa y zonas superpuestas, y se recupera automáticamente de fallos. La rueda, la barra y PageUp/PageDown permiten consultar hasta siete días de historial, incluidos análisis de vídeos originales, lecturas ausentes, candidatos sin confirmar y errores.
 
 <a id="quick-start"></a>
 ## Inicio rápido
@@ -32,7 +34,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ## Funcionamiento
 
 ```text
-Nueva actividad de personas dentro del polígono
+Nueva actividad de personas o vehículos dentro del polígono
   → iniciar la grabación; bloquear nuevos envíos automáticos a Telegram durante 120 segundos
   → seguir detectando durante toda la grabación
   → movimiento desde el segundo 120 y antes del 300: finalizar el vídeo e iniciar otro de inmediato
@@ -42,9 +44,9 @@ Nueva actividad de personas dentro del polígono
   → seguir vigilando; volver a grabar si hay movimiento nuevo o entra otra persona
 ```
 
-Los vídeos normales duran **entre 120 y 300 segundos**. Una persona observada por primera vez al iniciar el programa cuenta como actividad nueva. Tanto la ausencia como la inmovilidad cuentan como falta de movimiento; cada movimiento detectado reinicia el plazo de inactividad. Una vez transcurridos los primeros 120 segundos, el movimiento también provoca el cambio inmediato al siguiente vídeo. Una persona que permanece quieta no inicia otro vídeo inmediatamente después de terminar el anterior.
+Los vídeos normales duran **entre 120 y 300 segundos**. Una persona o un vehículo observado por primera vez al iniciar el programa cuenta como actividad nueva. Tanto la ausencia como la inmovilidad cuentan como falta de movimiento; cada movimiento detectado reinicia el plazo de inactividad. Una vez transcurridos los primeros 120 segundos, el movimiento también provoca el cambio inmediato al siguiente vídeo. Una persona que permanece quieta no inicia otro vídeo inmediatamente después de terminar el anterior.
 
-No se envía una foto de Telegram al iniciar: los únicos envíos automáticos son vídeos terminados. La pausa de envío de cada vídeo nuevo también bloquea los vídeos anteriores y sus reintentos. Los cambios de vídeo repetidos pueden retrasar toda la cola. Se bloquean nuevas llamadas de envío; una transferencia ya iniciada no puede retirarse y podría llegar durante la pausa.
+No se envía una foto de Telegram al iniciar: los envíos automáticos incluyen vídeos terminados, matrículas confirmadas e informes CSV diarios. La pausa de envío de cada vídeo nuevo también bloquea los vídeos anteriores y sus reintentos. Los cambios de vídeo repetidos pueden retrasar toda la cola. Se bloquean nuevas llamadas de envío; una transferencia ya iniciada no puede retirarse y podría llegar durante la pausa.
 
 La selección de una región o la falta de resultados válidos de captura o detección interrumpe la observación. Ese tiempo desconocido no cuenta como inactividad: al recuperarse, comienza un nuevo intervalo de observación.
 
@@ -54,10 +56,10 @@ La selección de una región o la falta de resultados válidos de captura o dete
 | Función | Comportamiento |
 | --- | --- |
 | Región de detección | Polígonos convexos o cóncavos; compatibilidad con los rectángulos anteriores |
-| Inclusión de personas | El cuadro de la persona debe solaparse con la región en una superficie positiva; tocar el borde no basta |
+| Inclusión de personas y vehículos | El cuadro del objeto detectado debe solaparse con la región en una superficie positiva; tocar el borde no basta |
 | Imagen de cámara | Excluye el título y los menús de MuMu; conserva las marcas de tiempo y los nombres de canal de la imagen |
 | Grabación | Normalmente 2–5 minutos; desde el segundo 120, un movimiento inicia otro vídeo de inmediato; finaliza también tras 120 segundos sin movimiento |
-| Avisos y envío | Avisos locales de Windows; solo vídeos H.264 MP4 terminados por Telegram; todos los envíos esperan durante los primeros 120 segundos de cada vídeo |
+| Avisos y envío | Avisos locales de Windows; vídeos H.264 MP4 terminados, matrículas e informes CSV diarios por Telegram; todos los envíos esperan durante los primeros 120 segundos de cada vídeo |
 | Operación y almacenamiento | Supervisores independientes y reintentos de captura; valores predeterminados de 10 FPS y `C:\SuperLive_Recordings` |
 
 Cuando la unidad de grabación alcanza un 80 % de uso, se eliminan los vídeos antiguos aptos hasta bajar al 78 %. Se protegen la grabación activa y los archivos pendientes de envío. El vídeo conserva toda la imagen recortada de la cámara; no se recorta con la forma del polígono.
@@ -95,7 +97,7 @@ Estos ejemplos **silenciosos de 36 segundos** utilizan el renderizador real de l
 
 **¿Por qué no vuelve a grabar a una persona quieta?** Para iniciar otro vídeo debe haber un nuevo movimiento o una persona que entre en la región. Al arrancar el programa, la primera observación sí cuenta como actividad. No se envía una alerta de inicio por Telegram.
 
-**¿Cómo se determina el movimiento?** Se analizan cambios de posición o tamaño del cuadro de la persona. Se filtran pequeñas oscilaciones y se acumulan desplazamientos lentos. No es reconocimiento de posturas: un movimiento que no cambie el cuadro puede pasar inadvertido. Los movimientos de cámara, las oclusiones y los errores de detección también pueden afectar al resultado.
+**¿Cómo se determina el movimiento?** Se analizan cambios de posición o tamaño del cuadro de la persona o del vehículo. Se filtran pequeñas oscilaciones y se acumulan desplazamientos lentos. No es reconocimiento de posturas: un movimiento que no cambie el cuadro puede pasar inadvertido. Los movimientos de cámara, las oclusiones y los errores de detección también pueden afectar al resultado.
 
 **¿Todos los vídeos duran cinco minutos?** No. Normalmente duran entre 2 y 5 minutos. Un movimiento desde el segundo 120 y antes del 300 finaliza el vídeo e inicia otro de inmediato; 120 segundos sin movimiento también lo finalizan. Una parada manual o un fallo pueden producir un fragmento más corto, que se conserva localmente. No se inicia su envío antes de que termine la pausa vigente.
 

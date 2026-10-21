@@ -24,7 +24,7 @@ from winotify import Notification
 from record_protocol import (atomic_json, read_json, recorder_ready, recording_active,
                              valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS)
 from person_activity import PersonActivityTracker, InactivityTimer
-from region_policy import people_in_region, validate_roi, rebase_roi
+from region_policy import people_in_region, objects_in_region, object_counts, ACTIVITY_CLASSES, validate_roi, rebase_roi
 from preview_ui import PreviewController, PreviewLayout, render_preview
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
 from app_branding import set_app_identity, apply_window_icon
@@ -46,7 +46,7 @@ INACTIVITY_SECONDS = 120.0
 WINDOW_NAME = "SuperLive AI - Person / Region"
 DEFAULT_POLICY = {
     "target_fps": 10.0, "confidence": 0.25, "imgsz": 640,
-    "watch_classes": [0], "roi": None,
+    "watch_classes": list(ACTIVITY_CLASSES), "roi": None,
     "capture_max_failures": 5, "capture_retry_seconds": 1.0,
 }
 
@@ -60,7 +60,7 @@ def load_policy():
             raise ValueError("notification_policy.json must contain an object")
         cfg.update(loaded)
     cfg["roi"] = validate_roi(cfg.get("roi"))
-    cfg["watch_classes"] = [0]
+    cfg["watch_classes"] = list(ACTIVITY_CLASSES)
     if not 0 < float(cfg["target_fps"]) <= 60:
         raise ValueError("target_fps must be > 0 and <= 60")
     if not 0 < float(cfg["confidence"]) <= 1:
@@ -118,7 +118,10 @@ def notify_detection(image, people, roi, request_id, credentials):
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     day = EVENT_ROOT / now.strftime("%Y-%m-%d")
     day.mkdir(parents=True, exist_ok=True)
-    jpg = day / ("%s_PERSON_%s.jpg" % (now.strftime("%Y%m%d_%H%M%S"), request_id))
+    counts = object_counts(people)
+    types = [kind for kind, count in counts.items() if count]
+    event_type = "PERSON_VEHICLE_ACTIVITY" if counts["person"] and len(types) > 1 else "PERSON_ACTIVITY" if counts["person"] else "VEHICLE_ACTIVITY"
+    jpg = day / ("%s_ACTIVITY_%s.jpg" % (now.strftime("%Y%m%d_%H%M%S"), request_id))
     confidence = max(item["confidence"] for item in people)
     area = "全畫面" if roi is None else "指定區域"
     written = cv2.imwrite(str(jpg), image, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -128,14 +131,15 @@ def notify_detection(image, people, roi, request_id, credentials):
         writer = csv.writer(stream)
         if new_csv:
             writer.writerow(["timestamp", "event_type", "count", "confidence", "request_id", "roi", "snapshot"])
-        writer.writerow([timestamp, "PERSON_DETECTED", len(people), "%.3f" % confidence, request_id, json.dumps(roi), str(jpg) if written else ""])
+        writer.writerow([timestamp, event_type, len(people), "%.3f" % confidence, request_id, json.dumps(roi), str(jpg) if written else ""])
     try:
-        Notification(app_id="SuperLive AI", title="SuperLive AI - 偵測到人員",
-                     msg="%s：%d 人，已開始錄影；前 2 分鐘 Telegram 靜默\n%s" % (area, len(people), timestamp),
+        Notification(app_id="SuperLive AI", title="SuperLive AI - 偵測到人物／車輛移動",
+                     msg="%s：人物 %d、車輛 %d，已開始錄影；前 2 分鐘 Telegram 靜默\n%s" % (area, counts["person"], len(people)-counts["person"], timestamp),
                      duration="short").show()
     except Exception as error:
         print("WINDOWS_NOTIFICATION_ERROR=%s" % type(error).__name__, flush=True)
-    print("PERSON_DETECTED count=%d request=%s" % (len(people), request_id), flush=True)
+    print("ACTIVITY_DETECTED persons=%d vehicles=%d request=%s" %
+          (counts["person"], len(people)-counts["person"], request_id), flush=True)
 
 
 def find_mumu():
@@ -166,7 +170,7 @@ def can_trigger():
 def recording_request(people, cfg):
     return {"request_id": uuid.uuid4().hex, "created_at": time.time(),
             "count": len(people), "confidence": max(item["confidence"] for item in people),
-            "roi": deepcopy(cfg["roi"])}
+            "roi": deepcopy(cfg["roi"]), "object_counts": object_counts(people)}
 
 
 def trigger_recording(image, people, cfg, credentials):
@@ -306,7 +310,7 @@ def main():
     interval = 1.0 / float(cfg["target_fps"])
     device = 0 if torch.cuda.is_available() else "cpu"
     model = YOLO(str(MODEL_PATH) if MODEL_PATH.exists() else "yolo11n.pt")
-    print("POLICY=PERSON_ACTIVITY_REGION_MIN_120S_ROLLOVER_MAX_300S_QUIET_120S", flush=True)
+    print("POLICY=PERSON_VEHICLE_ACTIVITY_REGION_MIN_120S_ROLLOVER_MAX_300S_QUIET_120S", flush=True)
     print("AI_DEVICE=%s" % device, flush=True)
     print("ROI=%s" % (cfg["roi"] if cfg["roi"] is not None else "FULL_FRAME"), flush=True)
     adb_stream = AdbStream(ROOT) if capture_settings(ROOT).get("source") == "adb" else None
@@ -335,6 +339,12 @@ def main():
     def mouse_callback(event, x, y, flags, userdata):
         events = {cv2.EVENT_LBUTTONDOWN: "down", cv2.EVENT_MOUSEMOVE: "move",
                   cv2.EVENT_LBUTTONUP: "up", cv2.EVENT_RBUTTONDOWN: "right_down"}
+        if event == cv2.EVENT_MOUSEWHEEL:
+            delta = (flags >> 16) & 0xFFFF
+            if delta >= 0x8000:
+                delta -= 0x10000
+            controller.mouse("wheel_up" if delta > 0 else "wheel_down", x, y)
+            return
         if event in events:
             # HighGUI already reports coordinates in the displayed canvas image.
             action = controller.mouse(events[event], x, y)
@@ -413,11 +423,11 @@ def main():
             if (capture_ok and not controller.selecting and not cfg.get("roi_reselect_required")
                     and can_observe_activity(observation_state)):
                 started = time.monotonic()
-                result = model.predict(frame, classes=[0], conf=float(cfg["confidence"]),
+                result = model.predict(frame, classes=cfg["watch_classes"], conf=float(cfg["confidence"]),
                                        imgsz=int(cfg["imgsz"]), device=device, verbose=False)[0]
                 infer_ms = (time.monotonic() - started) * 1000
                 if result.boxes is not None:
-                    people = people_in_region(
+                    people = objects_in_region(
                         result.boxes.xyxy.detach().cpu().numpy(),
                         result.boxes.cls.detach().cpu().numpy(),
                         result.boxes.conf.detach().cpu().numpy(),
@@ -425,17 +435,34 @@ def main():
                     )
                 for person in people:
                     x1, y1, x2, y2 = person["box"]
-                    cv2.rectangle(evidence, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    color = (0, 255, 0) if person["class_id"] == 0 else (255, 190, 0)
+                    cv2.rectangle(evidence, (x1, y1), (x2, y2), color, 2)
                 count = len(people)
+            controller.object_counts = object_counts(people) if count is not None else None
 
             if plate_service:
-                if capture_ok and not controller.selecting and not cfg.get("roi_reselect_required"):
+                if capture_ok:
                     plate_service.submit(frame, time.time(), None)
                 else:
                     plate_service.pause()
                 plate_state = plate_service.snapshot()
-                controller.plate_events = plate_state.get("recent", [])
+                history = plate_state.get("recent", [])
+                if history != controller.plate_events:
+                    controller.plate_events = history
                 controller.plate_status = plate_state.get("status", "")
+                controller.plate_error = plate_state.get("error", "")
+                scanned = plate_state.get("last_sample_at")
+                controller.plate_scan_status = ("最近掃描：" + datetime.fromtimestamp(scanned).strftime("%H:%M:%S")) if scanned else ""
+                replay = plate_state.get("replay") or {}
+                if replay.get("total"):
+                    progress = "歷史影片：%d／%d 段" % (replay["processed"], replay["total"])
+                    if replay.get("running"):
+                        progress += "（辨識中）"
+                    elif replay.get("stale_running"):
+                        progress += "（已暫停）"
+                    if replay.get("errors"):
+                        progress += "，失敗 %d 段" % replay["errors"]
+                    controller.plate_scan_status += "\n" + progress
                 if adb_stream:
                     controller.plate_status += " | ADB %dx%d | %s" % (width, height, adb_stream.quality)
             try:
@@ -453,7 +480,7 @@ def main():
                 current_message = "原區域無法轉換至攝影機影像，請重新點選多邊形並儲存"
             preview = render_preview(evidence, controller, status, count, infer_ms, elapsed, current_message)
             cv2.imshow(WINDOW_NAME, preview)
-            key = cv2.waitKey(1) & 0xFF
+            key = cv2.waitKeyEx(1)
             action = controller.key(key)
             if action is not None:
                 ui_actions.append(action)

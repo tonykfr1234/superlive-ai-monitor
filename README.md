@@ -4,7 +4,7 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Camera Screen Capture for Person Movement Detection</h1>
+<h1 align="center">Camera Screen Capture for Person and Vehicle Movement Detection</h1>
 <p align="center">SuperLive AI Monitor · Supports MuMu and MEmu Android emulators</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
@@ -21,9 +21,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 
 ---
 
-New application icon and high-quality recording: full capture resolution, H.264 CRF 18 locally; Telegram uses CRF 20 first and compresses only oversized delivery copies.
+High-quality recording preserves the capture resolution in H.264 CRF 18. Telegram sends that same original MP4 when it fits the upload limit; only oversized files need a temporary delivery copy, removed after successful delivery.
 
-SuperLive AI Monitor adds event recording to a visible SuperLive camera feed in MuMu or MEmu on Windows. Select a polygon around the area you care about; YOLO detects people there, records their activity and delivers completed videos through Telegram. No camera RTSP URL is required.
+SuperLive AI Monitor adds event recording to a SuperLive camera feed in MuMu or MEmu on Windows. Select a polygon around the area you care about; YOLO11n detects people and vehicles (cars, motorcycles, buses and trucks), records their movement and delivers completed videos through Telegram. Plate recognition independently scans the full camera image. No camera RTSP URL is required.
 
 This is an unofficial community project, not affiliated with the SuperLive, MuMu or MEmu vendors.
 
@@ -44,7 +44,7 @@ The 12 README languages translate the documentation. The application preview cur
 ## Workflow
 
 ```text
-New person activity inside the polygon
+New person or vehicle activity inside the polygon
   → start recording + local Windows alert and snapshot
   → first 120 seconds: keep detecting; no automatic rollover or new Telegram sends
   → movement from 120 seconds until before 300: close this clip and immediately start the next
@@ -53,9 +53,9 @@ New person activity inside the polygon
   → completed videos stay queued until the current quiet period has ended
 ```
 
-A person first observed after startup counts as new activity. Normal clips last **120–300 seconds**. Before 120 seconds, movement resets the inactivity interval without splitting the clip. From 120 seconds until the 300-second cap, detected movement ends the old clip and starts a new one immediately. Absent and stationary people both count as no movement; after 120 continuous seconds without movement, recording ends and waits for renewed movement or a new arrival.
+A person or supported vehicle first observed after startup counts as new activity. Normal clips last **120–300 seconds**. Before 120 seconds, movement resets the inactivity interval without splitting the clip. From 120 seconds until the 300-second cap, detected movement ends the old clip and starts a new one immediately. No targets, or only stationary targets, both count as no movement; after 120 continuous seconds without movement, recording ends and waits for renewed movement or a new arrival.
 
-**Automatic Telegram deliveries include completed videos and daily CSV reports.** Starting a clip keeps the Windows alert and local evidence, but sends no Telegram photo. The queue, including older videos and retries, does not start new Telegram sends during the current clip's first 120 seconds. Repeated rollovers can therefore delay the backlog. A send already dispatched before the quiet period may still arrive; it cannot be recalled.
+**Automatic Telegram deliveries include completed videos, confirmed plate observations and daily CSV reports.** Starting a clip keeps the Windows alert and local evidence, but sends no Telegram photo. Videos, plate messages and their retries do not start new Telegram sends during the current clip's first 120 seconds; daily CSV delivery remains the explicit exception. Repeated rollovers can therefore delay the backlog. A send already dispatched before the quiet period may still arrive; it cannot be recalled.
 
 Manual stop or capture failure may leave a local partial clip shorter than 120 seconds. It is not padded to simulate extra footage and is not automatically sent before its quiet deadline; pending work also waits for any newer clip's quiet period.
 
@@ -66,16 +66,17 @@ Selection or invalid capture/inference is unknown and resets the observation int
 
 | Feature | Behavior |
 | --- | --- |
-| Polygon detection | Convex/concave regions; legacy rectangles supported; positive-area person-box overlap required |
+| Polygon detection | People, cars, motorcycles, buses and trucks; convex/concave regions and legacy rectangles; positive-area detection-box overlap required |
 | Camera content | Excludes MuMu title/menu area; keeps camera timestamps and channel labels |
-| Preview | Clickable controls and status below the image |
+| Preview | Clickable controls below the image; wrapped source, quality, OCR status and error lines; separate people/vehicle counts |
 | Activity recording | Normal clips 120–300 seconds; movement after 120 seconds rolls over; 120-second inactivity stop |
-| Notifications | Local Windows alert and evidence at start; completed videos and daily CSV reports on Telegram |
+| Notifications | Local alert/evidence at start; Telegram distinguishes people, vehicle types and actual plate observations; unconfirmed plates remain marked unconfirmed |
+| Plate recognition | Full image plus overlapping tile scans, multi-frame confirmation, up to seven days of scrollable recognition history and an automatically restarted OCR worker |
 | Video delivery | Actual-duration H.264 MP4; persistent queue/retries; no new sends during each clip's first 120 seconds |
 | Recovery | Capture retry and separate monitor/recorder watchdogs |
 | Storage | 10 FPS; `C:\SuperLive_Recordings`; drive rotation at 80% down to 78% |
 
-Movement is a proxy derived from person-box position/size, not pose analysis or a physical sensor. Small jitter is ignored and slow displacement accumulates, but camera movement, occlusion and detection errors can affect it. Videos contain the full cropped camera view, not a polygon-shaped crop.
+Movement is a proxy derived from person/vehicle-box position and size, not pose analysis or a physical sensor. Small jitter is ignored and slow displacement accumulates, but camera movement, occlusion and detection errors can affect it. Videos contain the full cropped camera view, not a polygon-shaped crop. Plate OCR is separate from movement detection: a vehicle can trigger recording without a readable plate, and a plate observation alone does not start a clip.
 
 <a id="demo"></a>
 ## Demo
@@ -92,7 +93,11 @@ These 36-second, silent demonstrations use the **actual preview renderer with a 
 
 ## Latest changes
 
-Normal clips now last 120–300 seconds. Movement after the first 120 seconds immediately starts a new clip and a fresh Telegram quiet period. Automatic start photos are removed; completed videos and daily CSV reports are delivered, with the whole queue deferred during quiet periods. Polygon detection and the 120-second no-movement stop remain. See the [changelog](CHANGELOG.md).
+- People **or vehicles** moving inside the polygon can trigger recording. The 120–300-second clip rules and initial 120-second Telegram quiet period are unchanged.
+- Telegram video captions and the daily CSV separate people, vehicles and vehicle types. A vehicle clip without a confirmed plate says “車牌未確認” (plate unconfirmed); confirmed records retain the actual OCR text, Taiwan time and any fuzzy allowlist match separately.
+- Completed recordings retain a history result even when no plate is confirmed. Batch replay of existing recordings updates local history without sending a flood of old Telegram alerts; replay records are labeled separately from live observations.
+- Plate detection scans the full image and overlapping tiles for small plates. The separate OCR worker recovers from exits, startup failures and stale heartbeats; recognition still depends on visible image detail.
+- Source resolution, quality, OCR status, errors and recognition history wrap within the preview panel. Use the mouse wheel, scrollbar or PageUp/PageDown to browse up to seven days; scans without a recognized plate, unconfirmed candidates and failures remain visible with their recording filename. [Details and setup](docs/PLATE_AND_ADB.zh-TW.md) · [Changelog](CHANGELOG.md).
 
 <a id="controls"></a>
 ## Controls
@@ -118,7 +123,7 @@ Keyboard shortcuts require preview focus. Settings persist relative to the camer
 
 **Can it run in VMware?** CPU inference is supported. MuMu needs working nested virtualization; VMware graphics acceleration does not provide CUDA compute. Keep the interactive session and live view available.
 
-**Why has a finished video not arrived?** The current clip's first 120 seconds defer all new Telegram sends, including old retries. Repeated rollovers extend that wait. Network failures also keep videos queued. A request already dispatched before a quiet period can still arrive during it.
+**Why has a finished video not arrived?** The current clip's first 120 seconds defer new video/plate sends, including old retries; the daily CSV is exempt. Repeated rollovers extend that wait. Network failures also keep videos queued. A request already dispatched before a quiet period can still arrive during it.
 
 <a id="docs"></a>
 <a id="documentation"></a>
@@ -147,7 +152,7 @@ python .\scripts\security_scan.py .
 
 ## Daily CSV · 23:00 Asia/Taipei
 
-At 23:00 Taiwan time, send a CSV covering that day from 00:00 inclusive to 23:00 exclusive and save it beside the videos. Daily CSV delivery is exempt from recording quiet periods. Events after 23:00 are excluded; no midnight supplement. Zero-event days still get a report. Network failures and missed schedules retry after restart.
+At 23:00 Taiwan time, send a CSV covering that day from 00:00 inclusive to 23:00 exclusive and save it beside the videos. It includes trigger time, event type, people count, vehicle count, vehicle types and per-class counts; legacy person records retain their original meaning. Daily CSV delivery is exempt from recording quiet periods. Events after 23:00 are excluded; no midnight supplement. Zero-event days still get a report. Network failures and missed schedules retry after restart.
 
 
 ### 2026-10-19 · MuMu / MEmu（逍遙模擬器）

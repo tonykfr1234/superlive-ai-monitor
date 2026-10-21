@@ -23,6 +23,8 @@ $ScriptMap = [ordered]@{
     'daily_report.py' = 'daily_report.py'
     'adb_capture.py' = 'adb_capture.py'
     'plate_recognition.py' = 'plate_recognition.py'
+    'plate_history.py' = 'plate_history.py'
+    'plate_replay.py' = 'plate_replay.py'
 }
 $Scripts = @($ScriptMap.Values)
 if (-not (Test-Path -LiteralPath "$Repo\assets\superlive-ai.ico" -PathType Leaf)) { throw 'Application icon is missing.' }
@@ -61,7 +63,7 @@ if (Test-Path -LiteralPath "$Root\config\notification_policy.json") {
         $Policy.PSObject.Properties.Remove('roi_reselect_required')
     }
 }
-$Policy.watch_classes = @(0)
+$Policy.watch_classes = @(0, 2, 3, 5, 7)
 if (Test-Path -LiteralPath "$Root\config\recording_config.json") {
     $ExistingRecording = Get-Content -LiteralPath "$Root\config\recording_config.json" -Raw | ConvertFrom-Json
     foreach ($Property in $ExistingRecording.PSObject.Properties) {
@@ -193,7 +195,7 @@ if exist "%RUNTIME%\stop.flag" del /f /q "%RUNTIME%\stop.flag"
 start "SuperLive Recorder Watchdog" /min "%PY%" "%RECWD%"
 timeout /t 2 /nobreak >nul
 start "SuperLive AI Watchdog" /min "%PY%" "%AIWD%"
-echo Person activity starts recording with a local Windows alert and snapshot. No Telegram start photo.
+echo Person or vehicle activity starts recording with a local Windows alert and snapshot. No Telegram start photo.
 echo Normal clips last 120 to 300 seconds. Detection continues throughout recording.
 echo First 120 seconds: no automatic rollover and no new Telegram sends, including old videos and retries.
 echo Movement at or after 120 seconds and before 300 seconds immediately starts a new clip and quiet period.
@@ -232,7 +234,7 @@ Write-Host 'ROLLOVER=MOVEMENT_AT_LEAST_120_SECONDS_AND_BEFORE_300_SECONDS'
 Write-Host 'INACTIVITY_SECONDS=120'
 Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_AND_DAILY_TRIGGER_CSV'
 Write-Host 'TELEGRAM_QUIET_SECONDS_PER_CLIP=120_INCLUDES_BACKLOG_AND_RETRIES'
-Write-Host 'REARM=PERSON_MOVEMENT_OR_NEW_ARRIVAL'
-Write-Host 'PERSON_ONLY=YES'
+Write-Host 'REARM=PERSON_OR_VEHICLE_MOVEMENT_OR_NEW_ARRIVAL'
+Write-Host 'ACTIVITY_CLASSES=PERSON_CAR_MOTORCYCLE_BUS_TRUCK'
 Write-Host 'ROI=EXISTING_SELECTION_PRESERVED_OR_FULL_FRAME'
 Write-Host 'EVENT_FILES_DEPLOYED=PASS'

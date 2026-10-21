@@ -9,10 +9,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from record_protocol import atomic_json, read_json
-from telegram_video import load_credentials
+from telegram_video import VEHICLE_TYPES, event_object_counts, load_credentials
 
 TAIPEI = timezone(timedelta(hours=8), "Asia/Taipei")
-HEADER = ["觸發時間（台灣時間）", "事件類型", "人數", "信心值", "事件ID", "影片檔名"]
+HEADER = ["觸發時間（台灣時間）", "事件類型", "人數", "信心值", "事件ID", "影片檔名",
+          "車輛數", "車輛類型", "汽車數", "機車數", "巴士數", "卡車數", "總物件數"]
 
 
 class DailyReports:
@@ -42,10 +43,19 @@ class DailyReports:
         folder.mkdir(exist_ok=True)
         path = folder / (hashlib.sha256(event_id.encode()).hexdigest() + ".json")
         previous = read_json(path, {})
-        atomic_json(path, dict(timestamp=timestamp, request_id=event_id,
-            event_type=request.get("trigger_type", "PERSON_ACTIVITY"),
+        typed = (request if isinstance(request.get("object_counts"), dict) else
+                 previous if isinstance(previous.get("object_counts"), dict) else None)
+        counts = event_object_counts(typed or request)
+        vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
+        default_type = ("PERSON_VEHICLE_ACTIVITY" if counts["person"] and vehicles else
+                        "VEHICLE_ACTIVITY" if vehicles else "PERSON_ACTIVITY")
+        entry = dict(timestamp=timestamp, request_id=event_id,
+            event_type=request.get("trigger_type", previous.get("event_type", default_type)),
             count=request.get("count", 1), confidence=request.get("confidence", ""),
-            video=str(video) or previous.get("video", "")))
+            video=str(video) or previous.get("video", ""))
+        if typed is not None:
+            entry["object_counts"] = counts
+        atomic_json(path, entry)
 
     def rows(self, day, cutoff):
         entries = {}
@@ -71,9 +81,24 @@ class DailyReports:
                 entries[entry["request_id"]] = entry
         rows = []
         for event in sorted(entries.values(), key=lambda e: (e["timestamp"], e["request_id"])):
+            counts = event_object_counts(event)
+            vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
+            typed = isinstance(event.get("object_counts"), dict)
+            people = counts["person"] if typed else event["count"]
+            kinds = "、".join(label for name, label in VEHICLE_TYPES if counts[name])
+            breakdown = [counts[name] for name, _ in VEHICLE_TYPES]
+            total = sum(counts.values()) if typed else event["count"]
+            # Recent append-only evidence can have activity type + a total but
+            # no class breakdown. Do not invent people or a particular vehicle
+            # class if the richer recorder journal was never written.
+            if not typed and event["event_type"] == "VEHICLE_ACTIVITY":
+                people, vehicles, kinds, breakdown = 0, event["count"], "未記錄", [""]*4
+            elif not typed and event["event_type"] == "PERSON_VEHICLE_ACTIVITY":
+                people, vehicles, kinds, breakdown = "", "", "未記錄", [""]*4
             rows.append([datetime.fromtimestamp(event["timestamp"], TAIPEI).isoformat(timespec="seconds"),
-                event["event_type"], event["count"], event["confidence"], event["request_id"],
-                Path(event["video"]).name if event["video"] else ""])
+                event["event_type"], people, event["confidence"], event["request_id"],
+                Path(event["video"]).name if event["video"] else "", vehicles, kinds,
+                *breakdown, total])
         return rows
 
     def generate(self, day, phase):

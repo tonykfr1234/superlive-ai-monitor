@@ -4,14 +4,16 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Rilevamento del movimento delle persone tramite acquisizione delle telecamere di sorveglianza</h1>
+<h1 align="center">Rilevamento del movimento di persone e veicoli tramite acquisizione delle telecamere di sorveglianza</h1>
 <p align="center">SuperLive AI Monitor · Supporta gli emulatori Android MuMu e MEmu</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>
 <p align="center"><a href="#quick-start">Avvio rapido</a> · <a href="#workflow">Funzionamento</a> · <a href="#features">Funzioni</a> · <a href="#demo">Dimostrazione</a> · <a href="#faq">Domande frequenti</a> · <a href="#documentation">Documentazione</a></p>
 
-SuperLive AI Monitor aggiunge la registrazione degli eventi all’immagine di SuperLive visibile in MuMu su Windows. Seleziona un’area poligonale: YOLO rileva le persone al suo interno e i video completati vengono inviati tramite Telegram. Non serve un indirizzo RTSP della telecamera.
+SuperLive AI Monitor aggiunge la registrazione degli eventi all’immagine di SuperLive visibile in MuMu su Windows. Seleziona un’area poligonale: YOLO rileva persone e veicoli al suo interno e i video completati vengono inviati tramite Telegram. Non serve un indirizzo RTSP della telecamera.
 
 È un progetto non ufficiale della comunità, senza affiliazione con i fornitori di SuperLive o MuMu. Le dodici lingue del README riguardano la documentazione; l’interfaccia del programma usa attualmente il cinese tradizionale.
+
+**Aggiornamento del 21/10/2026:** Il movimento di persone o veicoli (auto, moto, autobus, camion) può avviare la registrazione. Restano la pausa di 120 secondi e i video da 120–300 secondi; i CSV giornalieri sono esenti. Telegram distingue persone, tipi di veicolo e targhe effettivamente lette, indicando quelle non confermate. L’OCR analizza l’immagine intera e zone sovrapposte, con ripristino automatico dopo un errore. Rotellina, barra di scorrimento e PageUp/PageDown mostrano fino a sette giorni di cronologia, comprese analisi dei video originali, letture assenti, candidati non confermati ed errori.
 
 <a id="quick-start"></a>
 ## Avvio rapido
@@ -32,7 +34,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ## Funzionamento
 
 ```text
-Nuova attività di una persona nel poligono
+Nuova attività di una persona o di un veicolo nel poligono
   → avviare la registrazione; bloccare nuovi invii automatici a Telegram per 120 secondi
   → continuare il rilevamento per tutta la registrazione
   → movimento dal secondo 120 e prima del 300: terminare il video e avviare subito il successivo
@@ -42,9 +44,9 @@ Nuova attività di una persona nel poligono
   → continuare a sorvegliare; riprendere con un nuovo movimento o un nuovo ingresso
 ```
 
-I video normali durano **da 120 a 300 secondi**. Una persona osservata per la prima volta all’avvio conta come nuova attività. Sia l’assenza sia l’immobilità contano come mancanza di movimento; ogni movimento rilevato fa ripartire il periodo di inattività. Dopo i primi 120 secondi, un movimento provoca anche il passaggio immediato al video successivo. Una persona che rimane ferma non avvia subito un altro video dopo la fine del precedente.
+I video normali durano **da 120 a 300 secondi**. Una persona o un veicolo osservato per la prima volta all’avvio conta come nuova attività. Sia l’assenza sia l’immobilità contano come mancanza di movimento; ogni movimento rilevato fa ripartire il periodo di inattività. Dopo i primi 120 secondi, un movimento provoca anche il passaggio immediato al video successivo. Una persona che rimane ferma non avvia subito un altro video dopo la fine del precedente.
 
-All’avvio non viene inviata alcuna foto su Telegram: gli unici invii automatici sono i video completati. La pausa di invio di ogni nuovo video blocca anche i video precedenti e i relativi tentativi successivi. Cambi di video ripetuti possono ritardare l’intera coda. Vengono bloccate le nuove chiamate di invio; un trasferimento già avviato non può essere richiamato e potrebbe arrivare durante la pausa.
+All’avvio non viene inviata alcuna foto su Telegram: gli invii automatici includono video completati, targhe confermate e rapporti CSV giornalieri. La pausa di invio di ogni nuovo video blocca anche i video precedenti e i relativi tentativi successivi. Cambi di video ripetuti possono ritardare l’intera coda. Vengono bloccate le nuove chiamate di invio; un trasferimento già avviato non può essere richiamato e potrebbe arrivare durante la pausa.
 
 La selezione dell’area o l’assenza di risultati validi di acquisizione o rilevamento interrompe l’osservazione. Questo periodo sconosciuto non conta come inattività: al ripristino inizia un nuovo intervallo di osservazione.
 
@@ -54,10 +56,10 @@ La selezione dell’area o l’assenza di risultati validi di acquisizione o ril
 | Funzione | Comportamento |
 | --- | --- |
 | Area di rilevamento | Poligoni convessi e concavi; compatibilità con i rettangoli precedenti |
-| Inclusione delle persone | Il riquadro della persona deve sovrapporsi all’area con una superficie positiva; il solo contatto con il bordo non basta |
+| Inclusione di persone e veicoli | Il riquadro dell’oggetto rilevato deve sovrapporsi all’area con una superficie positiva; il solo contatto con il bordo non basta |
 | Immagine della telecamera | Esclude titolo e menu di MuMu; mantiene data, ora e nomi dei canali presenti nell’immagine |
 | Registrazione | Normalmente 2–5 minuti; dal secondo 120, un movimento avvia subito il video successivo; termina anche dopo 120 secondi senza movimento |
-| Avvisi e invio | Avvisi locali di Windows; solo video H.264 MP4 completati su Telegram; tutti gli invii attendono nei primi 120 secondi di ogni video |
+| Avvisi e invio | Avvisi locali di Windows; video H.264 MP4 completati, targhe e rapporti CSV giornalieri su Telegram; tutti gli invii attendono nei primi 120 secondi di ogni video |
 | Esecuzione e archiviazione | Supervisori separati e nuovi tentativi di acquisizione; valori predefiniti di 10 FPS e `C:\SuperLive_Recordings` |
 
 Quando l’unità di registrazione raggiunge l’80 % di occupazione, vengono eliminati i video più vecchi idonei fino a scendere al 78 %. La registrazione attiva e i file protetti in attesa di invio vengono conservati. Il video contiene tutta l’immagine ritagliata della telecamera, senza assumere la forma del poligono.
@@ -95,7 +97,7 @@ Questi esempi **senza audio di 36 secondi** usano il vero sistema di rendering d
 
 **Perché una persona ferma non viene registrata di nuovo?** Per avviare un altro video serve un nuovo movimento o una nuova persona che entra nell’area. All’avvio del programma, la prima osservazione conta come attività. Non viene inviato un avviso di inizio su Telegram.
 
-**Come viene determinato il movimento?** Dai cambiamenti di posizione o dimensione del riquadro della persona. Le piccole oscillazioni vengono filtrate e gli spostamenti lenti si accumulano. Non è un’analisi della postura: i movimenti che non modificano il riquadro possono passare inosservati. Anche movimenti della telecamera, occlusioni ed errori di rilevamento possono influire sul risultato.
+**Come viene determinato il movimento?** Dai cambiamenti di posizione o dimensione del riquadro della persona o del veicolo. Le piccole oscillazioni vengono filtrate e gli spostamenti lenti si accumulano. Non è un’analisi della postura: i movimenti che non modificano il riquadro possono passare inosservati. Anche movimenti della telecamera, occlusioni ed errori di rilevamento possono influire sul risultato.
 
 **Ogni video dura cinque minuti?** No. Normalmente dura da 2 a 5 minuti. Un movimento dal secondo 120 e prima del 300 termina il video e avvia subito il successivo; anche 120 secondi senza movimento lo terminano. Un arresto manuale o un guasto possono produrre un frammento più breve, che viene conservato localmente. Nessun invio inizia prima della fine della pausa ancora in vigore.
 

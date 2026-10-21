@@ -297,7 +297,7 @@ class ActivityMonitorTests(unittest.TestCase):
             if rendered[0] == 2:
                 monitor.STOP_FLAG.touch()  # End only the synthetic loop.
             return -1
-        self.patch(monitor.cv2, "waitKey", wait_key)
+        self.patch(monitor.cv2, "waitKeyEx", wait_key)
         monitor.main()
         self.assertEqual(rendered[0], 2)
         capture.close.assert_called_once()

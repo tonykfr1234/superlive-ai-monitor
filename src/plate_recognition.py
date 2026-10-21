@@ -20,6 +20,7 @@ import uuid
 
 from record_protocol import atomic_json, read_json
 from region_policy import box_in_roi, validate_roi
+from plate_history import load_history, record_result, prune_history, replay_progress
 
 
 DETECTOR_MODEL = "yolo-v9-t-384-license-plate-end2end"
@@ -222,13 +223,74 @@ def recognition_candidates(alpr, frame, prediction):
     return (max(valid, key=lambda item: item["confidence"]) if valid else None), candidates
 
 
-class PlateService:
-    """Nonblocking GUI-facing API; call pause while selecting/changing source.
+def detect_plate_observations(alpr, frame):
+    """Scan the full image plus overlapping tiles for small distant plates.
 
-    ``now`` in submit is a Unix timestamp (time.time), not monotonic time.
-    ``roi`` is the same normalized rectangle/polygon used for person detection.
-    ``recent`` returns observed plates newest first; matched is separate.
+    A 1600-pixel camera view shrunk to a 384-pixel detector input can erase a
+    readable plate. Four 60% tiles preserve more pixels without requiring a
+    larger model. All boxes return to source coordinates and overlapping views
+    of one physical plate become one observation, retaining all OCR variants.
+    No allowlist is consulted when choosing the observed text.
     """
+    height, width = frame.shape[:2]
+    regions = [(0, 0, width, height)]
+    if width > 960 or height > 540:
+        tile_width, tile_height = math.ceil(width * 0.6), math.ceil(height * 0.6)
+        regions += [(x, y, x + tile_width, y + tile_height)
+                    for y in (0, height - tile_height)
+                    for x in (0, width - tile_width)]
+    observations = []
+    for region in regions:
+        x1, y1, x2, y2 = region
+        tile = frame[y1:y2, x1:x2]
+        for prediction in alpr.predict(tile):
+            box = prediction.detection.bounding_box
+            bounds = [max(x1, int(box.x1) + x1), max(y1, int(box.y1) + y1),
+                      min(x2, int(box.x2) + x1), min(y2, int(box.y2) + y1)]
+            if bounds[0] >= bounds[2] or bounds[1] >= bounds[3]:
+                continue
+            selected, variants = recognition_candidates(alpr, tile, prediction)
+            confidence = float(prediction.detection.confidence)
+            observations.append({"bbox": bounds, "detector_confidence": confidence,
+                "selected": selected, "variants": [dict(variant, source_region=list(region),
+                    source_bbox=bounds[:], detector_confidence=confidence) for variant in variants]})
+
+    def same_plate(left, right):
+        ax1, ay1, ax2, ay2 = left
+        bx1, by1, bx2, by2 = right
+        intersection = max(0, min(ax2, bx2) - max(ax1, bx1)) * max(0, min(ay2, by2) - max(ay1, by1))
+        if not intersection:
+            return False
+        a, b = (ax2 - ax1) * (ay2 - ay1), (bx2 - bx1) * (by2 - by1)
+        return (intersection / (a + b - intersection) >= 0.35
+                or (min(a, b) / max(a, b) >= 0.5 and intersection / min(a, b) >= 0.75))
+
+    # Keep the strongest readable observation, independently of any target text.
+    # A detection below the consensus threshold must not suppress a usable one.
+    observations.sort(key=lambda item: (
+        item["detector_confidence"] >= 0.4, item["selected"] is not None,
+        item["selected"]["confidence"] if item["selected"] is not None else 0,
+        item["detector_confidence"]), reverse=True)
+    merged = []
+    for observation in observations:
+        existing = next((item for item in merged if same_plate(item["bbox"], observation["bbox"])), None)
+        if existing is None:
+            merged.append(observation)
+        else:
+            existing["variants"].extend(observation["variants"])
+    return merged
+
+
+class PlateService:
+    """Bounded samples and worker recovery happen outside the GUI thread.
+
+    ``now`` in submit is a Unix timestamp. The monitor supplies ``roi=None``
+    for full-frame plate detection, independently of the person region.
+    """
+    START_TIMEOUT = 120.0
+    STATE_MAX_AGE = 30.0
+    HEALTHY_RESET_SECONDS = 30.0
+
     def __init__(self, root):
         self.root = Path(root)
         self.runtime = self.root / "runtime" / "plate_recognition"
@@ -238,6 +300,7 @@ class PlateService:
         self._thread = None
         self._log = None
         self._lock = threading.Lock()
+        self._process_lock = threading.Lock()
         self._wake = threading.Event()
         self._closed = False
         self._active = False
@@ -246,43 +309,197 @@ class PlateService:
         self._last_submit = float("-inf")
         self._status = "STOPPED"
         self._error = ""
+        self._io_error = ""
         self._snapshot = {}
         self._read_at = float("-inf")
+        self._started_at = 0.0
+        self._retry_at = 0.0
+        self._retry_count = 0
+        self._healthy_since = None
+        self._error_since = None
 
     def start(self):
         if self._thread is not None:
-            return self._status != "UNAVAILABLE"
+            return not self._closed and self._thread.is_alive()
         executable = self.root / ".plate-venv" / "Scripts" / "python.exe"
         if not executable.exists():
             self._status, self._error = "UNAVAILABLE", "Plate OCR environment is not installed"
             return False
-        self.runtime.mkdir(parents=True, exist_ok=True)
+        try:
+            self.runtime.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            self._status, self._error = "UNAVAILABLE", "Cannot prepare plate worker: " + type(error).__name__
+            return False
         self._closed = False
         self._status = "STARTING"
-        try:
-            atomic_json(self.runtime / "control.json", self._control())
-            self._log = (self.runtime / "worker.log").open("ab")
-            self._process = subprocess.Popen(
-                [str(executable), str(Path(__file__).resolve()), "--worker", "--root", str(self.root),
-                 "--session", self.session], stdout=self._log, stderr=self._log,
-                cwd=str(self.root), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            self._thread = threading.Thread(target=self._io_loop, name="plate-samples", daemon=True)
-            self._thread.start()
-            return True
-        except OSError as error:
-            self._status, self._error = "UNAVAILABLE", "Cannot start plate worker: " + type(error).__name__
-            if self._log is not None:
-                self._log.close()
-                self._log = None
-            return False
+        self._thread = threading.Thread(target=self._io_loop, name="plate-samples", daemon=True)
+        self._thread.start()
+        self._wake.set()
+        return True
 
     def _control(self):
         return {"session": self.session, "generation": self.generation,
                 "active": self._active and not self._closed, "heartbeat": time.time(),
                 "stop": self._closed}
 
+    def _spawn_worker(self, now):
+        # Only the I/O thread starts children. The process lock ensures stop()
+        # can never miss a child registered concurrently with shutdown.
+        with self._process_lock:
+            if self._closed:
+                return
+            with self._lock:
+                self.session = uuid.uuid4().hex
+                self.generation += 1
+                self._latest = None
+                self._active = False
+                self._roi_signature = None
+                self._last_submit = float("-inf")
+                self._snapshot = {"recent": self._snapshot.get("recent", [])}
+                self._read_at = float("-inf")
+                control = self._control()
+            # A locked old file is harmless: its session will never match.
+            try:
+                (self.runtime / "sample.npz").unlink(missing_ok=True)
+            except OSError:
+                pass
+            atomic_json(self.runtime / "control.json", control)
+            if self._closed:
+                return
+            if self._log is None:
+                self._log = (self.runtime / "worker.log").open("ab")
+            executable = self.root / ".plate-venv" / "Scripts" / "python.exe"
+            self._process = subprocess.Popen(
+                [str(executable), str(Path(__file__).resolve()), "--worker", "--root", str(self.root),
+                 "--session", self.session], stdout=self._log, stderr=self._log,
+                cwd=str(self.root), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            self._started_at = now
+            self._healthy_since = self._error_since = None
+            self._status, self._error = "STARTING", ""
+
+    def _stop_process(self, graceful=False):
+        with self._process_lock:
+            process, self._process = self._process, None
+        if process is None:
+            return
+        # Windows venv python.exe is a launcher: terminating it alone leaves
+        # the real OCR child alive, especially when native inference is stuck.
+        # Capture only this launcher's descendants before it can disappear.
+        try:
+            import psutil
+        except ImportError:
+            psutil = None
+        descendants = []
+        if psutil is not None and isinstance(process.pid, int):
+            try:
+                descendants = psutil.Process(process.pid).children(recursive=True)
+            except psutil.Error:
+                pass
+        deadline = time.monotonic() + (6.0 if graceful else 4.0)
+
+        def remaining(limit):
+            return max(0.0, min(limit, deadline-time.monotonic()))
+
+        if graceful and process.poll() is None:
+            try:
+                process.wait(timeout=remaining(2.0))
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        for child in reversed(descendants):
+            try:
+                child.terminate()
+            except psutil.Error:
+                pass
+        try:
+            if process.poll() is None:
+                process.terminate()
+        except OSError:
+            pass
+        if descendants:
+            _, alive = psutil.wait_procs(descendants, timeout=remaining(2.0))
+            for child in alive:
+                try:
+                    child.kill()
+                except psutil.Error:
+                    pass
+            if alive:
+                psutil.wait_procs(alive, timeout=remaining(1.0))
+        try:
+            try:
+                process.wait(timeout=remaining(1.0))
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=remaining(1.0))
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    def _read_state(self):
+        state = read_json(self.runtime / "state.json", {})
+        with self._lock:
+            if isinstance(state, dict) and state.get("session") == self.session:
+                self._snapshot = state
+            return dict(self._snapshot)
+
+    def _health_issue(self, now, state):
+        process = self._process
+        if process is None:
+            return None
+        if process.poll() is not None:
+            return "Plate worker exited"
+        if state.get("session") != self.session or state.get("status") == "STARTING":
+            return "Plate worker startup timed out" if now-self._started_at > self.START_TIMEOUT else None
+        try:
+            age = time.time()-float(state["updated_at"])
+            if math.isfinite(age) and -1 <= age <= self.STATE_MAX_AGE:
+                return None
+        except (KeyError, ValueError, TypeError, OverflowError):
+            pass
+        return "Plate worker heartbeat is stale"
+
+    def _schedule_restart(self, now, reason):
+        self._stop_process()
+        if self._closed:
+            return
+        self._retry_count += 1
+        self._retry_at = now + min(60.0, 5.0 * 2 ** min(self._retry_count-1, 4))
+        self._healthy_since = self._error_since = None
+        self._status, self._error = "RESTARTING", reason
+        with self._lock:
+            self.generation += 1
+            self._latest = None
+        print("PLATE_RESTART attempt=%d delay=%ds reason=%s" %
+              (self._retry_count, self._retry_at-now, reason), flush=True)
+
+    def _supervise(self, now=None):
+        if self._closed:
+            return
+        now = time.monotonic() if now is None else now
+        state = self._read_state()
+        issue = self._health_issue(now, state)
+        if issue:
+            self._schedule_restart(now, issue)
+        elif self._process is not None and state.get("session") == self.session:
+            status = state.get("status")
+            if status in ("ERROR", "UNAVAILABLE", "STOPPED"):
+                self._healthy_since = None
+                if self._error_since is None:
+                    self._error_since = now
+                elif now-self._error_since >= self.STATE_MAX_AGE:
+                    self._schedule_restart(now, "Plate worker remains unavailable")
+            elif status in ("READY", "PAUSED"):
+                self._error_since = None
+                if self._healthy_since is None:
+                    self._healthy_since = now
+                elif now-self._healthy_since >= self.HEALTHY_RESET_SECONDS:
+                    self._retry_count = 0
+        if self._process is None and not self._closed and now >= self._retry_at:
+            try:
+                self._spawn_worker(now)
+            except OSError as error:
+                self._schedule_restart(now, "Cannot start plate worker: " + type(error).__name__)
+
     def submit(self, frame, now=None, roi=None):
-        if self._thread is None or self._closed or self._process.poll() is not None:
+        if self._thread is None or self._closed:
             return False
         now = time.time() if now is None else float(now)
         if not math.isfinite(now) or frame is None or not getattr(frame, "size", 0):
@@ -293,6 +510,8 @@ class PlateService:
         except (TypeError, ValueError, AttributeError):
             return False
         with self._lock:
+            if self._closed:
+                return False
             if signature != self._roi_signature:
                 self.generation += 1
                 self._roi_signature = signature
@@ -315,35 +534,50 @@ class PlateService:
             self._last_submit = float("-inf")
         self._wake.set()
 
-    def _io_loop(self):
+    def _write_sample(self, sample):
         import numpy as np
+        frame, metadata = sample
+        fd, temporary = tempfile.mkstemp(prefix="sample-", suffix=".tmp", dir=self.runtime)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                np.savez(stream, frame=frame, metadata=json.dumps(metadata))
+            for attempt in range(6):
+                try:
+                    os.replace(temporary, self.runtime / "sample.npz")
+                    break
+                except PermissionError:
+                    if attempt == 5:
+                        raise
+                    time.sleep(0.01 * (2 ** attempt))
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def _io_cycle(self):
+        self._supervise()
+        if self._closed:
+            return
+        with self._lock:
+            sample, self._latest = self._latest, None
+            control = self._control()
+        try:
+            atomic_json(self.runtime / "control.json", control)
+            if sample is not None:
+                self._write_sample(sample)
+            if sample is not None or not self._active:
+                self._io_error = ""
+        except (OSError, ValueError) as error:
+            self._io_error = "Plate sample unavailable: " + type(error).__name__
+
+    def _io_loop(self):
         while not self._closed:
             self._wake.wait(1.0)
             self._wake.clear()
-            with self._lock:
-                sample, self._latest = self._latest, None
-                control = self._control()
             try:
-                atomic_json(self.runtime / "control.json", control)
-                if sample is not None:
-                    frame, metadata = sample
-                    fd, temporary = tempfile.mkstemp(prefix="sample-", suffix=".tmp", dir=self.runtime)
-                    try:
-                        with os.fdopen(fd, "wb") as stream:
-                            np.savez(stream, frame=frame, metadata=json.dumps(metadata))
-                        for attempt in range(6):
-                            try:
-                                os.replace(temporary, self.runtime / "sample.npz")
-                                break
-                            except PermissionError:
-                                if attempt == 5:
-                                    raise
-                                time.sleep(0.01 * (2 ** attempt))
-                    finally:
-                        if os.path.exists(temporary):
-                            os.unlink(temporary)
-            except (OSError, ValueError) as error:
-                self._error = "Plate sample unavailable: " + type(error).__name__
+                self._io_cycle()
+            except Exception as error:
+                # Keep the supervisor alive even if one I/O cycle fails.
+                self._io_error = "Plate service unavailable: " + type(error).__name__
         try:
             atomic_json(self.runtime / "control.json", self._control())
         except OSError:
@@ -353,58 +587,110 @@ class PlateService:
         now = time.monotonic()
         if now - self._read_at >= 0.5:
             self._read_at = now
-            state = read_json(self.runtime / "state.json", {})
-            if isinstance(state, dict) and state.get("session") == self.session:
-                self._snapshot = state
+            self._read_state()
         state = dict(self._snapshot)
+        if state.get("session") != self.session:
+            state = {"recent": state.get("recent", [])}
         state.setdefault("status", self._status)
         state.setdefault("model", MODEL_LABEL)
         state.setdefault("error", self._error)
         state.setdefault("recent", [])
-        if self._process is not None and self._process.poll() is not None and not self._closed:
-            state.update(status="ERROR", error=state.get("error") or "Plate worker exited")
-        elif self._closed:
+        if self._closed:
             state["status"] = "STOPPED"
-        elif self._thread is not None and not self._active:
-            state["status"] = "PAUSED" if state["status"] == "READY" else state["status"]
+        elif self._status == "RESTARTING":
+            state.update(status="RESTARTING", error=self._error)
+        else:
+            issue = self._health_issue(now, state)
+            if issue:
+                state.update(status="RESTARTING", error=issue)
+                self._wake.set()
+            elif self._io_error:
+                state.update(status="ERROR", error=self._io_error)
+            elif self._thread is not None and not self._active and state["status"] == "READY":
+                state["status"] = "PAUSED"
+        state["restart_count"] = self._retry_count
+        state["retry_in"] = max(0, math.ceil(self._retry_at-now)) if state["status"] == "RESTARTING" else 0
         return state
 
     def recent(self):
-        return list(self.snapshot().get("recent", []))[:5]
+        return list(self.snapshot().get("recent", []))
 
     def stop(self):
-        self.pause()
-        self._closed = True
+        with self._lock:
+            self._closed = True
+            self._active = False
+            self._latest = None
+            self.generation += 1
         self._wake.set()
         if self._thread is not None:
             self._thread.join(timeout=2)
-        if self._process is not None and self._process.poll() is None:
-            try:
-                self._process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                self._process.terminate()
-                try:
-                    self._process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    self._process.kill()
-        if self._log is not None:
-            self._log.close()
+        self._stop_process(graceful=True)
+        with self._process_lock:
+            if self._log is not None:
+                self._log.close()
+                self._log = None
         self._status = "STOPPED"
+
+
+class ControlLease:
+    """A transient unreadable control file is not an explicit stop request."""
+    def __init__(self, session, now=None):
+        self.session = session
+        self.last_seen = time.monotonic() if now is None else float(now)
+
+    def inspect(self, control, wall_now=None, now=None):
+        wall_now = time.time() if wall_now is None else float(wall_now)
+        now = time.monotonic() if now is None else float(now)
+        if isinstance(control, dict):
+            owner = control.get("session")
+            if isinstance(owner, str) and owner:
+                if owner == self.session and control.get("stop") is True:
+                    return "stop"
+                try:
+                    raw = control["heartbeat"]
+                    stamp = float(raw)
+                    age = wall_now-stamp
+                    valid = not isinstance(raw, bool) and math.isfinite(stamp) and 0 <= age <= HEARTBEAT_MAX_AGE
+                except (KeyError, ValueError, TypeError, OverflowError):
+                    valid = False
+                if valid:
+                    if owner != self.session:
+                        return "stop"
+                    self.last_seen = now
+                    return "active" if control.get("active") is True else "paused"
+        return "stop" if now-self.last_seen > HEARTBEAT_MAX_AGE else "wait"
 
 
 def run_worker(root, session):
     root = Path(root)
     runtime = root / "runtime" / "plate_recognition"
     recent_file = runtime / "recent.json"
-    recent = read_json(recent_file, [])
-    if not isinstance(recent, list):
-        recent = []
-    recent = [item for item in recent if isinstance(item, dict) and item.get("confirmed")][:5]
+    recent = load_history(root)
+    processed_frames, last_sample_at, detections = 0, None, 0
+    state_write_error = ""
+    last_prune = float("-inf")
 
     def state(status, error=""):
-        atomic_json(runtime / "state.json", {"session": session, "status": status,
+        nonlocal state_write_error, recent, last_prune
+        try:
+            if time.monotonic()-last_prune >= 60:
+                prune_history(root)
+                last_prune = time.monotonic()
+            recent = load_history(root)
+            atomic_json(recent_file, recent)
+            atomic_json(runtime / "state.json", {"session": session, "status": status,
                     "error": error, "model": MODEL_LABEL, "recent": recent,
-                    "updated_at": time.time(), "tolerance": DEFAULT_MAX_DISTANCE})
+                    "updated_at": time.time(), "tolerance": DEFAULT_MAX_DISTANCE,
+                    "processed_frames": processed_frames, "last_sample_at": last_sample_at,
+                    "detections": detections, "replay": replay_progress(root)})
+            state_write_error = ""
+            return True
+        except (OSError, ValueError, TypeError) as failure:
+            name = type(failure).__name__
+            if name != state_write_error:
+                print("PLATE_STATE_WRITE_ERROR=" + name, flush=True)
+            state_write_error = name
+            return False
 
     state("STARTING")
     try:
@@ -424,26 +710,38 @@ def run_worker(root, session):
         return 1
     consensus = PlateConsensus(load_allowlist(root))
     for item in recent:
+        if item.get("confirmed") is not True:
+            continue
         try:
-            consensus.last_emitted[item.get("matched") or item["text"]] = float(item["timestamp"])
+            key = item.get("matched") or item["text"]
+            consensus.last_emitted[key] = max(float(item["timestamp"]),
+                                             consensus.last_emitted.get(key, float("-inf")))
         except (KeyError, ValueError, TypeError):
             pass
     last_sample, context, last_state = None, None, 0.0
+    lease = ControlLease(session)
+    inference_error = ""
     while True:
-        control = read_json(runtime / "control.json", {})
+        control = read_json(runtime / "control.json", None)
         now = time.time()
-        if (not isinstance(control, dict) or control.get("session") != session
-                or control.get("stop") is True):
+        control_status = lease.inspect(control, wall_now=now)
+        if control_status == "stop":
             break
-        if now - float(control.get("heartbeat", 0)) > HEARTBEAT_MAX_AGE:
-            break
+        if control_status == "wait":
+            consensus.reset()
+            if now-last_state > 2:
+                state("WAITING", "Waiting for parent control heartbeat")
+                last_state = now
+            time.sleep(0.1)
+            continue
         current_context = (control.get("generation"), tuple(load_allowlist(root)))
         if current_context != context:
             consensus.reset()
             consensus.allowlist = list(current_context[1])
             context = current_context
         if now - last_state > 2:
-            state("READY" if control.get("active") else "PAUSED")
+            state("ERROR" if inference_error else ("READY" if control.get("active") else "PAUSED"),
+                  inference_error)
             last_state = now
         if not control.get("active"):
             time.sleep(0.1)
@@ -456,7 +754,7 @@ def run_worker(root, session):
                     continue
                 frame = data["frame"].copy()
             last_sample = metadata["sample_id"]
-            predictions = alpr.predict(frame)
+            predictions = detect_plate_observations(alpr, frame)
             # Pause/ROI/source changes can happen while inference is running.
             current_control = read_json(runtime / "control.json", {})
             if not valid_sample(metadata, current_control, time.time()):
@@ -464,33 +762,38 @@ def run_worker(root, session):
             if tuple(load_allowlist(root)) != context[1]:
                 consensus.reset()
                 continue
+            inference_error = ""
+            processed_frames += 1
+            last_sample_at = metadata["timestamp"]
+            detections = len(predictions)
             height, width = frame.shape[:2]
             for prediction in predictions:
-                if prediction.ocr is None:
+                selected = prediction["selected"]
+                if selected is None:
                     continue
-                box = prediction.detection.bounding_box
-                bounds = [int(box.x1), int(box.y1), int(box.x2), int(box.y2)]
+                bounds = prediction["bbox"]
                 if not box_in_roi(bounds, metadata.get("roi"), width, height):
                     continue
-                selected, variants = recognition_candidates(alpr, frame, prediction)
-                if selected is None or not valid_sample(metadata,
+                if not valid_sample(metadata,
                         read_json(runtime / "control.json", {}), time.time()):
                     continue
                 event = consensus.observe(selected["raw_text"], selected["confidence"],
                     metadata["timestamp"], metadata["sample_id"], bounds,
-                    prediction.detection.confidence, variants=variants)
+                    prediction["detector_confidence"], variants=prediction["variants"])
                 if event is None:
                     continue
                 atomic_json(root / "runtime" / "plate_events" / (event["id"] + ".json"), event)
-                recent = [event] + recent[:4]
-                atomic_json(recent_file, recent)
+                record_result(root, event)
                 state("READY")
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError, KeyError) as error:
             # A failed or partially replaced input is not a successful reading.
+            inference_error = "Plate sample or inference unavailable: " + type(error).__name__
+            state("ERROR", inference_error)
             time.sleep(0.1)
         except Exception as error:
             consensus.reset()
-            state("ERROR", "Plate inference failed: " + type(error).__name__)
+            inference_error = "Plate inference failed: " + type(error).__name__
+            state("ERROR", inference_error)
             time.sleep(1.0)
     state("STOPPED")
     return 0

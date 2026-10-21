@@ -3,7 +3,7 @@
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <strong>Tiếng Việt</strong> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>
 </p>
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Chụp màn hình camera giám sát để phát hiện chuyển động của người</h1>
+<h1 align="center">Chụp màn hình camera giám sát để phát hiện chuyển động của người và xe</h1>
 <p align="center">SuperLive AI Monitor · Hỗ trợ trình giả lập Android MuMu và MEmu</p>
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows">
@@ -18,11 +18,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 
 ---
 
-Biểu tượng mới và ghi hình chất lượng cao: giữ độ phân giải thu hình gốc với H.264 CRF 18. Telegram ưu tiên CRF 20 và chỉ nén thêm bản gửi vượt giới hạn dung lượng.
+Biểu tượng mới và ghi hình chất lượng cao: giữ độ phân giải thu hình gốc với H.264 CRF 18. Telegram ưu tiên gửi cùng video gốc; chỉ tạo bản nén tạm khi vượt giới hạn dung lượng và xóa bản tạm sau khi gửi thành công.
 
-SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình ảnh trực tiếp của SuperLive trong MuMu trên Windows. YOLO phát hiện người trong vùng đa giác đã chọn và gửi video hoàn tất qua Telegram. Không cần biết địa chỉ RTSP của camera.
+SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình ảnh trực tiếp của SuperLive trong MuMu trên Windows. YOLO phát hiện người và xe trong vùng đa giác đã chọn và gửi video hoàn tất qua Telegram. Không cần biết địa chỉ RTSP của camera.
 
 Đây là dự án cộng đồng không chính thức, không liên kết với nhà cung cấp SuperLive hoặc MuMu. 12 ngôn ngữ README chỉ là bản dịch tài liệu; giao diện xem trước của ứng dụng hiện vẫn dùng tiếng Trung phồn thể.
+
+**Cập nhật 21/10/2026:** Chuyển động của người hoặc xe (ô tô, xe máy, xe buýt, xe tải) đều có thể kích hoạt ghi hình. Giữ nguyên 120 giây tạm hoãn gửi và video 120–300 giây; CSV hằng ngày là ngoại lệ. Telegram phân biệt người, loại xe và biển số thực sự đọc được; chưa xác nhận sẽ được ghi rõ. OCR quét toàn ảnh cùng các vùng chồng lấp và tự khôi phục khi lỗi. Dùng con lăn, thanh cuộn hoặc PageUp/PageDown để xem tối đa bảy ngày lịch sử, gồm nhận dạng lại video gốc, không đọc được biển số, ứng viên chưa xác nhận và lỗi.
 
 <a id="quick-start"></a>
 ## Bắt đầu nhanh
@@ -39,7 +41,7 @@ SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình 
 ## Quy trình hoạt động
 
 ```text
-Có hoạt động mới của người trong vùng đa giác
+Có hoạt động mới của người hoặc xe trong vùng đa giác
   → bắt đầu ghi, thông báo Windows và ảnh lưu trên máy
   → 120 giây đầu: không tự chuyển đoạn, không bắt đầu lượt gửi Telegram mới
   → có chuyển động từ giây 120 đến trước 300: kết thúc đoạn cũ và ghi đoạn mới ngay
@@ -48,9 +50,9 @@ Có hoạt động mới của người trong vùng đa giác
   → video hoàn tất chờ trong hàng đợi đến khi hết thời gian tạm hoãn hiện tại
 ```
 
-Người được nhìn thấy lần đầu sau khi khởi động được tính là hoạt động mới. Video tự động hoàn tất bình thường dài **120–300 giây**. Trước giây 120, chuyển động đặt lại thời gian không chuyển động nhưng không chia đoạn. Từ giây 120 đến trước giới hạn 300, phát hiện chuyển động sẽ kết thúc đoạn hiện tại và bắt đầu đoạn mới ngay. Không có người hoặc người đứng yên đều tính là không chuyển động; sau 120 giây liên tục không chuyển động, chương trình dừng ghi và chờ chuyển động mới hoặc người mới xuất hiện.
+Người hoặc xe được nhìn thấy lần đầu sau khi khởi động được tính là hoạt động mới. Video tự động hoàn tất bình thường dài **120–300 giây**. Trước giây 120, chuyển động đặt lại thời gian không chuyển động nhưng không chia đoạn. Từ giây 120 đến trước giới hạn 300, phát hiện chuyển động sẽ kết thúc đoạn hiện tại và bắt đầu đoạn mới ngay. Không có đối tượng hoặc tất cả đối tượng đứng yên đều tính là không chuyển động; sau 120 giây liên tục không chuyển động, chương trình dừng ghi và chờ chuyển động mới hoặc người mới xuất hiện.
 
-**Chỉ video hoàn tất mới được gửi tự động qua Telegram.** Khi bắt đầu ghi, chương trình giữ thông báo Windows và ảnh lưu trên máy, không gửi ảnh bắt đầu qua Telegram. Trong 120 giây đầu của đoạn hiện tại, không bắt đầu lượt gửi mới, kể cả video cũ và lượt thử lại. Chuyển đoạn liên tục có thể kéo dài thời gian chờ của hàng đợi. Yêu cầu mạng đã gửi trước thời gian tạm hoãn vẫn có thể đến trong khoảng này và không thể thu hồi.
+**Video hoàn tất, biển số đã xác nhận và báo cáo CSV hằng ngày được gửi tự động qua Telegram.** Khi bắt đầu ghi, chương trình giữ thông báo Windows và ảnh lưu trên máy, không gửi ảnh bắt đầu qua Telegram. Trong 120 giây đầu của đoạn hiện tại, không bắt đầu lượt gửi mới, kể cả video cũ và lượt thử lại. Chuyển đoạn liên tục có thể kéo dài thời gian chờ của hàng đợi. Yêu cầu mạng đã gửi trước thời gian tạm hoãn vẫn có thể đến trong khoảng này và không thể thu hồi.
 
 Dừng thủ công hoặc lỗi chụp hình có thể để lại đoạn video cục bộ ngắn hơn 120 giây. Chương trình không thêm hình để tạo thời lượng giả; việc gửi tự động phải chờ hết hạn tạm hoãn của đoạn đó và cả thời gian tạm hoãn của đoạn mới hơn, nếu có.
 
@@ -62,14 +64,14 @@ Khi đang chọn vùng, chụp hình thất bại hoặc không có kết quả 
 | Tính năng | Hoạt động |
 | --- | --- |
 | Vùng theo dõi | Hỗ trợ đa giác lồi, lõm và thiết lập hình chữ nhật cũ |
-| Phát hiện | Chỉ phát hiện người; khung người phải chồng lên vùng với diện tích lớn hơn 0, chạm biên là chưa đủ |
+| Phát hiện | Phát hiện người và xe; khung đối tượng phải chồng lên vùng với diện tích lớn hơn 0, chạm biên là chưa đủ |
 | Hình ảnh | Loại bỏ thanh tiêu đề/menu MuMu; giữ thời gian và tên kênh trong hình camera |
 | Ghi hình | Bình thường 120–300 giây; chuyển động sau giây 120 mở đoạn mới; dừng sau 120 giây liên tục không chuyển động |
 | Gửi kết quả | Thông báo và ảnh cục bộ khi bắt đầu; Telegram gửi video H.264 MP4 và báo cáo CSV hằng ngày, hàng đợi và lượt thử lại chờ hết thời gian tạm hoãn |
 | Lưu trữ | 10 FPS; `C:\SuperLive_Recordings`; xóa video cũ khi ổ đĩa đạt 80%, dừng khi còn 78% |
 | Khôi phục | Thử chụp lại; bộ giám sát riêng cho chương trình theo dõi và ghi hình |
 
-Chuyển động được ước tính từ vị trí/kích thước khung người, không phải phân tích tư thế. Rung nhẹ của khung được lọc, còn dịch chuyển chậm được tích lũy. Camera chuyển động, che khuất và lỗi phát hiện vẫn có thể ảnh hưởng kết quả. Video giữ toàn bộ phần hình ảnh camera đã cắt, không cắt theo hình đa giác.
+Chuyển động được ước tính từ vị trí/kích thước khung người hoặc xe, không phải phân tích tư thế. Rung nhẹ của khung được lọc, còn dịch chuyển chậm được tích lũy. Camera chuyển động, che khuất và lỗi phát hiện vẫn có thể ảnh hưởng kết quả. Video giữ toàn bộ phần hình ảnh camera đã cắt, không cắt theo hình đa giác.
 
 <a id="demo"></a>
 ## Minh họa

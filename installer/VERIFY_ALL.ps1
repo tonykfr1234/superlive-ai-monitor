@@ -35,13 +35,13 @@ foreach($F in @('scripts\stage4b_motion_monitor.py','scripts\stage5_watchdog.py'
 Write-Host "`n=== Notification Policy ==="
 if(Test-Path "$Root\config\notification_policy.json"){
   $N=Get-Content "$Root\config\notification_policy.json" -Raw|ConvertFrom-Json
-  Write-Host 'PERSON_ONLY=YES'
+  Write-Host 'ACTIVITY_CLASSES=PERSON_CAR_MOTORCYCLE_BUS_TRUCK'
   Write-Host 'INACTIVITY_SECONDS=120'
   Write-Host 'NORMAL_CLIP_SECONDS=120_TO_300'
   Write-Host 'ROLLOVER=MOVEMENT_AT_LEAST_120_SECONDS_AND_BEFORE_300_SECONDS'
   Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_AND_DAILY_TRIGGER_CSV'
   Write-Host 'TELEGRAM_QUIET_SECONDS_PER_CLIP=120_INCLUDES_BACKLOG_AND_RETRIES'
-  Write-Host 'REARM=PERSON_MOVEMENT_OR_NEW_ARRIVAL'
+  Write-Host 'REARM=PERSON_OR_VEHICLE_MOVEMENT_OR_NEW_ARRIVAL'
   Write-Host 'PREVIEW_CONTROLS=R polygon; click 3+ vertices; Enter save; right-click / Backspace undo; Esc cancel; C full frame; Q stop'
   Write-Host ("ROI=" + ($N.roi | ConvertTo-Json -Depth 10 -Compress))
   Write-Host "ROI_COORDINATE_SPACE=$($N.roi_coordinate_space)"

@@ -6,7 +6,11 @@
   "confidence": 0.25,
   "imgsz": 640,
   "watch_classes": [
-    0
+    0,
+    2,
+    3,
+    5,
+    7
   ],
   "capture_max_failures": 5,
   "capture_retry_seconds": 1.0,

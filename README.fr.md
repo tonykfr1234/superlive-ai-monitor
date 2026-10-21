@@ -4,14 +4,16 @@
 </p>
 
 <p align="center"><img src="assets/superlive-ai.png" width="112" alt="SuperLive AI icon"></p>
-<h1 align="center">Détection des mouvements de personnes par capture de vidéosurveillance</h1>
+<h1 align="center">Détection des mouvements de personnes et de véhicules par capture de vidéosurveillance</h1>
 <p align="center">SuperLive AI Monitor · Compatible avec les émulateurs Android MuMu et MEmu</p>
 <p align="center"> <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows"> <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a> </p>
 <p align="center"><a href="#quick-start">Démarrage rapide</a> · <a href="#workflow">Fonctionnement</a> · <a href="#features">Fonctions</a> · <a href="#demo">Démonstration</a> · <a href="#faq">Questions fréquentes</a> · <a href="#documentation">Documentation</a></p>
 
-SuperLive AI Monitor ajoute l’enregistrement par événement à l’image de SuperLive affichée dans MuMu sous Windows. Sélectionnez une zone polygonale : YOLO y détecte les personnes, puis les vidéos terminées sont envoyées sur Telegram. Aucune adresse RTSP de caméra n’est nécessaire.
+SuperLive AI Monitor ajoute l’enregistrement par événement à l’image de SuperLive affichée dans MuMu sous Windows. Sélectionnez une zone polygonale : YOLO y détecte les personnes et les véhicules, puis les vidéos terminées sont envoyées sur Telegram. Aucune adresse RTSP de caméra n’est nécessaire.
 
 Il s’agit d’un projet communautaire non officiel, sans affiliation avec les fournisseurs de SuperLive ou de MuMu. Les douze langues du README concernent la documentation ; l’interface du programme utilise actuellement le chinois traditionnel.
+
+**Mise à jour du 21/10/2026 :** Les mouvements de personnes ou de véhicules (voitures, motos, bus, camions) déclenchent l’enregistrement. La pause de 120 secondes et les vidéos de 120–300 secondes restent inchangées ; les CSV quotidiens sont exemptés. Telegram distingue personnes, types de véhicules et plaques réellement lues, avec un statut explicite si non confirmées. L’OCR analyse l’image entière et des zones qui se chevauchent, puis redémarre automatiquement en cas de panne. La molette, la barre de défilement et PageUp/PageDown donnent accès à sept jours d’historique, y compris l’analyse des vidéos originales, les absences de lecture, les candidats non confirmés et les erreurs.
 
 <a id="quick-start"></a>
 ## Démarrage rapide
@@ -32,7 +34,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 ## Fonctionnement
 
 ```text
-Nouvelle activité d’une personne dans le polygone
+Nouvelle activité d’une personne ou d’un véhicule dans le polygone
   → démarrer l’enregistrement ; bloquer tout nouvel envoi automatique Telegram pendant 120 secondes
   → poursuivre la détection pendant tout l’enregistrement
   → mouvement à partir de 120 secondes et avant 300 : terminer la vidéo et démarrer immédiatement la suivante
@@ -42,9 +44,9 @@ Nouvelle activité d’une personne dans le polygone
   → continuer à surveiller ; reprendre sur un nouveau mouvement ou une nouvelle arrivée
 ```
 
-Les vidéos normales durent **entre 120 et 300 secondes**. Une personne observée pour la première fois au démarrage compte comme une nouvelle activité. L’absence et l’immobilité comptent toutes deux comme une absence de mouvement ; chaque mouvement détecté relance le délai d’inactivité. Une fois les premières 120 secondes écoulées, un mouvement déclenche également le passage immédiat à la vidéo suivante. Une personne restant immobile ne déclenche pas immédiatement une nouvelle vidéo après la précédente.
+Les vidéos normales durent **entre 120 et 300 secondes**. Une personne ou un véhicule observé pour la première fois au démarrage compte comme une nouvelle activité. L’absence et l’immobilité comptent toutes deux comme une absence de mouvement ; chaque mouvement détecté relance le délai d’inactivité. Une fois les premières 120 secondes écoulées, un mouvement déclenche également le passage immédiat à la vidéo suivante. Une personne restant immobile ne déclenche pas immédiatement une nouvelle vidéo après la précédente.
 
-Aucune photo Telegram n’est envoyée au démarrage : les envois automatiques concernent les vidéos terminées et les rapports CSV quotidiens. La pause d’envoi de chaque nouvelle vidéo bloque aussi les anciennes vidéos et leurs nouvelles tentatives d’envoi. Des changements de vidéo répétés peuvent retarder toute la file. Ce sont les nouveaux appels d’envoi qui sont bloqués ; un transfert déjà lancé ne peut pas être rappelé et peut arriver pendant la pause.
+Aucune photo Telegram n’est envoyée au démarrage : les envois automatiques concernent les vidéos terminées, les plaques confirmées et les rapports CSV quotidiens. La pause d’envoi de chaque nouvelle vidéo bloque aussi les anciennes vidéos et leurs nouvelles tentatives d’envoi. Des changements de vidéo répétés peuvent retarder toute la file. Ce sont les nouveaux appels d’envoi qui sont bloqués ; un transfert déjà lancé ne peut pas être rappelé et peut arriver pendant la pause.
 
 La sélection d’une zone ou l’absence de résultats valides de capture ou de détection interrompt l’observation. Cette période inconnue ne compte pas comme de l’inactivité : un nouvel intervalle commence après le rétablissement.
 
@@ -54,10 +56,10 @@ La sélection d’une zone ou l’absence de résultats valides de capture ou de
 | Fonction | Comportement |
 | --- | --- |
 | Zone de détection | Polygones convexes ou concaves ; compatibilité avec les anciens rectangles |
-| Prise en compte d’une personne | Son cadre doit chevaucher la zone sur une surface positive ; un simple contact avec le bord ne suffit pas |
+| Prise en compte d’une personne ou d’un véhicule | Son cadre doit chevaucher la zone sur une surface positive ; un simple contact avec le bord ne suffit pas |
 | Image de caméra | Exclut le titre et les menus de MuMu ; conserve les horodatages et noms de canal présents dans l’image |
 | Enregistrement | Normalement 2–5 minutes ; dès 120 secondes, un mouvement démarre immédiatement la vidéo suivante ; arrêt aussi après 120 secondes sans mouvement |
-| Alertes et envoi | Alertes locales Windows ; seules les vidéos H.264 MP4 terminées passent par Telegram ; tous les envois attendent pendant les premières 120 secondes de chaque vidéo |
+| Alertes et envoi | Alertes locales Windows ; les vidéos H.264 MP4 terminées, les plaques et les CSV quotidiens passent par Telegram ; tous les envois attendent pendant les premières 120 secondes de chaque vidéo |
 | Exploitation et stockage | Superviseurs distincts et nouvelles tentatives de capture ; 10 FPS et `C:\SuperLive_Recordings` par défaut |
 
 À 80 % d’occupation du disque d’enregistrement, les plus anciennes vidéos éligibles sont supprimées jusqu’à revenir à 78 %. L’enregistrement actif et les fichiers protégés en attente d’envoi sont conservés. La vidéo contient toute l’image de caméra recadrée, sans découpage à la forme du polygone.
@@ -95,7 +97,7 @@ Ces exemples **muets de 36 secondes** utilisent le véritable moteur d’afficha
 
 **Pourquoi une personne immobile ne déclenche-t-elle pas une nouvelle vidéo ?** Il faut un nouveau mouvement ou une nouvelle arrivée pour lancer une autre vidéo. Au démarrage du programme, la première observation compte comme une activité. Aucune alerte de début n’est envoyée sur Telegram.
 
-**Comment le mouvement est-il déterminé ?** Par les changements de position ou de taille du cadre de la personne. Les faibles variations sont filtrées et les déplacements lents s’accumulent. Il ne s’agit pas d’une analyse de posture : un mouvement qui ne modifie pas le cadre peut passer inaperçu. Les déplacements de caméra, les occultations et les erreurs de détection peuvent aussi influencer le résultat.
+**Comment le mouvement est-il déterminé ?** Par les changements de position ou de taille du cadre de la personne ou du véhicule. Les faibles variations sont filtrées et les déplacements lents s’accumulent. Il ne s’agit pas d’une analyse de posture : un mouvement qui ne modifie pas le cadre peut passer inaperçu. Les déplacements de caméra, les occultations et les erreurs de détection peuvent aussi influencer le résultat.
 
 **Chaque vidéo dure-t-elle cinq minutes ?** Non. Elle dure normalement entre 2 et 5 minutes. Un mouvement à partir de la seconde 120 et avant la seconde 300 termine la vidéo et démarre immédiatement la suivante ; 120 secondes sans mouvement la terminent également. Un arrêt manuel ou une panne peuvent produire un fragment plus court, conservé localement. Aucun envoi ne commence avant la fin de la pause encore en vigueur.
 

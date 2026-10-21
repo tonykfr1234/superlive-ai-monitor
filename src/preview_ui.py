@@ -41,7 +41,9 @@ class PreviewLayout:
 
     @classmethod
     def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False):
-        width, height = max(320, int(width)), max(480 if show_plates else 300, int(height))
+        width = max(320, int(width))
+        minimum_height = (600 if width < 800 else 480) if show_plates else 300
+        height = max(minimum_height, int(height))
         font_size = max(12, min(18, width // 52))
         line_height = font_size + 6
         button_height = font_size + 20
@@ -57,7 +59,9 @@ class PreviewLayout:
                 image_width -= panel_width
                 plates = Rect(image_width, 0, panel_width, image_height)
             else:
-                panel_height = min(12*(font_size+4)+24, image_height - 60)
+                # Stacked layouts leave a readable viewport for scrollable
+                # capture status and the retained recognition history.
+                panel_height = min(20*(font_size+4)+24, image_height - 60)
                 plates = Rect(0, image_height-panel_height, width, panel_height)
                 image_height -= panel_height
         scale = min(image_width / max(1, frame_width), image_height / max(1, frame_height))
@@ -114,6 +118,16 @@ class PreviewController:
         self.model_label = "YOLO11n"
         self.plate_events = []
         self.plate_status = ""
+        self.plate_error = ""
+        self.plate_scan_status = ""
+        self.object_counts = None
+        self.plate_scroll = 0
+        self.plate_scroll_max = 0
+        self.plate_page_lines = 1
+        self.plate_scrollbar = None
+        self.plate_scroll_thumb = None
+        self._plate_scroll_drag = False
+        self._plate_row_cache = None
 
     @property
     def can_confirm(self):
@@ -155,6 +169,19 @@ class PreviewController:
         return None
 
     def key(self, key):
+        # waitKeyEx keeps Win32 extended keys; X11 values support other backends.
+        if key in ("page_up", 0x210000, 65365):
+            self.scroll_plates(-self.plate_page_lines)
+            return None
+        if key in ("page_down", 0x220000, 65366):
+            self.scroll_plates(self.plate_page_lines)
+            return None
+        if key in ("home", 0x240000, 65360):
+            self.scroll_plates(-self.plate_scroll_max)
+            return None
+        if key in ("end", 0x230000, 65367):
+            self.scroll_plates(self.plate_scroll_max)
+            return None
         if key in (ord("r"), ord("R")):
             return self.command("select")
         if key in (ord("c"), ord("C")):
@@ -169,8 +196,32 @@ class PreviewController:
             return self.command("confirm")
         return None
 
+    def scroll_plates(self, lines):
+        self.plate_scroll = max(0, min(self.plate_scroll_max, self.plate_scroll+int(lines)))
+
+    def _scrollbar_at(self, y):
+        bar = self.plate_scrollbar
+        if bar is not None:
+            fraction = max(0.0, min(1.0, (y-bar.y)/max(1, bar.height-1)))
+            self.plate_scroll = round(fraction*self.plate_scroll_max)
+
     def mouse(self, event, x, y):
         if self.layout is None:
+            return None
+        if event in ("wheel_up", "wheel_down"):
+            if self.layout.plates and self.layout.plates.contains(x, y):
+                self.scroll_plates(-3 if event == "wheel_up" else 3)
+            return None
+        if event == "down" and self.plate_scrollbar and self.plate_scrollbar.contains(x, y):
+            self.pressed_button = None
+            self._plate_scroll_drag = True
+            self._scrollbar_at(y)
+            return None
+        if self._plate_scroll_drag:
+            if event in ("move", "up"):
+                self._scrollbar_at(y)
+            if event == "up":
+                self._plate_scroll_drag = False
             return None
         if event == "right_down":
             return self.command("undo")
@@ -236,6 +287,14 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
     heading = ("狀態：" if chinese else "Status: ")+title
     model = str(getattr(controller, "model_label", "YOLO11n"))
     counts = ("區域人數：%s   %s：%s" if chinese else "People in ROI: %s   %s: %s") % (people, model, inference)
+    object_counts = getattr(controller, "object_counts", None)
+    if isinstance(object_counts, dict):
+        person_count = str(object_counts.get("person", 0)) if count is not None else "--"
+        vehicle_count = str(sum(object_counts.get(name, 0) for name in
+                               ("car", "motorcycle", "bus", "truck"))) if count is not None else "--"
+        region_counts = (("區域：人物 %s／車輛 %s" if chinese else "ROI: people %s / vehicles %s") %
+                         (person_count, vehicle_count))
+        counts = "%s   %s：%s" % (region_counts, model, inference)
     if controller.selecting:
         points = len(controller.draft)
         instruction = ("點擊頂點（至少 3 點），已選 %d 點" if chinese else
@@ -254,6 +313,8 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
             return [heading + "   |   " + counts, instruction, shortcuts]
         compact_status = (("人數：%s  %s：%s" if chinese else "People: %s  %s: %s") %
                           (people, model, inference))
+        if isinstance(object_counts, dict):
+            compact_status = "%s  %s：%s" % (region_counts, model, inference)
         return [heading + " | " + compact_status, instruction,
                 "Enter 儲存・Esc 取消" if chinese else "Enter: save | Esc: cancel",
                 "右鍵 / Backspace 撤銷" if chinese else "Right-click / Backspace: undo"]
@@ -271,24 +332,90 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
 
 
 def plate_rows(events, chinese=True):
-    """Keep observed OCR and allowlist matches visibly distinct, newest first."""
+    """Format retained recognition history without inventing OCR for failures.
+
+    Retention belongs to the history store. This view renders all supplied
+    entries, including completed replay scans without a confirmed plate.
+    """
     rows = []
-    valid = [event for event in events if isinstance(event, dict) and event.get("confirmed")]
-    for event in sorted(valid, key=lambda item: float(item.get("timestamp", 0)), reverse=True)[:5]:
+    def timestamp(item):
+        try:
+            return float(item.get("timestamp", 0))
+        except (TypeError, ValueError, OverflowError):
+            return 0
+    valid = [event for event in events if isinstance(event, dict) and
+             (event.get("confirmed") or event.get("outcome") in ("no_plate", "error", "insufficient"))]
+    for event in sorted(valid, key=timestamp, reverse=True):
         try:
             moment = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8)))
             stamp = moment.strftime("%m/%d %H:%M:%S")
-        except (KeyError, ValueError, TypeError, OSError):
+        except (KeyError, ValueError, TypeError, OSError, OverflowError):
             stamp = "--:--:--"
-        observed = str(event.get("text") or event.get("raw_text") or "?")
+        confirmed = event.get("confirmed")
+        if confirmed:
+            observed = str(event.get("text") or event.get("raw_text") or "?")
+        else:
+            names = ({"no_plate": "未辨識到車牌", "error": "辨識失敗", "insufficient": "有候選但未確認"}
+                     if chinese else {"no_plate": "No plate recognized", "error": "Recognition failed",
+                                      "insufficient": "Candidate not confirmed"})
+            observed = names[event["outcome"]]
         first = "%s  %s" % (stamp, observed)
-        if event.get("matched"):
+        if confirmed and event.get("matched"):
             second = (("名單：%s · 差 %s 碼" if chinese else "Match: %s · distance %s") %
                       (event["matched"], event.get("distance", "?")))
-        else:
+        elif confirmed:
             second = "未符合指定名單" if chinese else "No allowlist match"
+        else:
+            second = ""
+        video = str(event.get("source_video") or "").replace("\\", "/").rsplit("/", 1)[-1]
+        if event.get("source") == "recording_replay" or video:
+            source = (("原片補辨識" if chinese else "Recording replay") if event.get("source") == "recording_replay"
+                      else ("錄影片段" if chinese else "Recording"))
+            second += ("\n" if second else "") + source + ("："+video if video else "")
+        if not confirmed and event.get("error"):
+            second += ("\n" if second else "") + ("原因：" if chinese else "Reason: ") + str(event["error"])
         rows.append((first, second))
     return rows
+
+
+def wrap_panel_text(draw, text, font, width):
+    """Wrap Chinese or unbroken identifiers using the rendered font width."""
+    lines = []
+    for paragraph in str(text).splitlines() or [""]:
+        if not paragraph:
+            lines.append("")
+        while paragraph:
+            # Binary-search a fitting prefix rather than measuring each added
+            # character, so a week's history remains inexpensive to wrap.
+            low, high = 1, len(paragraph)
+            while low < high:
+                middle = (low+high+1)//2
+                box = draw.textbbox((0, 0), paragraph[:middle], font=font)
+                if box[2]-box[0] <= width:
+                    low = middle
+                else:
+                    high = middle-1
+            lines.append(paragraph[:low].rstrip())
+            paragraph = paragraph[low:].lstrip()
+    return lines
+
+
+def plate_status_parts(controller, chinese=True):
+    """Separate OCR health, source and quality instead of hiding the last part."""
+    parts = [part.strip() for part in str(controller.plate_status).split("|") if part.strip()]
+    if not parts:
+        parts = ["等待車牌辨識" if chinese else "Waiting for plate detection"]
+    names = {"READY": "車牌辨識中", "STARTING": "車牌模型載入中", "PAUSED": "車牌辨識等待畫面",
+             "ERROR": "車牌辨識錯誤", "UNAVAILABLE": "車牌辨識無法使用",
+             "RESTARTING": "車牌辨識重新啟動中", "RETRYING": "車牌辨識重試中",
+             "STOPPED": "車牌辨識已停止"}
+    if chinese:
+        parts[0] = names.get(parts[0].upper(), parts[0])
+    scan_status = str(getattr(controller, "plate_scan_status", "") or "").strip()
+    if scan_status:
+        parts.append(scan_status)
+    error = str(getattr(controller, "plate_error", "") or "").strip()
+    return parts, (("原因：" if chinese else "Reason: ") + error if error else "")
 
 
 def render_plate_panel(draw, controller, font, chinese):
@@ -297,23 +424,64 @@ def render_plate_panel(draw, controller, font, chinese):
         return
     draw.rectangle(panel.bounds, fill=(15, 24, 35))
     draw.line((panel.x, panel.y, panel.x, panel.y+panel.height), fill=(52, 93, 123), width=2)
-    def label(text, y, color):
-        text = str(text)
-        while len(text) > 1 and draw.textbbox((0, 0), text, font=font)[2] > panel.width-24:
-            text = text[:-2].rstrip("…")+"…"
-        draw.text((panel.x+12, y), text, font=font, fill=color)
-    line = controller.layout.font_size+4
-    label("最近五筆車牌（辨識結果）" if chinese else "Latest 5 plates (observed OCR)", panel.y+8, (106, 224, 251))
-    label(controller.plate_status or ("等待車牌辨識" if chinese else "Waiting for plate detection"), panel.y+8+line, (160, 179, 198))
-    rows = plate_rows(controller.plate_events, chinese)
-    available = panel.height-(line*2+20)
-    row_height = max(line*2, available//5)
-    for index, (observed, match) in enumerate(rows):
-        y = panel.y+line*2+16+index*row_height
-        label(observed, y, (239, 247, 252))
-        label(match, y+line, (155, 202, 176))
-    if not rows:
-        label("尚無已確認的車牌" if chinese else "No confirmed plates yet", panel.y+line*2+20, (160, 179, 198))
+    size = controller.layout.font_size
+    line = size+6
+    text_width = panel.width-42
+    colors = dict(title=(106, 224, 251), detail=(160, 179, 198), error=(255, 172, 141),
+                  observed=(239, 247, 252), match=(155, 202, 176))
+    # The history store replaces the list when data changes. Cache its wrapped
+    # rows independently of rapidly changing capture/status text.
+    events = controller.plate_events
+    cache = controller._plate_row_cache
+    cache_key = (len(events), text_width, size, chinese)
+    if cache is None or cache[0] is not events or cache[1] != cache_key:
+        rows = plate_rows(events, chinese)
+        row_lines = []
+        for observed, match in rows:
+            row_lines.extend((text, colors["observed"]) for text in wrap_panel_text(draw, observed, font, text_width))
+            if match:
+                row_lines.extend((text, colors["match"]) for text in wrap_panel_text(draw, match, font, text_width))
+            row_lines.append(("", colors["detail"]))
+        controller._plate_row_cache = (events, cache_key, row_lines, len(rows))
+    _, _, row_lines, record_count = controller._plate_row_cache
+    heading = (("最近 7 天辨識紀錄（%d 筆）" if chinese else "Last 7 days · %d records") % record_count)
+    help_text = "滾輪 / PgUp / PgDn · 點擊捲軸" if chinese else "Wheel / PgUp / PgDn · scrollbar"
+    title_lines = wrap_panel_text(draw, heading, font, text_width)
+    title_lines += wrap_panel_text(draw, help_text, font, text_width)
+    y = panel.y+8
+    for text in title_lines:
+        draw.text((panel.x+12, y), text, font=font, fill=colors["title"])
+        y += line
+    top = y+8
+    controller.plate_page_lines = max(1, (panel.y+panel.height-8-top)//line)
+
+    parts, error = plate_status_parts(controller, chinese)
+    entries = []
+    for part in parts:
+        entries.extend((text, colors["detail"]) for text in wrap_panel_text(draw, part, font, text_width))
+    if error:
+        entries.extend((text, colors["error"]) for text in wrap_panel_text(draw, error, font, text_width))
+    entries.append(("", colors["detail"]))
+    entries.extend(row_lines)
+    if not record_count:
+        empty = "尚無辨識紀錄" if chinese else "No recognition records yet"
+        entries.extend((text, colors["detail"]) for text in wrap_panel_text(draw, empty, font, text_width))
+    controller.plate_scroll_max = max(0, len(entries)-controller.plate_page_lines)
+    controller.scroll_plates(0)
+    start = controller.plate_scroll
+    for index, (text, color) in enumerate(entries[start:start+controller.plate_page_lines]):
+        box = draw.textbbox((0, 0), text, font=font)
+        position = top+index*line
+        if position+box[3] <= panel.y+panel.height-4:
+            draw.text((panel.x+12, position), text, font=font, fill=color)
+
+    track = Rect(panel.x+panel.width-19, top, 11, controller.plate_page_lines*line)
+    thumb_height = max(20, round(track.height*min(1, controller.plate_page_lines/max(1, len(entries)))))
+    thumb_y = track.y + round((track.height-thumb_height)*start/max(1, controller.plate_scroll_max))
+    thumb = Rect(track.x, thumb_y, track.width, thumb_height)
+    controller.plate_scrollbar, controller.plate_scroll_thumb = track, thumb
+    draw.rounded_rectangle(track.bounds, radius=4, fill=(27, 44, 60))
+    draw.rounded_rectangle(thumb.bounds, radius=4, fill=(85, 169, 193) if controller.plate_scroll_max else (63, 92, 111))
 
 
 def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed=None, message=None):

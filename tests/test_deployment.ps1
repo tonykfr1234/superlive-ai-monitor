@@ -23,7 +23,7 @@ $Recording = Get-Content "$InstallRoot\config\recording_config.json" -Raw | Conv
 if (($Policy.roi -join ',') -ne '0.2,0.3,0.8,0.9' -or $Policy.confidence -ne 0.42) { throw 'ROI/confidence not preserved' }
 if ($Policy.plate_enabled -ne $false) { throw 'User plate enablement preference not preserved' }
 if ($null -ne $Policy.PSObject.Properties['roi_coordinate_space']) { throw 'Legacy ROI incorrectly marked as converted' }
-if (($Policy.watch_classes -join ',') -ne '0' -or $null -ne $Policy.PSObject.Properties['moving_notify_seconds']) { throw 'Old motion policy survived' }
+if (($Policy.watch_classes -join ',') -ne '0,2,3,5,7' -or $null -ne $Policy.PSObject.Properties['moving_notify_seconds']) { throw 'Activity classes not migrated' }
 if ($Recording.segment_minutes -ne 5 -or $Recording.record_root -ne $RecordingRoot -or $Recording.rotation_start_used_percent -ne 85 -or $Recording.rotation_stop_used_percent -ne 82) { throw 'Recording settings not migrated/preserved' }
 if ((Get-FileHash "$InstallRoot\config\telegram.env").Hash -ne $CredentialHash) { throw 'Credentials modified' }
 if ((Get-FileHash "$InstallRoot\config\capture_config.json").Hash -ne $CaptureHash) { throw 'Existing ADB device settings modified' }
@@ -64,6 +64,7 @@ $Mapping = @{
     'person_activity.py'='person_activity.py'; 'telegram_video.py'='telegram_video.py'
     'preview_ui.py'='preview_ui.py'; 'capture_region.py'='capture_region.py'
     'adb_capture.py'='adb_capture.py'; 'plate_recognition.py'='plate_recognition.py'
+    'plate_history.py'='plate_history.py'; 'plate_replay.py'='plate_replay.py'
 }
 foreach ($Name in $Mapping.Keys) {
     if ((Get-FileHash -LiteralPath "$Kit\src\$Name").Hash -ne (Get-FileHash -LiteralPath (Join-Path "$InstallRoot\scripts" $Mapping[$Name])).Hash) {

@@ -243,3 +243,26 @@ def people_in_region(boxes, classes, confidences, roi, width, height, minimum_co
         if int(cls) == 0 and float(confidence) >= minimum_confidence and box_in_roi(box, roi, width, height):
             people.append({"box": tuple(map(int, box)), "confidence": float(confidence)})
     return people
+
+
+ACTIVITY_CLASSES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+
+
+def objects_in_region(boxes, classes, confidences, roi, width, height, minimum_confidence):
+    """Person and motor-vehicle boxes with positive overlap of the chosen ROI."""
+    objects = []
+    for box, cls, confidence in zip(boxes, classes, confidences):
+        kind = ACTIVITY_CLASSES.get(int(cls))
+        if kind and float(confidence) >= minimum_confidence and box_in_roi(box, roi, width, height):
+            objects.append({"box": tuple(map(int, box)), "confidence": float(confidence),
+                            "class_id": int(cls), "kind": kind})
+    return objects
+
+
+def object_counts(objects):
+    counts = {kind: 0 for kind in ACTIVITY_CLASSES.values()}
+    for obj in objects:
+        kind = obj.get("kind", ACTIVITY_CLASSES.get(obj.get("class_id", 0), "person"))
+        if kind in counts:
+            counts[kind] += 1
+    return counts
