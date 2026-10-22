@@ -17,7 +17,7 @@ Dies ist ein unabhängiges Community-Projekt ohne Verbindung zu den Anbietern vo
 
 Bestätigte Treffer der privaten Kennzeichenliste mit höchstens zwei Zeichenänderungen werden standardmäßig aufgeklappt; andere Ergebnisse bleiben eingeklappt erhalten. Ein Klick auf den Videodateinamen markiert die Originaldatei im Windows-Datei-Explorer.
 
-Erkennungsstatus, Bildqualität und Stapelfortschritt stehen bei den unteren Bedienelementen. Das Kamerabild nutzt standardmäßig die volle Breite; „車牌紀錄“ öffnet oder schließt die Verlaufsliste darunter.
+Erkennungsstatus, Bildqualität und Stapelfortschritt bleiben bei den unteren Bedienelementen. Bei aktivierter Kennzeichenerkennung stehen passende Einträge dauerhaft rechts, nach taiwanischem Kalenderdatum mit Tagesanzahl gruppiert, neueste zuerst. In schmalen Fenstern steht die Liste unter dem Kamerabild; dessen Seitenverhältnis bleibt erhalten. „其他紀錄“ öffnet die übrigen Einträge darunter und springt dorthin; erneutes Schließen führt zu den passenden Einträgen zurück.
 
 <a id="quick-start"></a>
 ## Schnellstart

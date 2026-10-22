@@ -2,10 +2,12 @@
 import sys
 import unittest
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from preview_ui import PreviewController, PreviewLayout, render_preview, status_lines, plate_footer_text, ui_font
+from preview_ui import (PreviewController, PreviewLayout, render_preview, status_lines, plate_footer_text,
+                        ui_font, plate_daily_groups, render_plate_panel)
 
 
 class PreviewLayoutTests(unittest.TestCase):
@@ -354,6 +356,160 @@ class PlateDrawerLayoutTests(unittest.TestCase):
                     self.assertLessEqual(box[2], layout.width)
                     self.assertGreaterEqual(box[1], layout.footer.y)
                     self.assertLess(box[3], button_top)
+
+
+class PlateSidebarLayoutTests(unittest.TestCase):
+    def event(self, number=0, **changes):
+        timestamp = datetime(2026, 1, 10, 12, tzinfo=timezone.utc).timestamp()-number*86400
+        event = dict(id="synthetic-%d" % number, timestamp=timestamp, confirmed=True,
+                     text="AB1235", matched="AB1234", distance=1, source_video="sample-%d.mp4" % number)
+        event.update(changes)
+        return event
+
+    def controller(self, events=None, size=(1100, 760), source=(1600, 900)):
+        controller = PreviewController([[.1, .1], [.8, .1], [.1, .8]])
+        controller.plate_enabled = True
+        controller.plate_filter_targets = ["AB1234"]
+        controller.plate_events = [self.event()] if events is None else events
+        controller.plate_status = "READY | ADB 1600x900 | 最高（已確認）"
+        controller.layout = PreviewLayout.create(*source, *size, show_plates=True, plate_sidebar=True,
+                                                 plate_status_text=plate_footer_text(controller))
+        return controller
+
+    def render_panel(self, controller):
+        from PIL import Image, ImageDraw
+        base = ImageDraw.Draw(Image.new("RGB", (controller.layout.width, controller.layout.height)))
+        output = []
+        class Draw:
+            def __getattr__(self, name):
+                return getattr(base, name)
+            def text(self, position, value, **options):
+                output.append((position, value, base.textbbox(position, value, font=options["font"])))
+                return base.text(position, value, **options)
+        render_plate_panel(Draw(), controller, ui_font(controller.layout.font_size)[0], True)
+        return output
+
+    def click(self, controller, rect):
+        controller.mouse("down", rect.x+1, rect.y+1)
+        return controller.mouse("up", rect.x+1, rect.y+1)
+
+    def test_persistent_sidebar_and_narrow_fallback_preserve_camera_pixels_and_coordinates(self):
+        import numpy as np
+        for size in ((1100, 760), (640, 600), (320, 600)):
+            for source in ((1600, 900), (720, 1280)):
+                with self.subTest(size=size, source=source):
+                    controller = self.controller(size=size, source=source)
+                    layout, panel = controller.layout, controller.layout.plates
+                    self.assertFalse(controller.plate_panel_open)
+                    self.assertIsNotNone(panel)
+                    if size[0] >= 900:
+                        self.assertEqual(panel.y, 0)
+                        self.assertEqual(panel.x+panel.width, layout.width)
+                        self.assertLessEqual(layout.video.x+layout.video.width, panel.x)
+                    else:
+                        self.assertEqual((panel.x, panel.width), (0, layout.width))
+                        self.assertLessEqual(layout.video.y+layout.video.height, panel.y)
+                    self.assertEqual(panel.y+panel.height, layout.footer.y)
+                    self.assertAlmostEqual(layout.video.width/layout.video.height,
+                                           source[0]/source[1], delta=.025)
+                    point = layout.canvas_point((.5, .5))
+                    normalized = layout.image_point(*point)
+                    self.assertAlmostEqual(normalized[0], .5, delta=.01)
+                    self.assertAlmostEqual(normalized[1], .5, delta=.01)
+                    self.assertIsNone(layout.image_point(panel.x+1, panel.y+1))
+                    frame = np.full((source[1], source[0], 3), (30, 80, 120), dtype=np.uint8)
+                    before = frame.copy()
+                    render_preview(frame, controller, "RECORDING", 1, 30, elapsed=60)
+                    self.assertTrue(np.array_equal(frame, before))
+                    for rect in layout.buttons.values():
+                        self.assertGreaterEqual(rect.y, layout.footer.y)
+                        self.assertLessEqual(rect.y+rect.height, layout.height)
+
+    def test_daily_groups_use_taiwan_midnight_and_keep_all_retained_dates(self):
+        before_midnight = datetime(2026, 1, 10, 15, 59, tzinfo=timezone.utc).timestamp()
+        midnight = before_midnight+60
+        events = [self.event(0, timestamp=before_midnight), self.event(1, timestamp=midnight)]
+        events += [self.event(10+i, timestamp=before_midnight-(i+1)*86400) for i in range(6)]
+        groups = plate_daily_groups(events)
+        self.assertEqual([day for day, _ in groups][:2], ["2026/01/11", "2026/01/10"])
+        self.assertEqual(len(groups), 8)
+        self.assertEqual(groups[0][1][0]["id"], "synthetic-1")
+        self.assertEqual(plate_daily_groups([self.event(timestamp=float("nan"))])[0][0], None)
+
+    def test_daily_match_counts_preserve_observed_text_and_only_real_filenames_link(self):
+        events = [self.event(), self.event(1, timestamp=self.event()["timestamp"], text="XY1234",
+                                          distance=2, source_video=None),
+                  self.event(2, text="ZZ9999", matched="ZZ9999")]
+        controller = self.controller(events)
+        output = self.render_panel(controller)
+        text = "".join(value for _, value, _ in output)
+        for expected in ("指定車牌：AB1234", "符合指定車牌（2 筆）", "2026/01/10 · 2 筆", "XY1234"):
+            self.assertIn(expected, text)
+        self.assertNotIn("ZZ9999", text)
+        self.assertEqual(len(controller.plate_links), 1)
+        for position, value, _ in output:
+            if value.startswith("2026/"):
+                self.assertIsNone(controller.mouse("down", position[0]+1, position[1]+1))
+                self.assertIsNone(controller.mouse("up", position[0]+1, position[1]+1))
+        action = self.click(controller, controller.plate_links[0][0])
+        self.assertEqual(action.kind, "reveal_video")
+        self.assertEqual(action.event, events[0])
+        self.assertIsNot(action.event, events[0])
+        controller.plate_filter_targets = []
+        controller.plate_scroll = 0
+        text = "".join(value for _, value, _ in self.render_panel(controller))
+        self.assertIn("已確認車牌（3 筆）", text)
+        self.assertNotIn("指定車牌：", text)
+
+    def test_other_button_jumps_to_other_records_and_returns_to_matches_when_collapsed(self):
+        events = [self.event(i) for i in range(10)]
+        events += [self.event(20, confirmed=False, outcome="error", error="synthetic decode failure"),
+                   self.event(21, confirmed=False, outcome="no_plate")]
+        controller = self.controller(events)
+        controller.command("select")
+        controller.draft = [[.1, .1], [.2, .2]]
+        self.render_panel(controller)
+        old_roi, old_draft = controller.roi[:], controller.draft[:]
+        self.assertIsNone(self.click(controller, controller.layout.buttons["plates"]))
+        self.assertTrue(controller.plate_other_expanded)
+        output = self.render_panel(controller)
+        text = "".join(value for _, value, _ in output)
+        self.assertGreater(controller.plate_scroll, 0)
+        self.assertIn("其他辨識紀錄（2 筆）", text)
+        self.assertIn("辨識失敗", text)
+        self.assertIn("未辨識到車牌", text)
+        self.assertTrue(controller.plate_links)
+        error_link = next(rect for rect, event in controller.plate_links if event.get("outcome") == "error")
+        self.assertEqual(self.click(controller, error_link).event["outcome"], "error")
+        self.assertIsNone(self.click(controller, controller.layout.buttons["plates"]))
+        text = "".join(value for _, value, _ in self.render_panel(controller))
+        self.assertFalse(controller.plate_other_expanded)
+        self.assertEqual(controller.plate_scroll, 0)
+        self.assertIn("指定車牌：AB1234", text)
+        self.assertTrue(controller.selecting)
+        self.assertEqual(controller.roi, old_roi)
+        self.assertEqual(controller.draft, old_draft)
+
+    def test_narrow_wrapped_links_stay_inside_panel_and_stale_actions_are_rejected(self):
+        event = self.event(source_video="synthetic-filename-"*8+".mp4")
+        controller = self.controller([event], size=(320, 600))
+        output = self.render_panel(controller)
+        self.assertTrue(controller.plate_links)
+        for _, value, box in output:
+            self.assertGreaterEqual(box[0], controller.layout.plates.x)
+            self.assertLessEqual(box[2], controller.layout.plates.x+controller.layout.plates.width)
+            self.assertLess(box[3], controller.layout.footer.y)
+        old_link = controller.plate_links[0][0]
+        controller.plate_filter_targets = ["ZZ9999"]
+        self.assertIsNone(self.click(controller, old_link))
+        controller.plate_filter_targets = ["AB1234"]
+        self.render_panel(controller)
+        controller.plate_events = [self.event(1)]
+        self.assertIsNone(self.click(controller, old_link))
+        self.render_panel(controller)
+        old_link = controller.plate_links[0][0]
+        controller.layout = PreviewLayout.create(1600, 900, 1100, 760, show_plates=True, plate_sidebar=True)
+        self.assertIsNone(self.click(controller, old_link))
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ SuperLive AI Monitor bổ sung khả năng ghi hình theo sự kiện cho hình 
 
 Mặc định chỉ mở các kết quả đã xác nhận khớp danh sách riêng với tối đa hai phép chỉnh sửa ký tự; các kết quả khác được giữ trong mục thu gọn. Nhấp tên video để chọn tệp gốc trong Windows File Explorer.
 
-Trạng thái OCR, chất lượng và tiến độ xử lý nằm cùng các nút phía dưới. Mặc định hình camera dùng toàn bộ chiều rộng; nút “車牌紀錄” mở hoặc đóng danh sách lịch sử bên dưới.
+Trạng thái OCR, chất lượng và tiến độ xử lý vẫn nằm cùng các nút phía dưới. Khi bật nhận dạng biển số, các kết quả khớp luôn hiển thị bên phải, nhóm theo ngày tại Đài Loan kèm số lượng mỗi ngày và xếp mới nhất trước. Với cửa sổ hẹp, danh sách nằm dưới camera; hình ảnh giữ nguyên tỷ lệ. Nút “其他紀錄” mở rộng và chuyển đến các bản ghi khác bên dưới; thu gọn sẽ quay lại các kết quả khớp.
 
 <a id="quick-start"></a>
 ## Bắt đầu nhanh

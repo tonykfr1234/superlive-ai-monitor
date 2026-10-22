@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-22
+
+- Keep matching plate records visible in a right sidebar, grouped by Taiwan calendar date with daily counts and newest records first; narrow windows place the list below the camera. Keep OCR and capture status in the bottom controls, preserve the image aspect ratio, and use “其他紀錄” to expand and jump to other results or collapse them and return to matches. Two-edit matching, seven-day retention and filename links remain unchanged.
+- 右側常駐顯示符合本機車牌名單的紀錄，依台灣日期分組並列出每日筆數，由新到舊排列；窄視窗改放影像下方。狀態與畫質留在底部，影像維持等比例；「其他紀錄」可展開並跳到其他結果，收起後返回符合紀錄。兩碼容錯、七天保存與點檔名定位原片功能不變。
+
 ## 2026-10-21
 
 - Retry brief Windows permission errors while reading plate samples with a small bounded delay; persistent failures remain visible and inference errors are not retried as file locks.

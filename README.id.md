@@ -28,7 +28,7 @@ Ini adalah proyek komunitas tidak resmi yang tidak berafiliasi dengan penyedia S
 
 Secara bawaan, hanya hasil terkonfirmasi yang cocok dengan daftar pribadi hingga dua perubahan karakter yang ditampilkan terbuka; hasil lain disimpan dalam bagian yang dapat dilipat. Klik nama video untuk memilih file asli di Windows File Explorer.
 
-Status OCR, kualitas gambar, dan progres pemrosesan berada bersama kontrol bawah. Gambar kamera memakai lebar penuh secara bawaan; tombol “車牌紀錄” membuka atau menutup riwayat di bawah gambar.
+Status OCR, kualitas gambar, dan progres pemrosesan tetap bersama kontrol bawah. Saat pengenalan pelat aktif, hasil yang cocok selalu terlihat di kanan, dikelompokkan menurut tanggal Taiwan dengan jumlah harian dan hasil terbaru di atas. Pada jendela sempit, daftar berada di bawah kamera; rasio gambar tetap terjaga. “其他紀錄” membuka dan menuju catatan lainnya; menutupnya mengembalikan tampilan ke hasil yang cocok.
 
 <a id="quick-start"></a>
 ## Mulai cepat

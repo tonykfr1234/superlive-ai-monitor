@@ -17,7 +17,7 @@ Es un proyecto comunitario no oficial, sin relación con los proveedores de Supe
 
 Por defecto se muestran los resultados confirmados que coinciden con la lista privada con un máximo de dos ediciones de caracteres; los demás se conservan en una sección plegable. Haz clic en el nombre del vídeo para seleccionar el original en el Explorador de archivos de Windows.
 
-El estado del OCR, la calidad y el progreso del lote aparecen junto a los controles inferiores. La cámara usa todo el ancho por defecto; “車牌紀錄” abre o cierra el historial debajo de la imagen.
+El estado del OCR, la calidad y el progreso del lote permanecen junto a los controles inferiores. Con el reconocimiento de matrículas activado, las coincidencias aparecen siempre a la derecha, agrupadas por fecha de Taiwán con un recuento diario y las más recientes primero. En ventanas estrechas, la lista pasa debajo de la cámara, que conserva su proporción. “其他紀錄” despliega y lleva a los demás registros; al contraerlos, vuelve a las coincidencias.
 
 <a id="quick-start"></a>
 ## Inicio rápido

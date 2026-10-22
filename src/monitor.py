@@ -492,6 +492,7 @@ def main():
                 pass
             controller.layout = PreviewLayout.create(width, height, *canvas_size,
                 show_plates=controller.plate_enabled,
+                plate_sidebar=controller.plate_enabled,
                 plates_open=controller.plate_panel_open if plate_service else False,
                 plate_status_text=plate_footer_text(controller) if plate_service else "")
             state = read_json(STATE_FILE)

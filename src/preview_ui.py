@@ -40,11 +40,14 @@ class PreviewLayout:
     line_count: int
     plates: object = None
     plate_status_lines: tuple = ()
+    plate_sidebar: bool = False
 
     @classmethod
     def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False,
-               plates_open=False, plate_status_text=""):
+               plates_open=False, plate_status_text="", plate_sidebar=False):
         width = max(320, int(width))
+        plate_sidebar = bool(show_plates and plate_sidebar)
+        side_panel = plate_sidebar and width >= 900
         font_size = max(12, min(18, width // 52))
         line_height = font_size + 6
         button_height = font_size + 20
@@ -58,12 +61,17 @@ class PreviewLayout:
         plate_lines = tuple(plate_footer_lines(plate_status_text, width, font_size)) if show_plates else ()
         footer_height = max(130, 24 + line_height * (line_count+len(plate_lines))
                             + (button_height+6)*len(rows))
-        minimum_height = max(600, footer_height+320) if show_plates and plates_open else max(300, footer_height+120)
+        bottom_panel = show_plates and (plate_sidebar or plates_open) and not side_panel
+        minimum_height = max(600, footer_height+320) if bottom_panel else max(300, footer_height+120)
         height = max(minimum_height, int(height))
         image_height = height - footer_height
         image_width = width
         plates = None
-        if show_plates and plates_open:
+        if side_panel:
+            panel_width = min(390, max(300, round(width*.3)))
+            image_width -= panel_width
+            plates = Rect(image_width, 0, panel_width, image_height)
+        elif bottom_panel:
             # The opt-in history drawer takes its own space below the complete
             # letterboxed camera image. It never masks camera pixels.
             panel_height = min(max(200, height//3), 320, image_height-120)
@@ -82,7 +90,8 @@ class PreviewLayout:
             for index, name in enumerate(names):
                 buttons[name] = Rect(margin+index*(button_width+gap), top+row*(button_height+6),
                                      button_width, button_height)
-        return cls(width, height, video, footer, buttons, font_size, line_height, line_count, plates, plate_lines)
+        return cls(width, height, video, footer, buttons, font_size, line_height, line_count,
+                   plates, plate_lines, plate_sidebar)
 
     def button_at(self, x, y):
         return next((name for name, rect in self.buttons.items() if rect.contains(x, y)), None)
@@ -140,6 +149,7 @@ class PreviewController:
         self.plate_group_hits = []
         self._plate_hit_state = None
         self._pressed_plate = None
+        self._plate_pending_scroll = None
 
     @property
     def can_confirm(self):
@@ -156,7 +166,11 @@ class PreviewController:
 
     def command(self, name):
         if name == "plates" and self.layout is not None and "plates" in self.layout.buttons:
-            self.plate_panel_open = not self.plate_panel_open
+            if self.layout.plate_sidebar:
+                self.plate_other_expanded = not self.plate_other_expanded
+                self._plate_pending_scroll = "other" if self.plate_other_expanded else "top"
+            else:
+                self.plate_panel_open = not self.plate_panel_open
             self.plate_links, self.plate_group_hits = [], []
             self.plate_scrollbar = self.plate_scroll_thumb = None
             self._plate_hit_state = self._pressed_plate = None
@@ -227,7 +241,8 @@ class PreviewController:
     def _plate_view_state(self):
         panel = self.layout.plates if self.layout else None
         return (panel.bounds if panel else None, self.plate_scroll, id(self.plate_events),
-                tuple(plate_filter_targets(self.plate_filter_targets)), self.plate_other_expanded)
+                tuple(plate_filter_targets(self.plate_filter_targets)), self.plate_other_expanded,
+                bool(self.layout and self.layout.plate_sidebar))
 
     def _plate_hit(self, x, y):
         # A scroll, resize or history update invalidates old click locations
@@ -264,6 +279,8 @@ class PreviewController:
             if self._plate_hit(x, y) == pressed:
                 if pressed[0] == "toggle_other":
                     self.plate_other_expanded = not self.plate_other_expanded
+                    if self.layout.plate_sidebar and not self.plate_other_expanded:
+                        self._plate_pending_scroll = "top"
                 else:
                     return UIAction("reveal_video", event=deepcopy(pressed[1]))
             return None
@@ -415,6 +432,19 @@ def plate_event_groups(events, targets=()):
     return featured, other
 
 
+def plate_daily_groups(events):
+    """Group confirmed matches by Taiwan calendar date, newest date first."""
+    groups = {}
+    for event in sorted(events, key=_plate_timestamp, reverse=True):
+        try:
+            moment = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8)))
+            day = moment.strftime("%Y/%m/%d")
+        except (KeyError, ValueError, TypeError, OSError, OverflowError):
+            day = None
+        groups.setdefault(day, []).append(event)
+    return list(groups.items())
+
+
 def plate_record_parts(event, chinese=True):
     """Separate metadata from the clickable source filename."""
     try:
@@ -536,6 +566,8 @@ def render_plate_panel(draw, controller, font, chinese):
         return
     draw.rectangle(panel.bounds, fill=(15, 24, 35))
     draw.line((panel.x, panel.y, panel.x+panel.width, panel.y), fill=(52, 93, 123), width=2)
+    if panel.x:
+        draw.line((panel.x, panel.y, panel.x, panel.y+panel.height), fill=(52, 93, 123), width=2)
     size = controller.layout.font_size
     line = size+6
     text_width = panel.width-42
@@ -546,7 +578,8 @@ def render_plate_panel(draw, controller, font, chinese):
     events = controller.plate_events
     cache = controller._plate_row_cache
     targets = plate_filter_targets(controller.plate_filter_targets)
-    cache_key = (len(events), text_width, size, chinese, tuple(targets), controller.plate_other_expanded)
+    sidebar = controller.layout.plate_sidebar
+    cache_key = (len(events), text_width, size, chinese, tuple(targets), controller.plate_other_expanded, sidebar)
     if cache is None or cache[0] is not events or cache[1] != cache_key:
         featured, other = plate_event_groups(events, targets)
         row_lines = []
@@ -557,22 +590,34 @@ def render_plate_panel(draw, controller, font, chinese):
                 for kind, value in plate_record_parts(record, chinese):
                     paragraph(value, colors[kind], ("reveal_video", record) if kind == "video" else None)
                 row_lines.append(("", colors["detail"], None))
+        if sidebar and targets:
+            paragraph(("指定車牌：" if chinese else "Target plates: ")+" / ".join(targets), colors["title"])
         if featured:
             label = (("符合指定車牌（%d 筆）" if targets else "已確認車牌（%d 筆）") if chinese else
                      ("Matching plates · %d records" if targets else "Confirmed plates · %d records"))
             paragraph(label % len(featured), colors["title"])
-            append_records(featured)
+            if sidebar:
+                for day, records in plate_daily_groups(featured):
+                    day = day or ("日期不明" if chinese else "Unknown date")
+                    paragraph(("%s · %d 筆" if chinese else "%s · %d records") % (day, len(records)),
+                              colors["match"])
+                    append_records(records)
+            else:
+                append_records(featured)
         elif events:
             paragraph(("尚無符合指定車牌的確認紀錄" if targets else "尚無已確認的車牌") if chinese else
                       ("No confirmed target matches" if targets else "No confirmed plates"), colors["detail"])
+        other_row = len(row_lines)
         if other:
             label = ("其他辨識紀錄（%d 筆）" if chinese else "Other recognition records · %d") % len(other)
             paragraph(("[-] " if controller.plate_other_expanded else "[+] ")+label,
                       colors["video"], ("toggle_other", None))
             if controller.plate_other_expanded:
                 append_records(other)
-        controller._plate_row_cache = (events, cache_key, row_lines, len(featured)+len(other))
-    _, _, row_lines, record_count = controller._plate_row_cache
+        elif sidebar:
+            paragraph("其他辨識紀錄（0 筆）" if chinese else "Other recognition records · 0", colors["detail"])
+        controller._plate_row_cache = (events, cache_key, row_lines, len(featured)+len(other), other_row)
+    _, _, row_lines, record_count, other_row = controller._plate_row_cache
     heading = (("最近 7 天辨識紀錄（%d 筆）" if chinese else "Last 7 days · %d records") % record_count)
     help_text = "滾輪 / PgUp / PgDn · 點擊捲軸" if chinese else "Wheel / PgUp / PgDn · scrollbar"
     title_lines = wrap_panel_text(draw, heading, font, text_width)
@@ -589,6 +634,9 @@ def render_plate_panel(draw, controller, font, chinese):
         empty = "尚無辨識紀錄" if chinese else "No recognition records yet"
         entries.extend((text, colors["detail"], None) for text in wrap_panel_text(draw, empty, font, text_width))
     controller.plate_scroll_max = max(0, len(entries)-controller.plate_page_lines)
+    if controller._plate_pending_scroll is not None:
+        controller.plate_scroll = other_row if controller._plate_pending_scroll == "other" else 0
+        controller._plate_pending_scroll = None
     controller.scroll_plates(0)
     start = controller.plate_scroll
     controller.plate_links, controller.plate_group_hits = [], []
@@ -653,13 +701,16 @@ def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed
               {"select": "R: Region", "full": "C: Full frame", "stop": "Q: Stop",
                "confirm": "Enter: Save", "cancel": "Esc: Cancel",
                "plates": "Hide plates" if controller.plate_panel_open else "Plate history"})
+    if layout.plate_sidebar:
+        labels["plates"] = (("收起其他" if controller.plate_other_expanded else "其他紀錄") if chinese else
+                            ("Hide others" if controller.plate_other_expanded else "Other records"))
     for name, rect in layout.buttons.items():
         enabled = (name not in ("confirm", "cancel") or
                    (controller.selecting if name == "cancel" else controller.can_confirm))
         color = (36, 65, 88) if enabled else (30, 39, 51)
         if name == "select" and controller.selecting:
             color = (25, 103, 119)
-        if name == "plates" and controller.plate_panel_open:
+        if name == "plates" and (controller.plate_other_expanded if layout.plate_sidebar else controller.plate_panel_open):
             color = (25, 103, 119)
         if name == "stop":
             color = (115, 49, 58)

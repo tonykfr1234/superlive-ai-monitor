@@ -28,7 +28,7 @@ Este projeto comunitário não é afiliado aos fabricantes do SuperLive ou do Mu
 
 Por padrão, ficam expandidos apenas os resultados confirmados que correspondem à lista privada com até duas edições de caracteres; os demais permanecem em uma seção recolhível. Clique no nome do vídeo para selecionar o original no Explorador de Arquivos do Windows.
 
-O status do OCR, a qualidade e o progresso do lote ficam junto aos controles inferiores. A câmera usa toda a largura por padrão; “車牌紀錄” abre ou fecha o histórico abaixo da imagem.
+O status do OCR, a qualidade e o progresso do lote permanecem junto aos controles inferiores. Com o reconhecimento de placas ativado, as correspondências ficam sempre visíveis à direita, agrupadas pela data de Taiwan com contagem diária e as mais recentes primeiro. Em janelas estreitas, a lista fica abaixo da câmera, que mantém a proporção da imagem. “其他紀錄” expande e leva aos outros registros; recolhê-los retorna às correspondências.
 
 <a id="quick-start"></a>
 ## Instalação rápida
