@@ -1,4 +1,4 @@
-﻿param([string]$Python = (Get-Command python -ErrorAction Stop).Source)
+param([string]$Python = (Get-Command python -ErrorAction Stop).Source)
 $ErrorActionPreference = 'Stop'
 $Kit = Split-Path -Parent $PSScriptRoot
 $TestRoot = Join-Path (Join-Path ([IO.Path]::GetTempPath()) 'superlive-tests') ('deployment_test_' + [guid]::NewGuid().ToString('N'))
@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Force -Path "$InstallRoot\config", "$InstallRoot\s
 Set-Content "$InstallRoot\config\telegram.env" -Value 'TEST_FIXTURE_NO_REAL_CREDENTIALS' -Encoding ASCII
 Set-Content "$InstallRoot\scripts\stage4b_motion_monitor.py" -Value '# old fixture' -Encoding ASCII
 $CredentialHash = (Get-FileHash "$InstallRoot\config\telegram.env").Hash
-@{source='adb'; adb_path='D:/Emulator/adb.exe'; serial='fixture-device'; ensure_highest=$false} | ConvertTo-Json | Set-Content "$InstallRoot\config\capture_config.json" -Encoding UTF8
+@{source='adb'; adb_path='D:/Emulator/adb.exe'; serial='fixture-device'; ensure_highest=$false; recovery=@{enabled=$true; device_name='Private fixture camera'; channel=7; stale_seconds=90; retry_seconds=45; frame_roi=@(0.1,0.2,0.9,0.8)}} | ConvertTo-Json -Depth 5 | Set-Content "$InstallRoot\config\capture_config.json" -Encoding UTF8
 Set-Content "$InstallRoot\config\plate_allowlist.json" -Value '["TEST-42"]' -Encoding UTF8
 $CaptureHash = (Get-FileHash "$InstallRoot\config\capture_config.json").Hash
 $AllowlistHash = (Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash
@@ -64,6 +64,7 @@ $Mapping = @{
     'person_activity.py'='person_activity.py'; 'telegram_video.py'='telegram_video.py'
     'preview_ui.py'='preview_ui.py'; 'capture_region.py'='capture_region.py'
     'adb_capture.py'='adb_capture.py'; 'plate_recognition.py'='plate_recognition.py'
+    'stream_health.py'='stream_health.py'; 'superlive_recovery.py'='superlive_recovery.py'
     'plate_history.py'='plate_history.py'; 'plate_replay.py'='plate_replay.py'
     'video_location.py'='video_location.py'
 }
@@ -86,6 +87,7 @@ if ($null -ne $FreshPolicy.roi -or $FreshPolicy.roi_coordinate_space -ne 'mumu_c
 if (-not (Test-Path -LiteralPath "$FreshRoot\runtime\stop.flag")) { throw 'New install must remain stopped for explicit start' }
 $Capture = Get-Content -LiteralPath "$FreshRoot\config\capture_config.json" -Raw | ConvertFrom-Json
 if ($Capture.source -ne 'window' -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }
+if ($Capture.recovery.enabled -ne $false -or $Capture.recovery.device_name -ne '' -or $Capture.recovery.channel -ne 1 -or $Capture.recovery.stale_seconds -ne 60 -or $Capture.recovery.retry_seconds -ne 30 -or $null -ne $Capture.recovery.frame_roi) { throw 'Public recovery defaults must stay disabled with no private target' }
 $Allowlist = Get-Content -LiteralPath "$FreshRoot\config\plate_allowlist.json" -Raw
 if ($Allowlist -notmatch '^\s*\[\s*\]\s*$') { throw 'Public installation must not contain a private plate target' }
 if ((Get-FileHash "$FreshRoot\requirements-plates.txt").Hash -ne (Get-FileHash "$Kit\requirements-plates.txt").Hash) { throw 'Isolated OCR requirements missing' }
