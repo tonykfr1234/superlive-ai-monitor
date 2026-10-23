@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-24
+
+- Add opt-in ADB camera-frame stall recovery, separate from person/vehicle inactivity. Reopen SuperLive and verify the configured device, channel and quality before publishing camera frames again; retry failures with a bounded delay and honor manual stop. Public examples leave the private camera name blank and recovery disabled.
+- 新增可選的 ADB 畫面停滯復原：與人物／車輛無移動分開判斷，重開 SuperLive 後確認指定裝置、頻道與畫質再恢復影像。失敗等待重試，停止程式後不再操作；公開範本關閉功能，不包含私人裝置名稱。
+
 ## 2026-10-22
 
 - Keep matching plate records visible in a right sidebar, grouped by Taiwan calendar date with daily counts and newest records first; narrow windows place the list below the camera. Keep OCR and capture status in the bottom controls, preserve the image aspect ratio, and use “其他紀錄” to expand and jump to other results or collapse them and return to matches. Two-edit matching, seven-day retention and filename links remain unchanged.

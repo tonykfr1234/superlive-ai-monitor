@@ -341,7 +341,11 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
              "ADB_CONNECTING": "正在連接 ADB", "ADB_QUALITY_CHECK": "設定最高畫質並收起選單",
              "ADB_QUALITY_UNCONFIRMED": "畫質待確認，將自動重試；請保持監視器即時畫面開啟",
              "ADB_UNAVAILABLE": "ADB 尚未連上，將自動重試", "ADB_RECONNECTING": "ADB 串流重新連接中",
-             "ADB_STREAMING": "等待 ADB 新影格"}
+             "ADB_STREAMING": "等待 ADB 新影格",
+             "ADB_VERIFYING_STALL": "畫面疑似停滯，正在確認攝影機更新",
+             "ADB_RECOVERING": "重新開啟 SuperLive 並恢復指定頻道",
+             "ADB_RECOVERY_WAIT": "頻道尚未恢復，稍後自動重試",
+             "ADB_VERIFYING_CAMERA": "頻道已選定，等待影像恢復更新"}
     title = names.get(status, status) if chinese else status.replace("_", " ")
     if status == "RECORDING" and elapsed is not None:
         seconds = max(0, min(300, int(elapsed)))

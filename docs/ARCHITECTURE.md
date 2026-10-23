@@ -42,6 +42,12 @@ The background worker does not start new Telegram sends during each clip's first
 
 `src/watchdog.py` and `src/recorder_watchdog.py` supervise their child processes. Capture recovery recreates capture resources before escalating repeated failures. The deliberate stop flag prevents restart after the user requests shutdown.
 
+## ADB camera recovery
+
+`adb_capture.py` owns the Android stream shared by the detector and recorder. Transport liveness and camera-content liveness are separate: a decoder may deliver new frames while the camera image inside SuperLive is frozen. `stream_health.py` observes camera pixels, including in-image timestamp updates, independently of the person/vehicle activity tracker. Its observation state survives normal 180-second screenrecord rollovers.
+
+Optional local `capture_config.json` recovery settings select one exact device name and channel. `superlive_recovery.py` reopens SuperLive and navigates observed app controls with bounded attempts. Capture stays unavailable while navigating; the configured camera/channel and requested quality must be confirmed before normal frame publication resumes. Failed recovery retries stop with the monitor stop signal. The public template disables recovery and leaves the device name blank; deployment preserves existing private capture settings.
+
 ## Deployment
 
 `installer/DEPLOY_RUNTIME.ps1` is shared by install/update entry points. It validates source files, backs up the installation, waits for its processes to stop, preserves local region/Telegram/storage settings, and deploys the runtime. Updates leave monitoring stopped for a deliberate restart. Credentials come from local setup, not the repository.

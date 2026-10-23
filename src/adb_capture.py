@@ -19,10 +19,16 @@ from multiprocessing import shared_memory
 import xml.etree.ElementTree as ET
 
 from record_protocol import atomic_json, read_json
+from stream_health import FrameStallDetector
+from superlive_recovery import SuperLiveRecovery
 
 HEADER = struct.Struct('<QdIII')
 OFFSET = 64
 CAPACITY = 3840 * 2160 * 3
+
+
+class CameraFrameStalled(RuntimeError):
+    """The transport is alive but camera pixels have stopped changing."""
 
 
 def memory_name(root):
@@ -300,6 +306,27 @@ class AdbStream(SharedAdbReader):
         self.retry_count = 0
         self.status = 'ADB_CONNECTING'
         self.quality = '未確認'
+        recovery = self.config.get('recovery') or {}
+        if not isinstance(recovery, dict):
+            raise ValueError('Invalid recovery configuration')
+        self.recovery_enabled = recovery.get('enabled') is True
+        self.health = None
+        self.recovery = None
+        self.recovery_retry_seconds = 30.0
+        if self.recovery_enabled:
+            self.health = FrameStallDetector(recovery.get('stale_seconds', 60),
+                                             roi=recovery.get('frame_roi'))
+            self.recovery_retry_seconds = float(recovery.get('retry_seconds', 30))
+            if (not math.isfinite(self.recovery_retry_seconds)
+                    or not 10 <= self.recovery_retry_seconds <= 3600):
+                raise ValueError('Recovery retry interval must be 10 to 3600 seconds')
+            self.recovery = SuperLiveRecovery(self.client, recovery.get('device_name', ''),
+                                             recovery.get('channel'), self.stop_event)
+        self._recovery_pending = False
+        self._last_recovery_at = None
+        self._capture_failure_since = None
+        self._awaiting_fresh_camera = False
+        self._fresh_reference = None
         try:
             self.memory = shared_memory.SharedMemory(name=self.name, create=True, size=OFFSET+CAPACITY)
         except FileExistsError:
@@ -319,6 +346,68 @@ class AdbStream(SharedAdbReader):
         self.memory.buf[OFFSET:OFFSET+len(data)] = data
         self.memory.buf[:HEADER.size] = HEADER.pack(sequence+2, time.time(), width, height, len(data))
 
+    def confirm_camera_stalled(self):
+        """Compare independent PNG captures, never PNG against H.264 noise."""
+        self.status = 'ADB_VERIFYING_STALL'
+        first = self.client.screenshot()
+        for _ in range(2):
+            if self.stop_event.wait(1.2):
+                raise InterruptedError('ADB capture stopped')
+            current = self.client.screenshot()
+            if self.health.frames_changed(first, current):
+                return False
+        return True
+
+    def restore_camera_if_needed(self):
+        if not self.recovery_enabled:
+            return False
+        now = time.monotonic()
+        timed_out = (self._capture_failure_since is not None
+                     and now - self._capture_failure_since >= self.health.timeout_seconds)
+        if not (self._recovery_pending or timed_out):
+            return False
+        self._recovery_pending = True
+        self.memory.buf[:HEADER.size] = bytes(HEADER.size)
+        if self._last_recovery_at is not None:
+            delay = self.recovery_retry_seconds - (now - self._last_recovery_at)
+            if delay > 0:
+                self.status = 'ADB_RECOVERY_WAIT'
+                if self.stop_event.wait(delay):
+                    raise InterruptedError('ADB capture stopped')
+        if self.stop_event.is_set():
+            raise InterruptedError('ADB capture stopped')
+        self._last_recovery_at = time.monotonic()
+        self.status = 'ADB_RECOVERING'
+        # The navigator checks the configured device and channel before success.
+        # Never log private target names or hierarchy text.
+        if self.recovery.restore() is not True:
+            raise RuntimeError('Configured camera recovery was not verified')
+        self.health.reset()
+        self._fresh_reference = None
+        self._awaiting_fresh_camera = True
+        self._recovery_pending = False
+        self._capture_failure_since = None
+        return True
+
+    def camera_frame_ready(self, frame):
+        """Gate recovered images until real camera updates have been observed."""
+        if not self.recovery_enabled:
+            return True
+        if self.health.observe(frame):
+            raise CameraFrameStalled('Camera content stopped updating')
+        if self._awaiting_fresh_camera:
+            self.status = 'ADB_VERIFYING_CAMERA'
+            if self._fresh_reference is None:
+                self._fresh_reference = frame.copy()
+                return False
+            if not self.health.frames_changed(self._fresh_reference, frame):
+                return False
+            self._awaiting_fresh_camera = False
+            self._fresh_reference = None
+            print('ADB_CAMERA_RECOVERED target_verified=yes frames_updating=yes', flush=True)
+        self._capture_failure_since = None
+        return True
+
     def run(self):
         quality_checked = not self.config.get('ensure_highest', True)
         if quality_checked:
@@ -332,6 +421,8 @@ class AdbStream(SharedAdbReader):
                     quality_checked = not self.config.get('ensure_highest', True)
                     self.status = 'ADB_UNAVAILABLE'
                     raise
+                if self.restore_camera_if_needed():
+                    quality_checked = not self.config.get('ensure_highest', True)
                 if not quality_checked:
                     self.status = 'ADB_QUALITY_CHECK'
                     try:
@@ -345,6 +436,13 @@ class AdbStream(SharedAdbReader):
                         raise
                 try:
                     self.stream_once()
+                except CameraFrameStalled:
+                    quality_checked = not self.config.get('ensure_highest', True)
+                    self._recovery_pending = self.confirm_camera_stalled()
+                    if not self._recovery_pending:
+                        # Camera is live: replace just the stalled ADB pipeline.
+                        self.health.reset()
+                    raise
                 except Exception:
                     # A quickly restarted emulator may already be online but
                     # have reset the camera quality. Only normal rollovers
@@ -356,7 +454,10 @@ class AdbStream(SharedAdbReader):
             except Exception as error:
                 if self.stop_event.is_set():
                     break
-                if self.status not in ('ADB_UNAVAILABLE', 'ADB_QUALITY_UNCONFIRMED'):
+                if self.recovery_enabled and self._capture_failure_since is None:
+                    self._capture_failure_since = time.monotonic()
+                if self.status not in ('ADB_UNAVAILABLE', 'ADB_QUALITY_UNCONFIRMED',
+                                        'ADB_RECOVERING', 'ADB_RECOVERY_WAIT', 'ADB_VERIFYING_STALL'):
                     self.status = 'ADB_RECONNECTING'
                 self.retry_count += 1
                 delay = min(30, 5 * 2 ** min(self.retry_count - 1, 3))
@@ -445,13 +546,16 @@ class AdbStream(SharedAdbReader):
                     continue
                 if time.monotonic() - stamp > 3:
                     continue
-                self.publish(np.frombuffer(data, np.uint8).reshape(height, width, 3), self.sequence)
+                frame = np.frombuffer(data, np.uint8).reshape(height, width, 3)
+                deadline = time.monotonic() + 8
+                if not self.camera_frame_ready(frame):
+                    continue
+                self.publish(frame, self.sequence)
                 self.sequence += 2
                 self.retry_count = 0
                 if not received:
                     print('ADB_STREAM_READY %dx%d quality=%s' % (width, height, self.quality), flush=True)
                 received = True
-                deadline = time.monotonic() + 8
                 self.status = 'ADB_STREAMING'
         finally:
             finished.set()

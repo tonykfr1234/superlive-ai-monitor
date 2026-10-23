@@ -2,5 +2,13 @@
   "source": "window",
   "adb_path": "C:/Program Files/Microvirt/MEmu/adb.exe",
   "serial": "",
-  "ensure_highest": true
+  "ensure_highest": true,
+  "recovery": {
+    "enabled": false,
+    "device_name": "",
+    "channel": 1,
+    "stale_seconds": 60,
+    "retry_seconds": 30,
+    "frame_roi": null
+  }
 }
