@@ -363,7 +363,7 @@ class TelegramOrderTests(unittest.TestCase):
         manifest = self.video(1010, trigger=1000)
         footer = self.queue.caption(read_json(manifest)).splitlines()[-1]
         self.assertIn("1970/01/01 08:16:40", footer)
-        self.assertIn("車牌未確認", footer)
+        self.assertNotIn("車牌未確認", footer)
 
     def test_late_manual_video_is_preserved_instead_of_sent_out_of_order(self):
         self.plate(1200)

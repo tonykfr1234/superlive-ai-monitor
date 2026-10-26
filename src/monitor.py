@@ -26,7 +26,7 @@ from record_protocol import (atomic_json, read_json, recorder_ready, recording_a
                              valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS)
 from person_activity import PersonActivityTracker, InactivityTimer
 from region_policy import people_in_region, objects_in_region, object_counts, ACTIVITY_CLASSES, validate_roi, rebase_roi
-from preview_ui import (PreviewController, PreviewLayout, render_preview, plate_footer_text,
+from preview_ui import (PreviewController, PreviewLayout, render_preview,
                         latest_vehicle_footer_text)
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
 from app_branding import set_app_identity, apply_window_icon
@@ -477,15 +477,6 @@ def main():
                     latest_vehicle.update_plates(history)
                 controller.plate_status = plate_state.get("status", "")
                 controller.plate_error = plate_state.get("error", "")
-                scanned = plate_state.get("last_sample_at")
-                controller.plate_scan_status = ("最近掃描：" + datetime.fromtimestamp(scanned).strftime("%H:%M:%S")) if scanned else ""
-                if plate_state.get("recording_only"):
-                    controller.plate_scan_status += "\n" + (
-                        "本段完整車牌已確認，等待下一段" if plate_state.get("clip_confirmed") else
-                        "只辨識新錄影片段；每段確認一個完整車牌" if plate_state.get("clip_active") else
-                        "等待新錄影；不處理歷史影片")
-                if plate_state.get("learning_error"):
-                    controller.plate_scan_status += "\n學習記憶暫時無法儲存"
                 if adb_stream:
                     controller.plate_status += " | ADB %dx%d | %s" % (width, height, adb_stream.quality)
             try:
@@ -499,7 +490,7 @@ def main():
                 show_plates=controller.plate_enabled,
                 plate_sidebar=controller.plate_enabled,
                 plates_open=controller.plate_panel_open if plate_service else False,
-                plate_status_text=plate_footer_text(controller) if plate_service else "",
+                plate_status_text="",
                 latest_vehicle_status=latest_vehicle_footer_text(controller))
             state = read_json(STATE_FILE)
             status = preview_status(state, REQUEST_FILE.exists(), capture_status)

@@ -75,9 +75,12 @@ def event_line(event):
     observed = compact(event.get("text") or event.get("raw_text") or "?")
     text = "%s 辨識：%s" % (stamp, observed)
     if event.get("matched"):
-        text += "；名單：%s（差 %s 碼）" % (compact(event["matched"]), compact(event.get("distance", "?")))
-    else:
-        text += "；未符合指定名單"
+        target = compact(event["matched"])
+        normalize = lambda value: "".join(c for c in value.upper() if c.isascii() and c.isalnum())
+        if normalize(observed) == normalize(target):
+            text = "🚨 ⭐ 指定車牌 " + text
+        else:
+            text = "🔎 ⚠️ " + text + "；可能符合：" + target
     if event.get("source") == "recording_replay":
         text += "；原片補辨識"
         video = str(event.get("source_video") or "").replace("\\", "/").rsplit("/", 1)[-1]
@@ -247,19 +250,15 @@ class TelegramVideoQueue:
 
     def caption_content(self, job):
         """Return precisely the observations included in Telegram's caption."""
-        scope = "指定區域" if job.get("roi") else "全畫面"
         counts = event_object_counts(job)
         vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
         kind = "人物與車輛" if counts["person"] and vehicles else "車輛" if vehicles else "人物" if counts["person"] else "物件"
         triggered = event_time(job)
         start = float(job.get("clip_started_at", job.get("created_at", 0)-float(job["duration"])))
         end = start+float(job["duration"])
-        text = ("SuperLive AI：%s移動觸發錄影\n觸發時類型：%s\n錄影：%.1f 秒\n人物：%d；車輛：%d" %
-                (scope, kind, job["duration"], counts["person"], vehicles))
+        text = "SuperLive AI：%s錄影" % kind
         text += "\n觸發時間（台灣）：" + taipei_time(triggered)
         text += "\n片段：%s ～ %s" % (taipei_time(start), taipei_time(end))
-        if vehicles:
-            text += "\n車種：" + "、".join("%s %d" % (label, counts[name]) for name, label in VEHICLE_TYPES if counts[name])
         if not job.get("complete"):
             text += "\n錄影因停止或擷取中斷而提前結束"
         boundary = self.caption_boundary(job)
@@ -273,8 +272,6 @@ class TelegramVideoQueue:
                       and event.get("complete_plate") and event.get("source") == "live_recording"][:1]
         if events:
             text += "\n車牌紀錄（台灣時間）："
-        elif vehicles:
-            text += "\n車牌未確認"
         included = []
         for index, event in enumerate(events):
             line = "\n"+event_line(event)
@@ -321,7 +318,7 @@ class TelegramVideoQueue:
             observed = " ".join(str(plate.get("text") or plate.get("raw_text") or "?").split())[:64]
             return "\n最近車輛／車牌：%s；辨識：%s" % (taipei_time(plate["timestamp"]), observed)
         if vehicle_time is not None:
-            return "\n最近偵測到車輛：%s；車牌未確認" % taipei_time(vehicle_time)
+            return "\n最近偵測到車輛：%s" % taipei_time(vehicle_time)
         return ""
 
     def caption(self, job):

@@ -223,8 +223,8 @@ class PlateTelegramTests(unittest.TestCase):
         text = self.http.call_args.kwargs["data"]["text"]
         self.assertIn("08:16:40", text)
         self.assertIn("辨識：ZX1235", text)
-        self.assertIn("名單：ZX1234", text)
-        self.assertIn("差 1 碼", text)
+        self.assertIn("可能符合：ZX1234", text)
+        self.assertIn("🔎 ⚠️", text)
         restarted = telegram_video.TelegramVideoQueue(self.root, self.log)
         restarted.process_once(now=1100)
         self.http.assert_called_once()

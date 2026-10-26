@@ -43,33 +43,34 @@ class VehicleCaptionTests(unittest.TestCase):
         self.assertEqual(persisted["object_counts"]["car"], 1)
         self.assertEqual(persisted["object_counts"]["truck"], 1)
         caption = restarted.caption(persisted)
-        self.assertIn("觸發時類型：車輛", caption)
-        self.assertIn("人物：0；車輛：2", caption)
-        self.assertIn("汽車 1、卡車 1", caption)
-        self.assertIn("車牌未確認", caption)
+        self.assertIn("車輛錄影", caption)
+        self.assertNotIn("人物：", caption)
+        self.assertNotIn("車種：", caption)
+        self.assertNotIn("車牌未確認", caption)
         self.assertNotIn("偵測到人員", caption)
 
     def test_mixed_counts_are_reported_separately_from_total(self):
         job = self.job(dict(person=2, car=1, motorcycle=2, bus=1, truck=1), count=7)
         caption = self.queue.caption(job)
-        self.assertIn("觸發時類型：人物與車輛", caption)
-        self.assertIn("人物：2；車輛：5", caption)
-        self.assertIn("汽車 1、機車 2、巴士 1、卡車 1", caption)
+        self.assertIn("人物與車輛錄影", caption)
+        self.assertNotIn("人物：", caption)
+        self.assertNotIn("車種：", caption)
         self.assertNotIn("人物：7", caption)
 
     def test_legacy_pending_job_count_still_means_people(self):
         job = self.job(count=2)
         self.assertNotIn("object_counts", job)
         caption = self.queue.caption(job)
-        self.assertIn("觸發時類型：人物", caption)
-        self.assertIn("人物：2；車輛：0", caption)
+        self.assertIn("人物錄影", caption)
+        self.assertNotIn("人物：", caption)
         self.assertNotIn("車牌未確認", caption)
 
     def test_vehicle_clip_includes_actual_fuzzy_plate_and_time(self):
         self.plate()
         caption = self.queue.caption(self.job(dict(person=0, car=1), count=1))
         self.assertIn("08:17:30 辨識：ZX1235", caption)
-        self.assertIn("名單：ZX1234（差 1 碼）", caption)
+        self.assertIn("🔎 ⚠️", caption)
+        self.assertIn("可能符合：ZX1234", caption)
         self.assertNotIn("車牌未確認", caption)
 
     def test_standalone_plate_message_has_vehicle_label_and_preserves_ocr(self):
@@ -79,7 +80,7 @@ class VehicleCaptionTests(unittest.TestCase):
         message = post.call_args.kwargs["data"]["text"]
         self.assertIn("車牌／車輛紀錄", message)
         self.assertIn("辨識：ZX1235", message)
-        self.assertIn("名單：ZX1234", message)
+        self.assertIn("可能符合：ZX1234", message)
 
     def test_replay_notification_labels_original_video_and_time_without_private_path(self):
         event = self.plate(source="recording_replay", source_video=r"C:\private\synthetic.mp4", offset_seconds=27.5)
@@ -87,12 +88,25 @@ class VehicleCaptionTests(unittest.TestCase):
         self.assertIn("原片補辨識：synthetic.mp4（影片 +27.5 秒）", line)
         self.assertNotIn("private", line)
         self.assertIn("08:17:30 辨識：ZX1235", line)
-        self.assertIn("名單：ZX1234（差 1 碼）", line)
+        self.assertIn("可能符合：ZX1234", line)
         self.assertIn("原片補辨識", self.queue.caption(self.job(dict(car=1), count=1)))
 
     def test_explicit_class_counts_do_not_fall_back_to_legacy_total(self):
         counts = event_object_counts(dict(count=9, object_counts={"car": 1, "person": -2, "bus": True, "truck": "2"}))
         self.assertEqual(counts, dict(person=0, car=1, motorcycle=0, bus=0, truck=2))
+
+    def test_exact_target_is_highlighted_but_other_plates_have_no_list_notice(self):
+        exact = self.plate(text="ZX-1234", matched="ZX1234", distance=0)
+        self.assertIn("🚨 ⭐ 指定車牌", event_line(exact))
+        self.assertNotIn("可能符合", event_line(exact))
+        self.assertIn("🚨 ⭐", self.queue.caption(self.job(dict(car=1))))
+        for status in ("unmatched", "ambiguous", "insufficient"):
+            other = self.plate(text="AB5678", matched=None, match_status=status)
+            line = event_line(other)
+            self.assertIn("辨識：AB5678", line)
+            self.assertNotIn("名單", line)
+            self.assertNotIn("🚨", line)
+            self.assertNotIn("可能符合", line)
 
 
 class VehicleCsvTests(unittest.TestCase):

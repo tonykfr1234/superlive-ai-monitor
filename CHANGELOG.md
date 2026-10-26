@@ -2,6 +2,10 @@
 
 ## 2026-10-27
 
+- Keep Telegram notifications in detection-time order with concise recording times and observed plates. Highlight exact configured targets with 🚨 ⭐, label fuzzy associations as 🔎 ⚠️ possible matches, and omit unmatched-list and missing-plate notices. Private targets remain local configuration only.
+- Telegram 維持依偵測時間推播，簡化為錄影時間與實際車牌；完全符合本機指定車牌時以 🚨 ⭐ 標示，容錯比對使用 🔎 ⚠️「可能符合」，移除未符合名單與車牌未確認文字。私人車牌只保存在本機設定。
+- Simplify the preview footer to the latest vehicle detection time and associated plate. Hide routine OCR/source/progress text, including the historical-processing notice; historical replay remains disabled by default.
+- 預覽底部僅保留最近一次車輛偵測時間與對應車牌，移除辨識狀態、來源、掃描進度及歷史處理提示；歷史影片仍不會自動處理。
 - Recognize only fresh frames from the active recording. Confirm at most one complete-format plate from three independent, spatially consistent frames, then stop OCR for that clip; the durable clip identity survives worker restart. Keep actual readings separate from fuzzy allowlist matches and associate summaries/captions with the exact recording ID.
 - Disable historical replay by default and remove its progress from the live controls. The offline CLI requires an explicit `--allow-history` opt-in; existing files and results are retained without rescanning.
 - Add private seven-day recognition memory. Clean, high-confidence results from distinct clips teach repeated OCR confusions. Memory can rank close alternatives actually read in the current frame only after three independent clips; inferred selections never become training anchors. This is evidence-based candidate ranking, not OCR model retraining or proof of the real plate.
