@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import math
 
 from region_policy import roi_vertices, validate_roi
+from latest_vehicle import latest_vehicle_text
 
 
 @dataclass(frozen=True)
@@ -41,10 +42,12 @@ class PreviewLayout:
     plates: object = None
     plate_status_lines: tuple = ()
     plate_sidebar: bool = False
+    latest_vehicle_lines: tuple = ()
+    latest_vehicle_top: int = 0
 
     @classmethod
     def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False,
-               plates_open=False, plate_status_text="", plate_sidebar=False):
+               plates_open=False, plate_status_text="", plate_sidebar=False, latest_vehicle_status=""):
         width = max(320, int(width))
         plate_sidebar = bool(show_plates and plate_sidebar)
         side_panel = plate_sidebar and width >= 900
@@ -59,8 +62,11 @@ class PreviewLayout:
             rows = (("select", "full", "stop", "confirm", "cancel"),) if width >= 640 else (
                 ("select", "full", "stop"), ("confirm", "cancel"))
         plate_lines = tuple(plate_footer_lines(plate_status_text, width, font_size)) if show_plates else ()
+        latest_lines = tuple(plate_footer_lines(latest_vehicle_status, width, font_size))
         footer_height = max(130, 24 + line_height * (line_count+len(plate_lines))
                             + (button_height+6)*len(rows))
+        if latest_lines:
+            footer_height += 6 + line_height * len(latest_lines)
         bottom_panel = show_plates and (plate_sidebar or plates_open) and not side_panel
         minimum_height = max(600, footer_height+320) if bottom_panel else max(300, footer_height+120)
         height = max(minimum_height, int(height))
@@ -90,8 +96,9 @@ class PreviewLayout:
             for index, name in enumerate(names):
                 buttons[name] = Rect(margin+index*(button_width+gap), top+row*(button_height+6),
                                      button_width, button_height)
+        latest_top = max(rect.y+rect.height for rect in buttons.values()) + 8
         return cls(width, height, video, footer, buttons, font_size, line_height, line_count,
-                   plates, plate_lines, plate_sidebar)
+                   plates, plate_lines, plate_sidebar, latest_lines, latest_top)
 
     def button_at(self, x, y):
         return next((name for name, rect in self.buttons.items() if rect.contains(x, y)), None)
@@ -138,6 +145,7 @@ class PreviewController:
         self.plate_error = ""
         self.plate_scan_status = ""
         self.object_counts = None
+        self.latest_vehicle = {}
         self.plate_scroll = 0
         self.plate_scroll_max = 0
         self.plate_page_lines = 1
@@ -548,6 +556,11 @@ def plate_footer_text(controller, chinese=True):
     return text + ("\n"+error if error else "")
 
 
+def latest_vehicle_footer_text(controller):
+    return latest_vehicle_text(controller.latest_vehicle,
+                               ui_font(controller.layout.font_size if controller.layout is not None else 18)[1])
+
+
 @lru_cache(maxsize=128)
 def plate_footer_lines(text, width, font_size):
     """Measure before layout so errors gain rows without covering controls."""
@@ -723,4 +736,7 @@ def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed
         box = draw.textbbox((0, 0), text, font=font)
         draw.text((rect.x+(rect.width-(box[2]-box[0]))/2, rect.y+(rect.height-(box[3]-box[1]))/2-box[1]),
                   text, font=font, fill=(239, 247, 252) if enabled else (106, 122, 139))
+    for index, text in enumerate(layout.latest_vehicle_lines):
+        draw.text((12, layout.latest_vehicle_top+index*layout.line_height), text, font=font,
+                  fill=(155, 220, 183))
     return np.array(image)[:, :, ::-1].copy()

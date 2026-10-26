@@ -163,12 +163,14 @@ class DailyReports:
     def tick(self):
         now = self.now()
         self.schedule(now)  # Daily CSV is explicitly exempt from video quiet periods.
-        for path in sorted(self.jobs.glob("*.json"), reverse=True):
+        for path in sorted(self.jobs.glob("*.json")):
             job = read_json(path)
             if not isinstance(job, dict):
                 raise ValueError("Unreadable report delivery state")
-            if job.get("phase") != "2300" or job.get("sent") or job.get("superseded") or job.get("retry_at", 0) > self.clock():
+            if job.get("phase") != "2300" or job.get("sent") or job.get("superseded"):
                 continue
+            if job.get("retry_at", 0) > self.clock():
+                return  # Older reports must finish retrying before newer days.
             if self.stop_event.is_set():
                 return
             try:
@@ -183,6 +185,7 @@ class DailyReports:
                 job["retry_at"] = self.clock() + min(300, 10 * 2**min(job["attempts"], 5))
                 atomic_json(path, job)
                 self.log("DAILY_CSV_RETRY TYPE=%s" % type(error).__name__)
+                return
 
     def run(self):
         while not self.stop_event.is_set():
