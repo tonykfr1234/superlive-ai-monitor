@@ -5,6 +5,7 @@ The GUI process needs only numpy. FastALPR/OpenCV-headless live exclusively in
 No image, plate, or allowlist is sent to an external service by this module.
 """
 import argparse
+import hashlib
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
 import json
@@ -20,7 +21,7 @@ import uuid
 
 from record_protocol import atomic_json, read_json
 from region_policy import box_in_roi, validate_roi
-from plate_history import load_history, record_result, prune_history, replay_progress
+from plate_history import load_history, record_result, prune_history
 
 
 DETECTOR_MODEL = "yolo-v9-t-384-license-plate-end2end"
@@ -77,7 +78,7 @@ def match_plate(text, allowlist, max_distance=DEFAULT_MAX_DISTANCE):
     return result
 
 
-def character_confidence(text, values):
+def character_confidence(text, values, minimum=False):
     """Exclude trailing OCR padding probabilities from visible-character mean.
 
     FastPlateOCR returns probabilities for all ten slots even for a six-letter
@@ -96,7 +97,7 @@ def character_confidence(text, values):
             scores = [float(values[i]) for i in positions]
         if any(not math.isfinite(value) or not 0 <= value <= 1 for value in scores):
             return 0.0
-        return sum(scores) / len(scores)
+        return min(scores) if minimum else sum(scores) / len(scores)
     except (TypeError, ValueError, IndexError, OverflowError):
         return 0.0
 
@@ -179,6 +180,212 @@ class PlateConsensus:
                     model=MODEL_LABEL, tolerance=int(self.max_distance))
 
 
+def complete_plate(text):
+    """A conservative local format filter, not proof that OCR is correct."""
+    text = normalize_plate(text)
+    return bool(6 <= len(text) <= 8 and re.fullmatch(r"(?:[A-Z]{2,3}[0-9]{3,4}|[0-9]{3,4}[A-Z]{2,3})", text))
+
+
+class PlateLearningMemory:
+    """Seven-day, independent-clip evidence; no inferred label trains itself.
+
+    A learned preference only ranks text actually returned by this frame's OCR.
+    It never fills missing characters or changes the model weights.
+    """
+    def __init__(self, root):
+        self.path = Path(root) / "runtime" / "plate_learning" / "memory.json"
+        self.error = ""
+
+    def entries(self, now):
+        data = read_json(self.path, {})
+        entries = data.get("clips", {}) if isinstance(data, dict) else {}
+        valid = {}
+        for key, entry in entries.items() if isinstance(entries, dict) else []:
+            try:
+                if (isinstance(entry, dict) and complete_plate(entry.get("text"))
+                        and now-7*86400 <= float(entry["timestamp"]) <= now):
+                    valid[key] = entry
+            except (TypeError, ValueError, KeyError):
+                continue
+        return valid
+
+    def learn(self, event, now):
+        # Only a fresh, raw multi-frame winner from a live clip may be an anchor.
+        if (event.get("source") != "live_recording" or not event.get("complete_plate")
+                or not event.get("confirmed") or event.get("learning_influenced")
+                or not complete_plate(event.get("text"))):
+            return
+        try:
+            if not now-7*86400 <= float(event["timestamp"]) <= now:
+                return
+        except (KeyError, TypeError, ValueError):
+            return
+        evidence = event.get("evidence", [])
+        anchors = {sample.get("sample_id") for sample in evidence
+                   if sample.get("text") == event["text"] and float(sample.get("confidence", 0)) >= .90
+                   and any(normalize_plate(v.get("raw_text")) == event["text"]
+                           and v.get("min_character_confidence", v.get("confidence", 0)) >= .75
+                           for v in sample.get("variants", []))}
+        if len(anchors) < 3 or not event.get("request_id"):
+            return
+        entries = self.entries(now)
+        key = hashlib.sha256(str(event["request_id"]).encode()).hexdigest()
+        if key in entries:
+            return
+        aliases = sorted({normalize_plate(variant.get("raw_text"))
+            for sample in evidence for variant in sample.get("variants", [])
+            if isinstance(variant, dict) and normalize_plate(variant.get("raw_text")) != event["text"]
+            and 4 <= len(normalize_plate(variant.get("raw_text"))) <= 8
+            and edit_distance(variant.get("raw_text"), event["text"]) <= 2})
+        entries[key] = dict(text=event["text"], timestamp=event["timestamp"], aliases=aliases)
+        # Bound disk/memory even on a busy camera; one vote per recording.
+        entries = dict(sorted(entries.items(), key=lambda item: item[1]["timestamp"])[-2000:])
+        try:
+            atomic_json(self.path, dict(version=1, clips=entries))
+            self.error = ""
+        except OSError:
+            self.error = "Learning memory could not be saved"
+
+    def prune(self, now):
+        if self.path.exists():
+            try:
+                atomic_json(self.path, dict(version=1, clips=self.entries(now)))
+                self.error = ""
+            except OSError:
+                self.error = "Learning memory could not be saved"
+
+    def choose(self, variants, now):
+        usable = []
+        for variant in variants:
+            try:
+                confidence = float(variant["confidence"])
+                if (complete_plate(variant.get("raw_text")) and .85 <= confidence <= 1
+                        and .65 <= float(variant.get("min_character_confidence", confidence)) <= 1):
+                    usable.append(variant)
+            except (TypeError, KeyError, ValueError):
+                continue
+        if not usable:
+            return None, False
+        best = max(usable, key=lambda item: item["confidence"])
+        entries = list(self.entries(now).values())
+        counts = Counter(item["text"] for item in entries)
+        # Near-tied alternatives need both a repeated clean anchor and repeated
+        # confusion observed in those same frames, across distinct recordings.
+        alternatives = []
+        for candidate in usable:
+            text = normalize_plate(candidate["raw_text"])
+            original = normalize_plate(best["raw_text"])
+            alias_votes = sum(item["text"] == text and original in item.get("aliases", []) for item in entries)
+            if (text != original and counts[text] >= 3 and alias_votes >= 3
+                    and candidate["confidence"] >= best["confidence"]-.05):
+                alternatives.append(candidate)
+        texts = {normalize_plate(item["raw_text"]) for item in alternatives}
+        if len(texts) == 1 and counts[normalize_plate(best["raw_text"])] < 3:
+            return max(alternatives, key=lambda item: item["confidence"]), True
+        return best, False
+
+
+def recording_plate_context(root, sample_timestamp=None, now=None):
+    now = time.time() if now is None else float(now)
+    state = read_json(Path(root) / "runtime" / "recording_state.json", {})
+    try:
+        start = float(state["clip_started_at"])
+        if (state.get("status") != "RECORDING" or not state.get("request_id")
+                or not 0 <= now-float(state["updated_at"]) < 10 or not math.isfinite(start)
+                or sample_timestamp is not None and not start <= float(sample_timestamp) <= now):
+            return None
+        return dict(request_id=state["request_id"], started_at=start, file=state.get("file", ""))
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
+class LiveClipConsensus:
+    """At most one durable complete plate per new recording, without replay."""
+    def __init__(self, root):
+        self.root = Path(root)
+        self.memory = PlateLearningMemory(root)
+        self.context = None
+        self.tracker = PlateConsensus([], min_confidence=.85, debounce=0)
+        self.boxes = {}
+        self.influenced_samples = set()
+
+    def set_context(self, context):
+        identity = context.get("request_id") if context else None
+        previous = self.context.get("request_id") if self.context else None
+        if identity != previous:
+            self.reset()
+        self.context = context
+        if identity != previous:
+            saved = self.winner()
+            if saved and saved.get("confirmed"):
+                self.memory.learn(saved, time.time())
+
+    def reset(self):
+        self.tracker.reset()
+        self.tracker.last_emitted.clear()
+        self.boxes.clear()
+        self.influenced_samples.clear()
+
+    def event_path(self):
+        if not self.context:
+            return None
+        key = hashlib.sha256(str(self.context["request_id"]).encode()).hexdigest()
+        return self.root / "runtime" / "plate_events" / ("liveclip-"+key+".json")
+
+    def winner(self):
+        path = self.event_path()
+        if path is None or not path.exists():
+            return None
+        saved = read_json(path)
+        if (isinstance(saved, dict) and saved.get("confirmed") and saved.get("complete_plate")
+                and saved.get("request_id") == self.context["request_id"]):
+            return saved
+        # A briefly locked receipt is not permission to emit a second plate.
+        return dict(confirmed=False, unavailable=True)
+
+    def observe(self, prediction, timestamp, sample_id, allowlist):
+        if not self.context or timestamp < self.context["started_at"] or self.winner():
+            return None
+        variants = prediction.get("variants") or [prediction.get("selected")]
+        variants = [item for item in variants if isinstance(item, dict)]
+        selected, influenced = self.memory.choose(variants, timestamp)
+        if selected is None:
+            return None
+        text = normalize_plate(selected["raw_text"])
+        box = prediction.get("bbox")
+        try:
+            x1, y1, x2, y2 = map(float, box)
+            if not all(math.isfinite(v) for v in (x1, y1, x2, y2)) or x2 <= x1 or y2 <= y1:
+                return None
+        except (TypeError, ValueError):
+            return None
+        previous = self.boxes.get(text)
+        if previous:
+            old_box, old_time = previous
+            overlap = max(0, min(x2, old_box[2])-max(x1, old_box[0])) * max(0, min(y2, old_box[3])-max(y1, old_box[1]))
+            smaller = min((x2-x1)*(y2-y1), (old_box[2]-old_box[0])*(old_box[3]-old_box[1]))
+            if timestamp-old_time > 8 or overlap / smaller < .25:
+                self.tracker.observations.pop(text, None)
+        self.boxes[text] = ((x1, y1, x2, y2), timestamp)
+        if influenced:
+            self.influenced_samples.add(str(sample_id))
+        event = self.tracker.observe(selected["raw_text"], selected["confidence"], timestamp,
+            sample_id, box, prediction["detector_confidence"], variants=variants)
+        if event is None:
+            return None
+        event.update(match_plate(event["text"], allowlist))
+        event.update(id=self.event_path().stem, request_id=self.context["request_id"],
+            source="live_recording", complete_plate=True, single_plate_per_clip=True,
+            learning_influenced=any(item["sample_id"] in self.influenced_samples for item in event["evidence"]))
+        if self.context.get("file"):
+            event.update(source_video=Path(self.context["file"]).name, source_video_path=self.context["file"])
+        # Stable identity survives worker restarts and recording rollovers.
+        atomic_json(self.event_path(), event)
+        record_result(self.root, event, now=timestamp)
+        self.memory.learn(event, timestamp)
+        return event
+
+
 def valid_sample(metadata, control, now):
     """Reject a stale frame or a frame from before pause/source/ROI changes."""
     try:
@@ -222,6 +429,7 @@ def recognition_candidates(alpr, frame, prediction):
     if original is not None:
         candidates.append({"raw_text": original.text,
                            "confidence": character_confidence(original.text, original.confidence),
+                           "min_character_confidence": character_confidence(original.text, original.confidence, minimum=True),
                            "variant": "original"})
     box = prediction.detection.bounding_box
     height, width = frame.shape[:2]
@@ -234,6 +442,7 @@ def recognition_candidates(alpr, frame, prediction):
             if reading is not None:
                 candidates.append({"raw_text": reading.text,
                     "confidence": character_confidence(reading.text, reading.confidence),
+                    "min_character_confidence": character_confidence(reading.text, reading.confidence, minimum=True),
                     "variant": "lanczos3"})
         except Exception:
             pass  # A failed second attempt must not fabricate a replacement.
@@ -687,12 +896,14 @@ def run_worker(root, session):
     processed_frames, last_sample_at, detections = 0, None, 0
     state_write_error = ""
     last_prune = float("-inf")
+    live_clip = LiveClipConsensus(root)
 
     def state(status, error=""):
         nonlocal state_write_error, recent, last_prune
         try:
             if time.monotonic()-last_prune >= 60:
                 prune_history(root)
+                live_clip.memory.prune(time.time())
                 last_prune = time.monotonic()
             recent = load_history(root)
             atomic_json(recent_file, recent)
@@ -700,7 +911,10 @@ def run_worker(root, session):
                     "error": error, "model": MODEL_LABEL, "recent": recent,
                     "updated_at": time.time(), "tolerance": DEFAULT_MAX_DISTANCE,
                     "processed_frames": processed_frames, "last_sample_at": last_sample_at,
-                    "detections": detections, "replay": replay_progress(root)})
+                    "detections": detections, "recording_only": True,
+                    "clip_active": bool(live_clip.context),
+                    "clip_confirmed": bool((live_clip.winner() or {}).get("confirmed")),
+                    "learning_error": live_clip.memory.error})
             state_write_error = ""
             return True
         except (OSError, ValueError, TypeError) as failure:
@@ -726,16 +940,6 @@ def run_worker(root, session):
         # Log exception type only: provider/download errors can contain paths/URLs.
         state("UNAVAILABLE", "Plate model unavailable: " + type(error).__name__)
         return 1
-    consensus = PlateConsensus(load_allowlist(root))
-    for item in recent:
-        if item.get("confirmed") is not True:
-            continue
-        try:
-            key = item.get("matched") or item["text"]
-            consensus.last_emitted[key] = max(float(item["timestamp"]),
-                                             consensus.last_emitted.get(key, float("-inf")))
-        except (KeyError, ValueError, TypeError):
-            pass
     last_sample, context, last_state = None, None, 0.0
     lease = ControlLease(session)
     inference_error = ""
@@ -746,7 +950,7 @@ def run_worker(root, session):
         if control_status == "stop":
             break
         if control_status == "wait":
-            consensus.reset()
+            live_clip.reset()
             if now-last_state > 2:
                 state("WAITING", "Waiting for parent control heartbeat")
                 last_state = now
@@ -754,14 +958,15 @@ def run_worker(root, session):
             continue
         current_context = (control.get("generation"), tuple(load_allowlist(root)))
         if current_context != context:
-            consensus.reset()
-            consensus.allowlist = list(current_context[1])
+            live_clip.reset()
             context = current_context
+        live_clip.set_context(recording_plate_context(root, now=now))
         if now - last_state > 2:
-            state("ERROR" if inference_error else ("READY" if control.get("active") else "PAUSED"),
+            can_scan = control.get("active") and live_clip.context and not live_clip.winner()
+            state("ERROR" if inference_error else ("READY" if can_scan else "PAUSED"),
                   inference_error)
             last_state = now
-        if not control.get("active"):
+        if not control.get("active") or not live_clip.context or live_clip.winner():
             time.sleep(0.1)
             continue
         try:
@@ -771,13 +976,20 @@ def run_worker(root, session):
                 continue
             frame, metadata = sample
             last_sample = metadata["sample_id"]
+            recording = recording_plate_context(root, metadata["timestamp"])
+            if not recording or recording["request_id"] != live_clip.context["request_id"]:
+                continue
             predictions = detect_plate_observations(alpr, frame)
             # Pause/ROI/source changes can happen while inference is running.
             current_control = read_json(runtime / "control.json", {})
             if not valid_sample(metadata, current_control, time.time()):
                 continue
+            recording_after = recording_plate_context(root, metadata["timestamp"])
+            if not recording_after or recording_after["request_id"] != recording["request_id"]:
+                live_clip.reset()
+                continue
             if tuple(load_allowlist(root)) != context[1]:
-                consensus.reset()
+                live_clip.reset()
                 continue
             inference_error = ""
             processed_frames += 1
@@ -794,21 +1006,22 @@ def run_worker(root, session):
                 if not valid_sample(metadata,
                         read_json(runtime / "control.json", {}), time.time()):
                     continue
-                event = consensus.observe(selected["raw_text"], selected["confidence"],
-                    metadata["timestamp"], metadata["sample_id"], bounds,
-                    prediction["detector_confidence"], variants=prediction["variants"])
+                current_recording = recording_plate_context(root, metadata["timestamp"])
+                if not current_recording or current_recording["request_id"] != recording["request_id"]:
+                    live_clip.reset()
+                    break
+                event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1])
                 if event is None:
                     continue
-                atomic_json(root / "runtime" / "plate_events" / (event["id"] + ".json"), event)
-                record_result(root, event)
-                state("READY")
+                state("PAUSED")
+                break
         except (OSError, ValueError, KeyError) as error:
             # A failed or partially replaced input is not a successful reading.
             inference_error = "Plate sample or inference unavailable: " + type(error).__name__
             state("ERROR", inference_error)
             time.sleep(0.1)
         except Exception as error:
-            consensus.reset()
+            live_clip.reset()
             inference_error = "Plate inference failed: " + type(error).__name__
             state("ERROR", inference_error)
             time.sleep(1.0)
