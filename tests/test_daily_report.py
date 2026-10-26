@@ -90,6 +90,24 @@ class DailyReportTests(unittest.TestCase):
         self.report.send.assert_called_once()
         self.assertEqual(list(self.report.jobs.glob('*_full.json')),[])
 
+    def test_missed_days_send_oldest_first(self):
+        self.tick('2026-10-14T23:00:00')
+        self.assertEqual([call.args[0]['day'] for call in self.report.send.call_args_list],
+                         ['2026-10-12', '2026-10-13', '2026-10-14'])
+
+    def test_old_report_retry_blocks_newer_days_and_survives_restart(self):
+        self.report.send.side_effect = RuntimeError('network')
+        self.tick('2026-10-14T23:00:00')
+        self.report.send.assert_called_once()
+        self.assertEqual(self.report.send.call_args.args[0]['day'], '2026-10-12')
+        self.report = DailyReports(self.root, self.root/'videos', Mock(), clock=lambda: self.stamp)
+        self.report.send = Mock(return_value=True)
+        self.tick('2026-10-14T23:00:10')
+        self.report.send.assert_not_called()
+        self.tick('2026-10-14T23:00:21')
+        self.assertEqual([call.args[0]['day'] for call in self.report.send.call_args_list],
+                         ['2026-10-12', '2026-10-13', '2026-10-14'])
+
     def test_missed_schedule_keeps_the_2300_cutoff(self):
         self.trigger('before','2026-10-12T22:59:59')
         self.trigger('after','2026-10-12T23:59:59')

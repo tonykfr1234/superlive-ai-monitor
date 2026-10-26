@@ -218,7 +218,7 @@ class PlateTelegramTests(unittest.TestCase):
 
     def test_plate_delivers_while_idle_once_across_restart_with_original_and_match(self):
         self.save(event())
-        self.queue.process_once(now=1000)
+        self.queue.process_once(now=1010)
         self.http.assert_called_once()
         text = self.http.call_args.kwargs["data"]["text"]
         self.assertIn("08:16:40", text)
@@ -232,28 +232,28 @@ class PlateTelegramTests(unittest.TestCase):
     def test_plate_quiet_then_sends_and_direct_dispatch_rechecks(self):
         self.save(event())
         self.quiet(1120)
-        self.queue.process_once(now=1000)
+        self.queue.process_once(now=1010)
         self.http.assert_not_called()
         with self.assertRaises(telegram_video.TelegramDeferred):
             self.queue.send_plate(event(), "fake", "fake")
         self.quiet(1000)
-        self.queue.process_once(now=1000)
+        self.queue.process_once(now=1010)
         self.http.assert_called_once()
 
     def test_unconfirmed_and_malformed_events_do_not_block_valid_event(self):
         self.save(dict(event(1), confirmed=False))
         self.save(dict(event(2), timestamp="bad"))
         self.save(event(3))
-        self.queue.process_once(now=1000)
+        self.queue.process_once(now=1010)
         self.http.assert_called_once()
 
     def test_plate_retry_is_persisted_without_secret_exception_text(self):
         self.save(event())
         self.http.side_effect = RuntimeError("secret-token-in-url")
-        self.queue.process_once(now=1000)
+        self.queue.process_once(now=1010)
         state = read_json(next(self.queue.plate_delivery.glob("*.json")))
         self.assertEqual(state["attempts"], 1)
-        self.assertEqual(state["retry_at"], 1020)
+        self.assertEqual(state["retry_at"], 1030)
         self.assertNotIn("secret-token", str(self.log.call_args_list))
         self.queue.process_once(now=1001)
         self.http.assert_called_once()

@@ -29,7 +29,7 @@ if ((Get-FileHash "$InstallRoot\config\telegram.env").Hash -ne $CredentialHash) 
 if ((Get-FileHash "$InstallRoot\config\capture_config.json").Hash -ne $CaptureHash) { throw 'Existing ADB device settings modified' }
 if ((Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash -ne $AllowlistHash) { throw 'Private plate allowlist modified' }
 if (Test-Path "$InstallRoot\.plate-venv") { throw 'Deployment without dependency flags must not create an OCR environment' }
-foreach ($Name in @('record_protocol.py','region_policy.py','person_activity.py','telegram_video.py', 'preview_ui.py', 'capture_region.py','stage4b_motion_monitor.py','stage5c_recorder.py')) {
+foreach ($Name in @('record_protocol.py','region_policy.py','person_activity.py','telegram_video.py', 'telegram_upload.py', 'preview_ui.py', 'latest_vehicle.py', 'capture_region.py','stage4b_motion_monitor.py','stage5c_recorder.py')) {
     if (-not (Test-Path -LiteralPath "$InstallRoot\scripts\$Name")) { throw "Missing $Name" }
 }
 $Backups = @(Get-ChildItem -LiteralPath "$InstallRoot\backups" -Directory)

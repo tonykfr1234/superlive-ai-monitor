@@ -90,6 +90,8 @@ class Recorder:
             raise ValueError("Invalid disk rotation thresholds")
         self.state = "STARTING"
         self.request_id = None
+        self.trigger_created_at = None
+        self.clip_started_at = None
         self.next_request = None
         self.last_publish = 0
         self.capture_resolver = CaptureRegionResolver()
@@ -106,6 +108,11 @@ class Recorder:
     def publish(self, status=None, **extra):
         if status is not None:
             self.state = status
+        if self.state in ("STARTING", "RECORDING"):
+            for key in ("trigger_created_at", "clip_started_at"):
+                value = getattr(self, key, None)
+                if value is not None:
+                    extra.setdefault(key, value)
         atomic_json(self.state_file, dict(status=self.state, pid=os.getpid(),
             updated_at=time.time(), request_id=self.request_id, **extra))
         self.last_publish = time.monotonic()
@@ -141,6 +148,8 @@ class Recorder:
             # next first frame renews this reservation from its actual start.
             self.reserve_quiet(self.next_request["request_id"])
             self.request_id = self.next_request["request_id"]
+            self.trigger_created_at = self.next_request["created_at"]
+            self.clip_started_at = None
             self.publish("STARTING", elapsed_seconds=0)
         self.log("EVENT_RECORD_END=%s REQUEST=%s" % (signal["reason"], request_id))
         return True
@@ -188,6 +197,8 @@ class Recorder:
         complete = False
         self.next_request = None
         self.request_id = request["request_id"]
+        self.trigger_created_at = request.get("created_at", time.time())
+        self.clip_started_at = None
         try:
             self.reports.record_trigger(request)
             hwnd = self.find_window()
@@ -205,6 +216,7 @@ class Recorder:
             if not writer.isOpened():
                 raise RuntimeError("VideoWriter failed")
             request = dict(request, clip_started_at=time.time())
+            self.clip_started_at = request["clip_started_at"]
             started = time.monotonic()
             timeline = FrameTimeline(self.fps, started)
             self.reserve_quiet(request["request_id"])
@@ -335,6 +347,8 @@ class Recorder:
                         self.request_file.unlink(missing_ok=True)
                         continue
                 self.request_id = request["request_id"]
+                self.trigger_created_at = request["created_at"]
+                self.clip_started_at = None
                 self.reserve_quiet(self.request_id)
                 self.publish("STARTING")
                 if consume_file:

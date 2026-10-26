@@ -20,7 +20,8 @@ class TelegramQuietTests(unittest.TestCase):
         self.queue = telegram_video.TelegramVideoQueue(self.root, self.log)
         self.video = self.root / 'synthetic.mp4'
         self.video.write_bytes(b'synthetic video, never sent')
-        self.manifest = self.queue.enqueue(self.video, {'request_id': 'older-event', 'count': 1}, 180, True)
+        self.manifest = self.queue.enqueue(self.video, {'request_id': 'older-event', 'count': 1,
+            'created_at': 10, 'clip_started_at': 10}, 180, True)
         self.queue.prepare = Mock(return_value=self.video)
         self.credentials = patch.object(telegram_video, 'load_credentials', return_value=('fake-token', 'fake-chat'))
         self.credentials.start()
@@ -119,6 +120,7 @@ class TelegramQuietTests(unittest.TestCase):
         second = self.queue.enqueue(self.video, {'request_id': 'second-old-event'}, 180, True)
         first_job, second_job = read_json(self.manifest), read_json(second)
         first_job['created_at'], second_job['created_at'] = 10, 20
+        first_job['trigger_created_at'], second_job['trigger_created_at'] = 10, 20
         atomic_json(self.manifest, first_job)
         atomic_json(second, second_job)
 

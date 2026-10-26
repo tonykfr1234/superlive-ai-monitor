@@ -59,6 +59,10 @@ A person or supported vehicle first observed after startup counts as new activit
 
 Manual stop or capture failure may leave a local partial clip shorter than 120 seconds. It is not padded to simulate extra footage and is not automatically sent before its quiet deadline; pending work also waits for any newer clip's quiet period.
 
+Videos and plate messages share one oldest-first queue, ordered by original detection time. Older retries and unfinished clips hold later events so the newest notification appears at the bottom of Telegram. Captions show Taiwan timestamps and observed plate text; plates already included in a caption are not sent twice. Late OCR older than the delivered timeline stays in local history. Videos upload in bounded chunks without reducing original quality. Existing Telegram messages cannot be reordered; daily CSV remains an independent 23:00 report.
+
+Below the preview buttons, a local summary shows the most recent live vehicle detection time and any corresponding confirmed OCR value. Unknown plates stay unconfirmed; recording replay cannot replace the latest live observation. The summary survives restart and wraps within the footer.
+
 Selection or invalid capture/inference is unknown and resets the observation interval. After recovery, valid observations must establish a new inactivity interval.
 
 <a id="features"></a>

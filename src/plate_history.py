@@ -158,7 +158,7 @@ def prune_history(root, now=None):
         receipt = read_json(path, {})
         if not isinstance(receipt, dict) or not receipt.get("event_id"):
             continue
-        stamp = receipt.get("sent_at")
+        stamp = receipt.get("sent_at") or receipt.get("retained_at")
         try:
             if stamp is not None and math.isfinite(float(stamp)) and float(stamp) < now-RETENTION_SECONDS:
                 path.unlink(missing_ok=True)

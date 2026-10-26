@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-26
+
+- Order Telegram videos and confirmed plate messages together by original detection time. An older failed delivery holds newer notifications until retry succeeds; an unfinished recording also holds its later plate events. Preserve recording quiet periods and the independent 23:00 CSV exception. Backlogged daily reports send oldest first.
+- Stream high-quality video uploads in bounded multipart chunks with Content-Length instead of buffering and writing the entire file at once; keep TLS verification and the original MP4.
+- Show the latest live vehicle detection time below the preview buttons, with an observed plate only when its time and location correspond to the vehicle. Persist this local summary across restart; historical replay cannot replace it.
+- Show Taiwan detection times and the latest vehicle/observed plate information within each delivered event. Plate records already included in a video caption are not sent again; late OCR older than the delivered timeline stays in local records instead of inserting an older alert at the bottom. Existing Telegram messages cannot be reordered.
+- Telegram 影片與已確認車牌合併依原始偵測時間由早到晚傳送；舊通知失敗或等待重試時，後面的通知一起等待，錄影尚未完成時也不先送該片車牌。保留每段前兩分鐘靜默及每日 23:00 CSV 例外，積欠日報依日期補送。
+- 高畫質影片改以分塊串流上傳，避免一次緩衝及寫入整部影片；保留原片與 TLS 憑證驗證。
+- 監控視窗按鈕下方顯示最近一次即時車輛偵測時間；車牌須有對應時間與位置才顯示實際讀值，否則標示未確認。摘要只保存本機，重新啟動仍可查看，歷史補辨識不會覆蓋它。
+- 訊息顯示台灣偵測時間，底部列出該通知內最新車輛／實際車牌資訊；已包含於影片說明的車牌不重複推播。晚到且早於已送時間的 OCR 留在本機紀錄，不再插入舊時間通知；既有 Telegram 訊息無法重新排序。
+
 ## 2026-10-24
 
 - Add opt-in ADB camera-frame stall recovery, separate from person/vehicle inactivity. Reopen SuperLive and verify the configured device, channel and quality before publishing camera frames again; retry failures with a bounded delay and honor manual stop. Public examples leave the private camera name blank and recovery disabled.

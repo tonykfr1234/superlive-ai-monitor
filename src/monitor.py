@@ -26,13 +26,15 @@ from record_protocol import (atomic_json, read_json, recorder_ready, recording_a
                              valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS)
 from person_activity import PersonActivityTracker, InactivityTimer
 from region_policy import people_in_region, objects_in_region, object_counts, ACTIVITY_CLASSES, validate_roi, rebase_roi
-from preview_ui import PreviewController, PreviewLayout, render_preview, plate_footer_text
+from preview_ui import (PreviewController, PreviewLayout, render_preview, plate_footer_text,
+                        latest_vehicle_footer_text)
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
 from app_branding import set_app_identity, apply_window_icon
 from adb_capture import AdbStream, settings as capture_settings
 from capture_region import CaptureInfo
 from plate_recognition import PlateService, load_allowlist
 from video_location import reveal_video, VideoLocationError
+from latest_vehicle import LatestVehicleTracker
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -332,6 +334,8 @@ def main():
     controller.plate_filter_targets = load_allowlist(ROOT)
     next_plate_filter_read = time.monotonic() + 2
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
+    latest_vehicle = LatestVehicleTracker(ROOT)
+    controller.latest_vehicle = latest_vehicle.snapshot()
     detection_session = DetectionSession()
     ui_actions = []
     message = None
@@ -428,6 +432,7 @@ def main():
                                 raise RuntimeError("Capture failed repeatedly; watchdog will retry")
                             next_capture = time.monotonic() + float(cfg["capture_retry_seconds"])
             frame = last_frame
+            frame_timestamp = time.time()
             height, width = frame.shape[:2]
             evidence = frame.copy()
             people = []
@@ -455,19 +460,21 @@ def main():
                     cv2.rectangle(evidence, (x1, y1), (x2, y2), color, 2)
                 count = len(people)
             controller.object_counts = object_counts(people) if count is not None else None
+            latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None)
 
             if plate_service:
                 if time.monotonic() >= next_plate_filter_read:
                     controller.plate_filter_targets = load_allowlist(ROOT)
                     next_plate_filter_read = time.monotonic() + 2
                 if capture_ok:
-                    plate_service.submit(frame, time.time(), None)
+                    plate_service.submit(frame, frame_timestamp, None)
                 else:
                     plate_service.pause()
                 plate_state = plate_service.snapshot()
                 history = plate_state.get("recent", [])
                 if history != controller.plate_events:
                     controller.plate_events = history
+                    latest_vehicle.update_plates(history)
                 controller.plate_status = plate_state.get("status", "")
                 controller.plate_error = plate_state.get("error", "")
                 scanned = plate_state.get("last_sample_at")
@@ -490,11 +497,13 @@ def main():
                     canvas_size = (view_width, view_height)
             except (cv2.error, AttributeError):
                 pass
+            controller.latest_vehicle = latest_vehicle.snapshot()
             controller.layout = PreviewLayout.create(width, height, *canvas_size,
                 show_plates=controller.plate_enabled,
                 plate_sidebar=controller.plate_enabled,
                 plates_open=controller.plate_panel_open if plate_service else False,
-                plate_status_text=plate_footer_text(controller) if plate_service else "")
+                plate_status_text=plate_footer_text(controller) if plate_service else "",
+                latest_vehicle_status=latest_vehicle_footer_text(controller))
             state = read_json(STATE_FILE)
             status = preview_status(state, REQUEST_FILE.exists(), capture_status)
             elapsed = state.get("elapsed_seconds") if isinstance(state, dict) else None
@@ -547,8 +556,10 @@ def main():
                 detection_session.observe(evidence, people, cfg, credentials, observation_state, width, height)
             else:
                 detection_session.suspend()
+                latest_vehicle.suspend()
             next_frame = time.monotonic() + interval
     finally:
+        latest_vehicle.flush(force=True)
         sct.close()
         if plate_service:
             plate_service.stop()
