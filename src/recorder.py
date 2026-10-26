@@ -196,6 +196,7 @@ class Recorder:
         writer = sct = path = timeline = None
         complete = False
         self.next_request = None
+        request = dict(request, single_plate_per_clip=True)
         self.request_id = request["request_id"]
         self.trigger_created_at = request.get("created_at", time.time())
         self.clip_started_at = None
@@ -288,7 +289,7 @@ class Recorder:
                 self.log("EVENT_RECORD_QUEUED=%s COMPLETE=%s" % (path.name, complete))
                 try:
                     record_clip_result(self.root, path, request.get("clip_started_at", request["created_at"]),
-                                       timeline.written / self.fps)
+                                       timeline.written / self.fps, request_id=request["request_id"])
                 except Exception as error:
                     self.log("PLATE_HISTORY_ERROR=" + type(error).__name__)
 

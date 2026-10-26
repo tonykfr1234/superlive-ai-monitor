@@ -167,7 +167,7 @@ def prune_history(root, now=None):
     return removed
 
 
-def record_clip_result(root, video, started_at, duration, now=None):
+def record_clip_result(root, video, started_at, duration, now=None, request_id=None):
     """Keep a result for every completed clip, including unreadable plates."""
     now = time.time() if now is None else float(now)
     video = Path(video)
@@ -176,6 +176,9 @@ def record_clip_result(root, video, started_at, duration, now=None):
     history, history_readable = _read_history(root, now)
     events = [event for event in history if event.get("confirmed") is True
               and start <= float(event["timestamp"]) <= end]
+    if request_id is not None:
+        events = [event for event in events if event.get("request_id") == request_id
+                  and event.get("complete_plate") and event.get("source") == "live_recording"][:1]
     if events:
         for event in events:
             record_result(root, dict(event, source_video=video.name, source_video_path=str(video)), now)

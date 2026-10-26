@@ -393,7 +393,11 @@ def main(argv=None):
     parser.add_argument("--state-root", type=Path, help="Private manifest/progress folder")
     parser.add_argument("--shard-index", type=int, default=0, help="Zero-based worker shard")
     parser.add_argument("--shard-count", type=int, default=1, help="Number of CPU workers")
+    parser.add_argument("--allow-history", action="store_true", help="Explicitly opt in to offline historical scanning")
     args = parser.parse_args(argv)
+    if not args.allow_history:
+        print("Historical scanning disabled. Live recognition handles new recordings only.", flush=True)
+        return 0
     if not args.video and args.record_root is None:
         parser.error("provide --video and/or --record-root")
     if not math.isfinite(args.days) or not 0 < args.days <= 7:

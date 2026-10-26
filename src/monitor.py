@@ -479,16 +479,13 @@ def main():
                 controller.plate_error = plate_state.get("error", "")
                 scanned = plate_state.get("last_sample_at")
                 controller.plate_scan_status = ("最近掃描：" + datetime.fromtimestamp(scanned).strftime("%H:%M:%S")) if scanned else ""
-                replay = plate_state.get("replay") or {}
-                if replay.get("total"):
-                    progress = "歷史影片：%d／%d 段" % (replay["processed"], replay["total"])
-                    if replay.get("running"):
-                        progress += "（辨識中）"
-                    elif replay.get("stale_running"):
-                        progress += "（已暫停）"
-                    if replay.get("errors"):
-                        progress += "，失敗 %d 段" % replay["errors"]
-                    controller.plate_scan_status += "\n" + progress
+                if plate_state.get("recording_only"):
+                    controller.plate_scan_status += "\n" + (
+                        "本段完整車牌已確認，等待下一段" if plate_state.get("clip_confirmed") else
+                        "只辨識新錄影片段；每段確認一個完整車牌" if plate_state.get("clip_active") else
+                        "等待新錄影；不處理歷史影片")
+                if plate_state.get("learning_error"):
+                    controller.plate_scan_status += "\n學習記憶暫時無法儲存"
                 if adb_stream:
                     controller.plate_status += " | ADB %dx%d | %s" % (width, height, adb_stream.quality)
             try:

@@ -315,6 +315,8 @@ class WorkerLoopTests(unittest.TestCase):
             np.savez(runtime / "sample.npz", frame=np.zeros((2, 2, 3), np.uint8), metadata=json.dumps(metadata))
             states, clock, controls = [], [100], [0]
             def read(path, default=None):
+                if Path(path).name == "recording_state.json":
+                    return dict(status="RECORDING", request_id="test-clip", clip_started_at=99, updated_at=clock[0])
                 if Path(path).name == "control.json":
                     controls[0] += 1
                     return dict(session="s", heartbeat=clock[0], generation=1,

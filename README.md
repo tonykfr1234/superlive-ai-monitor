@@ -29,6 +29,8 @@ This is an unofficial community project, not affiliated with the SuperLive, MuMu
 
 The 12 README languages translate the documentation. The application preview currently uses Traditional Chinese.
 
+Plate recognition now processes only fresh frames in the active recording: three independent consistent observations confirm one complete-format plate, then OCR pauses for the rest of that clip. Historical replay is disabled by default. A private seven-day memory learns repeated confusions from clean observations across independent clips and ranks close OCR alternatives present in the current image; it does not invent missing characters or retrain model weights. Uncertain plates stay unconfirmed.
+
 <a id="quick-start"></a>
 ## Quick start
 

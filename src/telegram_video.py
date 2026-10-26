@@ -131,6 +131,8 @@ class TelegramVideoQueue:
             roi=request.get("roi"), duration=duration, complete=complete,
             created_at=time.time(), attempts=0, retry_at=0)
         job["clip_started_at"] = request.get("clip_started_at", job["created_at"]-duration)
+        if request.get("single_plate_per_clip"):
+            job["single_plate_per_clip"] = True
         job["trigger_created_at"] = request.get("created_at", job["clip_started_at"])
         if isinstance(request.get("object_counts"), dict):
             job["object_counts"] = event_object_counts(request)
@@ -266,6 +268,9 @@ class TelegramVideoQueue:
         events = [event for event in self.plate_events()
                   if triggered <= float(event["timestamp"]) <= end
                   and float(event["timestamp"]) < boundary]
+        if job.get("single_plate_per_clip"):
+            events = [event for event in events if event.get("request_id") == job.get("request_id")
+                      and event.get("complete_plate") and event.get("source") == "live_recording"][:1]
         if events:
             text += "\n車牌紀錄（台灣時間）："
         elif vehicles:

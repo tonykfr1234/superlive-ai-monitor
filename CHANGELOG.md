@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-27
+
+- Recognize only fresh frames from the active recording. Confirm at most one complete-format plate from three independent, spatially consistent frames, then stop OCR for that clip; the durable clip identity survives worker restart. Keep actual readings separate from fuzzy allowlist matches and associate summaries/captions with the exact recording ID.
+- Disable historical replay by default and remove its progress from the live controls. The offline CLI requires an explicit `--allow-history` opt-in; existing files and results are retained without rescanning.
+- Add private seven-day recognition memory. Clean, high-confidence results from distinct clips teach repeated OCR confusions. Memory can rank close alternatives actually read in the current frame only after three independent clips; inferred selections never become training anchors. This is evidence-based candidate ranking, not OCR model retraining or proof of the real plate.
+- 只辨識正在錄製的新片段：至少三張獨立且位置連續的畫面確認同一完整格式讀值後，本段停止 OCR，重啟也不重複列出其他號碼。車牌摘要與 Telegram 說明依錄影 ID 對應，原始讀值與名單容錯比對分開。
+- 預設停用歷史補辨識，移除主畫面的歷史掃描進度；既有影片與紀錄保留。舊命令不會啟動掃描，離線工具需明確指定 `--allow-history` 才會執行。
+- 累積七天內新片段的清楚辨識及同畫面混淆字串，至少三段獨立影片支持後才輔助選擇目前畫面實際讀出的近似候選；推測修正不會回頭當作學習答案。這是本機統計記憶，未重新訓練 OCR 模型，也不能保證反覆讀值一定正確。
+
 ## 2026-10-26
 
 - Order Telegram videos and confirmed plate messages together by original detection time. An older failed delivery holds newer notifications until retry succeeds; an unfinished recording also holds its later plate events. Preserve recording quiet periods and the independent 23:00 CSV exception. Backlogged daily reports send oldest first.
