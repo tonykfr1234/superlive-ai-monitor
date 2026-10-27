@@ -25,7 +25,7 @@ c04f11990dd394e27af0b06e62f2a007fdfa3752df727c11d9aa4be9e81c86eb  ./config/captu
 37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570  ./config/plate_allowlist.example.json
 07a7ea1860bb8c6bd084578290df66b691b41da75c7c4ff1aa216f843d95bc81  ./config/recording_config.example.json
 52056562654b833304b0b7c54c206157fc2ce0b7ce3575c5f4eddd4eac7fcc48  ./config/telegram.env.example
-eb30e9283318740603be1653bdc64874f7a799239a64af94fb5471c78d8c6c49  ./docs/ARCHITECTURE.md
+e1c370fa60982d395ff5efb026cb7df8a24f2a7b34b3d0cdfb604dcd3e8a8531  ./docs/ARCHITECTURE.md
 a29506b715c947f93d1bc2ac931a911c0631e59b6c8b5770d6bb44dc71d85caf  ./docs/BASELINE.md
 e71fe8d5cd00c6d62b1b96eadd93fc042338ee4db1d4ab81d2d1fdc499878a50  ./docs/DASHBOARD.en.md
 672d02dab4d5e7e8e3572ee2bab93a1d22d3c20887b52f7835dc29cbae7b90dd  ./docs/DASHBOARD.zh-TW.md
@@ -36,7 +36,7 @@ dd04b7ff0f88398762100185baee4a6c5265edd6b1232fd2c6b31b84d86a9312  ./docs/PLATE_A
 aef0ed65fa61a2e827ee99d91f6be363cb19208cb22293b7e34e35d79846af71  ./docs/RECORDING.md
 ca72c5b89399bdcc8a43de45c8e831bc031a30d44f9f84c98b9a52f3a05b43a4  ./docs/SECURITY.zh-TW.md
 c9213c5518f20778c5d33f473d1bb7664efe8e3090997f4d60ecfc33461e2954  ./docs/USER_GUIDE.md
-b42a6971eb1d87abf6ca37ed1af4ae19c97d519962feefe2e99283b27d52c530  ./docs/USER_GUIDE.zh-TW.md
+97ddc7860dd565073c603617cb5eac8d981a78568e5e23105c41182f05c777e7  ./docs/USER_GUIDE.zh-TW.md
 c0e9ef46c80f48b230c8f10bcef405751fbfd1c5b963ec59ab5db7c25c85f91a  ./docs/VMWARE.md
 32e392acd8ec3e46dce9603b3f44d41f4ee317d816bbd4d2bf5bf6b91f030dc5  ./docs/media/activity-recording.png
 bed9854b93165eb579ba1d7bb1502e7a595d3b96940981f4bdaff3e92940f357  ./docs/media/dashboard-guide.en.png

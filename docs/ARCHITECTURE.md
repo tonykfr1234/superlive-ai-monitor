@@ -54,4 +54,4 @@ Optional local `capture_config.json` recovery settings select one exact device n
 
 ## Limitations
 
-The source is a GUI window, not RTSP: Windows must stay logged in and MuMu must render the intended live view. Movement is a proxy derived from detection-box location/size, not pose analysis or a physical motion measurement. Occlusion, missed detections, camera movement and box jitter can affect activity tracking. Offline tests do not replace validation against the user's actual camera, emulator and Telegram account.
+The default source is a local emulator ADB stream; legacy window capture remains available. Windows must stay logged in and MuMu/MEmu must render the intended SuperLive live view. ADB can capture an obscured emulator, while window capture requires the intended visible content. Movement is a proxy derived from detection-box location/size, not pose analysis or a physical motion measurement. Occlusion, missed detections, camera movement and box jitter can affect activity tracking. Offline tests do not replace validation against the user's actual camera, emulator and Telegram account.

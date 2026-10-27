@@ -2,25 +2,25 @@
 
 ## 1. 準備與安裝
 
-Windows 監控帳號必須保持登入。安裝 MuMu，在 MuMu 裡安裝 SuperLive、登入帳號，開啟要監控的攝影機即時畫面。從 Repo 執行 `installer\INSTALL_FROM_REPO.bat`，或：
+Windows 監控帳號必須保持登入。安裝並開啟 MuMu 或逍遙，在模擬器內開啟 SuperLive 攝影機即時畫面並啟用 ADB。完整下載與解壓縮 Repo 後，雙擊最外層 **`INSTALL.bat`**。
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM_REPO.ps1
-```
+安裝器會準備 Python 3.12、監控及獨立車牌 OCR 環境，再開啟本機設定視窗，自動偵測 ADB。多台模擬器需選定一台，尚未連線時會重試。操作與前置需求見 [新電腦一鍵安裝](INSTALL.zh-TW.md)。
 
-程式會部署到 `%USERPROFILE%\Downloads\SuperLive_AI`。已有安裝使用 `installer\UPDATE_FROM_REPO.bat`；更新會先備份及停止程式，保留本機憑證、區域與儲存設定，完成後維持停止，確認畫面再手動啟動。
+程式部署到 `%USERPROFILE%\Downloads\SuperLive_AI`，新安裝影片預設存入其中的 `recordings`；升級保留原位置。已有安裝使用 `installer\UPDATE_FROM_REPO.bat`，更新先備份、停止程式並保留本機設定，完成後再手動啟動。
 
-## 2. 設定 Telegram 與驗證
+## 2. 設定 Telegram 與車牌
 
-執行 `installer\SET_TELEGRAM.bat`，在本機輸入自己的 Bot Token。依提示對 Bot 傳送 `test`，讓設定程式取得 Chat ID。憑證只存於安裝目錄的 `config\telegram.env`，不可 Commit／Push。儲存庫不附憑證；設定完成前無法傳送 Telegram 通知與影片。
+安裝後設定視窗可填寫 Bot Token、數字 Chat ID、特別標示名單及車牌校正。之後執行安裝目錄的 **`Settings.bat`** 可再修改。先在 Telegram 開啟自己的 Bot 並按 Start；「驗證 Bot Token」只驗證 Bot，不傳送訊息，不會自動選取收件者。兩欄留空則停用 Telegram。
 
-保持實際攝影機畫面開啟，執行 `installer\VERIFY_ALL.bat`，檢查檔案／目錄存在、畫面擷取、Python 語法及編碼器。Telegram 與錄影目錄的 PASS 只代表檔案或目錄存在，不代表憑證有效、可寫入或傳送成功；請透過 `SET_TELEGRAM.bat` 設定自己的憑證並收取測試訊息，再實際確認錄影影片可收到。
+設定只寫入安裝目錄 `config`，不能 Commit／Push。校正保留原始辨識證據；已確認的拼法僅排序 OCR 實際讀出的高信心候選，人工別名只對完整誤讀值套用。詳見 [車牌校正與隱私](INSTALL.zh-TW.md#車牌放大圖與校正)。
+
+`installer\VERIFY_ALL.bat` 可檢查部署檔案、Python 及編碼器，但不能取代實際確認 ADB 預覽與 Telegram 接收狀態。
 
 ## 3. 啟停與多邊形區域
 
 使用安裝目錄的 `Start_AI_Monitor.bat` 與 `Stop_AI_Monitor.bat`。Start 啟動兩個 Watchdog；Stop 要求結束並儲存目前片段，手動停止可能留下未滿 120 秒的影片，不會補畫面湊長度。待傳影片於下次啟動繼續處理，但仍需遵守靜默期限。
 
-預覽介面目前使用繁體中文，攝影機影像下方有 R、C、Q、儲存與取消按鈕。多語言 README 是文件翻譯，不是介面語言設定。設定步驟：
+預覽介面目前使用繁體中文，右下區塊集中 R、C、Q、儲存、取消及其他按鈕；左下並排顯示最近車輛與對應的車牌放大圖。多語言 README 是文件翻譯，不是介面語言設定。設定步驟：
 
 1. 點 R／設定區域。
 2. 沿區域邊緣依序用左鍵點選至少三個不同頂點。
@@ -67,9 +67,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\installer\INSTALL_FROM
 
 ### 2026-10-19 · MuMu / MEmu（逍遙模擬器）
 
-支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
+支援 MuMu 與逍遙模擬器。新安裝預設 ADB 自動偵測，模擬器被遮住仍可擷取；選定的裝置斷線後自動重連。切換來源後重新設定多邊形。四區預覽維持比例，空白以柔化背景補齊。
 
-MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.
+MuMu and MEmu are supported through automatically discovered ADB. An obscured emulator can still be captured; reselect the polygon after switching sources. See INSTALL.en.md for setup and DASHBOARD.en.md for the four-panel layout.
 
 
 2026-10-21 更新：ADB 與車牌辨識
