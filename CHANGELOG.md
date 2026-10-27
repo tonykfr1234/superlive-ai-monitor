@@ -2,6 +2,10 @@
 
 ## 2026-10-27
 
+- Replace the earlier one-plate-per-clip policy with continuous live-frame OCR, including while idle. Confirm each reading across independent frames, keep scanning other plates, and persist a 180-second cooldown per normalized observed plate across restarts and clip rollovers. Do not process historical videos.
+- Send new live plate alerts immediately from an independent worker, bypassing recording quiet periods and video uploads. Successful plate deliveries enforce their own durable 180-second cooldown; videos remain ordered by recording trigger time with a separate watermark. Video captions may include multiple plates belonging to that exact clip. Old/historical plate events are not replayed.
+- 車牌改為持續辨識即時畫面，未錄影時也運作，不再每段只留一個車牌；多影格確認後通知，同一實際讀值三分鐘內不重複，重啟與換片保留冷卻，不處理歷史影片。
+- 車牌通知改用獨立程序，立即傳送、不等影片也不受前兩分鐘靜默限制；影片仍依錄影時間先後傳送，並使用獨立的傳送進度。影片可保留同段多筆車牌摘要；舊的歷史事件不重新推播。以下單一車牌及共用排序規則為當日較早版本，已由此更新取代。
 - Keep Telegram notifications in detection-time order with concise recording times and observed plates. Highlight exact configured targets with 🚨 ⭐, label fuzzy associations as 🔎 ⚠️ possible matches, and omit unmatched-list and missing-plate notices. Private targets remain local configuration only.
 - Telegram 維持依偵測時間推播，簡化為錄影時間與實際車牌；完全符合本機指定車牌時以 🚨 ⭐ 標示，容錯比對使用 🔎 ⚠️「可能符合」，移除未符合名單與車牌未確認文字。私人車牌只保存在本機設定。
 - Simplify the preview footer to the latest vehicle detection time and associated plate. Hide routine OCR/source/progress text, including the historical-processing notice; historical replay remains disabled by default.

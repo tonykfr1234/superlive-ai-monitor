@@ -226,15 +226,18 @@ class LiveClipLearningTests(unittest.TestCase):
             self.assertEqual(plates.run_worker(self.root, 'test'), 0)
         return detector, reader
 
-    def test_worker_does_not_read_frames_or_infer_while_recorder_idle(self):
+    def test_worker_reads_live_frames_while_recorder_idle(self):
         detector, reader = self.run_live_worker(idle=True)
-        detector.assert_not_called()
-        reader.assert_not_called()
+        self.assertGreater(detector.call_count, 3)
+        self.assertGreater(reader.call_count, 3)
+        events = [read_json(p) for p in (self.root/'runtime/plate_events').glob('*.json')]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['source'], 'live')
 
-    def test_worker_stops_inference_after_first_complete_plate(self):
+    def test_worker_keeps_inference_after_first_complete_plate(self):
         detector, reader = self.run_live_worker()
-        self.assertEqual(detector.call_count, 3)
-        self.assertEqual(reader.call_count, 3)
+        self.assertGreater(detector.call_count, 3)
+        self.assertGreater(reader.call_count, 3)
         self.assertEqual(len(list((self.root/'runtime/plate_events').glob('*.json'))), 1)
 
     def test_worker_discards_sample_when_recording_changes_before_inference(self):

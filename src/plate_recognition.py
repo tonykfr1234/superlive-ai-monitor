@@ -300,9 +300,21 @@ def recording_plate_context(root, sample_timestamp=None, now=None):
 
 
 class LiveClipConsensus:
-    """At most one durable complete plate per new recording, without replay."""
-    def __init__(self, root):
+    """Multi-frame live consensus; continuous mode retains a per-plate cooldown."""
+    def __init__(self, root, continuous=False):
         self.root = Path(root)
+        self.continuous = continuous
+        self.last_confirmed = {}
+        if continuous:
+            for path in (self.root / "runtime/plate_events").glob("*.json"):
+                event = read_json(path, {})
+                if isinstance(event, dict) and event.get("notification_mode") == "immediate_plate" and event.get("confirmed"):
+                    try:
+                        key, stamp = normalize_plate(event.get("text")), float(event["timestamp"])
+                        if key and math.isfinite(stamp):
+                            self.last_confirmed[key] = max(stamp, self.last_confirmed.get(key, float("-inf")))
+                    except (TypeError, ValueError, KeyError):
+                        pass
         self.memory = PlateLearningMemory(root)
         self.context = None
         self.tracker = PlateConsensus([], min_confidence=.85, debounce=0)
@@ -333,6 +345,8 @@ class LiveClipConsensus:
         return self.root / "runtime" / "plate_events" / ("liveclip-"+key+".json")
 
     def winner(self):
+        if self.continuous:
+            return None
         path = self.event_path()
         if path is None or not path.exists():
             return None
@@ -352,6 +366,10 @@ class LiveClipConsensus:
         if selected is None:
             return None
         text = normalize_plate(selected["raw_text"])
+        if self.continuous and timestamp-self.last_confirmed.get(text, float("-inf")) < 180:
+            return None
+        if self.continuous:
+            self.boxes = {key: value for key, value in self.boxes.items() if timestamp-value[1] <= 8}
         box = prediction.get("bbox")
         try:
             x1, y1, x2, y2 = map(float, box)
@@ -371,16 +389,28 @@ class LiveClipConsensus:
             self.influenced_samples.add(str(sample_id))
         event = self.tracker.observe(selected["raw_text"], selected["confidence"], timestamp,
             sample_id, box, prediction["detector_confidence"], variants=variants)
+        if self.continuous:
+            self.influenced_samples.intersection_update(
+                item["sample_id"] for queue in self.tracker.observations.values() for item in queue)
         if event is None:
             return None
         event.update(match_plate(event["text"], allowlist))
         event.update(id=self.event_path().stem, request_id=self.context["request_id"],
             source="live_recording", complete_plate=True, single_plate_per_clip=True,
             learning_influenced=any(item["sample_id"] in self.influenced_samples for item in event["evidence"]))
+        if self.continuous:
+            event.update(id="live-"+uuid.uuid4().hex, single_plate_per_clip=False,
+                         source=self.context.get("source", "live_recording"),
+                         notification_mode="immediate_plate")
         if self.context.get("file"):
             event.update(source_video=Path(self.context["file"]).name, source_video_path=self.context["file"])
         # Stable identity survives worker restarts and recording rollovers.
-        atomic_json(self.event_path(), event)
+        destination = self.root / "runtime/plate_events" / (event["id"]+".json")
+        atomic_json(destination, event)
+        if self.continuous:
+            self.last_confirmed[text] = timestamp
+            self.last_confirmed = {key: stamp for key, stamp in self.last_confirmed.items()
+                                   if timestamp-stamp < 180}
         record_result(self.root, event, now=timestamp)
         self.memory.learn(event, timestamp)
         return event
@@ -896,7 +926,11 @@ def run_worker(root, session):
     processed_frames, last_sample_at, detections = 0, None, 0
     state_write_error = ""
     last_prune = float("-inf")
-    live_clip = LiveClipConsensus(root)
+    live_clip = LiveClipConsensus(root, continuous=True)
+
+    def live_context(sample_timestamp=None, now=None):
+        return recording_plate_context(root, sample_timestamp, now) or dict(
+            request_id="preview:"+session, started_at=0, source="live")
 
     def state(status, error=""):
         nonlocal state_write_error, recent, last_prune
@@ -911,7 +945,7 @@ def run_worker(root, session):
                     "error": error, "model": MODEL_LABEL, "recent": recent,
                     "updated_at": time.time(), "tolerance": DEFAULT_MAX_DISTANCE,
                     "processed_frames": processed_frames, "last_sample_at": last_sample_at,
-                    "detections": detections, "recording_only": True,
+                    "detections": detections, "recording_only": False,
                     "clip_active": bool(live_clip.context),
                     "clip_confirmed": bool((live_clip.winner() or {}).get("confirmed")),
                     "learning_error": live_clip.memory.error})
@@ -960,7 +994,7 @@ def run_worker(root, session):
         if current_context != context:
             live_clip.reset()
             context = current_context
-        live_clip.set_context(recording_plate_context(root, now=now))
+        live_clip.set_context(live_context(now=now))
         if now - last_state > 2:
             can_scan = control.get("active") and live_clip.context and not live_clip.winner()
             state("ERROR" if inference_error else ("READY" if can_scan else "PAUSED"),
@@ -976,7 +1010,7 @@ def run_worker(root, session):
                 continue
             frame, metadata = sample
             last_sample = metadata["sample_id"]
-            recording = recording_plate_context(root, metadata["timestamp"])
+            recording = live_context(metadata["timestamp"])
             if not recording or recording["request_id"] != live_clip.context["request_id"]:
                 continue
             predictions = detect_plate_observations(alpr, frame)
@@ -984,7 +1018,7 @@ def run_worker(root, session):
             current_control = read_json(runtime / "control.json", {})
             if not valid_sample(metadata, current_control, time.time()):
                 continue
-            recording_after = recording_plate_context(root, metadata["timestamp"])
+            recording_after = live_context(metadata["timestamp"])
             if not recording_after or recording_after["request_id"] != recording["request_id"]:
                 live_clip.reset()
                 continue
@@ -1006,15 +1040,14 @@ def run_worker(root, session):
                 if not valid_sample(metadata,
                         read_json(runtime / "control.json", {}), time.time()):
                     continue
-                current_recording = recording_plate_context(root, metadata["timestamp"])
+                current_recording = live_context(metadata["timestamp"])
                 if not current_recording or current_recording["request_id"] != recording["request_id"]:
                     live_clip.reset()
                     break
                 event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1])
                 if event is None:
                     continue
-                state("PAUSED")
-                break
+                state("READY")
         except (OSError, ValueError, KeyError) as error:
             # A failed or partially replaced input is not a successful reading.
             inference_error = "Plate sample or inference unavailable: " + type(error).__name__

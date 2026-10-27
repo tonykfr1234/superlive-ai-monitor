@@ -96,7 +96,7 @@ class Recorder:
         self.last_publish = 0
         self.capture_resolver = CaptureRegionResolver()
         self.adb_reader = SharedAdbReader(self.root) if capture_settings(self.root).get("source") == "adb" else None
-        self.uploader = TelegramVideoQueue(self.root, self.log)
+        self.uploader = TelegramVideoQueue(self.root, self.log, immediate_plates=True)
         self.reports = DailyReports(self.root, self.record_root, self.log)
 
     def log(self, message):
@@ -196,7 +196,7 @@ class Recorder:
         writer = sct = path = timeline = None
         complete = False
         self.next_request = None
-        request = dict(request, single_plate_per_clip=True)
+        request = dict(request, single_plate_per_clip=False, continuous_plate_notifications=True)
         self.request_id = request["request_id"]
         self.trigger_created_at = request.get("created_at", time.time())
         self.clip_started_at = None

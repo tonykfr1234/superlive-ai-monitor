@@ -29,7 +29,7 @@ This is an unofficial community project, not affiliated with the SuperLive, MuMu
 
 The 12 README languages translate the documentation. The application preview currently uses Traditional Chinese.
 
-Plate recognition now processes only fresh frames in the active recording: three independent consistent observations confirm one complete-format plate, then OCR pauses for the rest of that clip. Historical replay is disabled by default. A private seven-day memory learns repeated confusions from clean observations across independent clips and ranks close OCR alternatives present in the current image; it does not invent missing characters or retrain model weights. Uncertain plates stay unconfirmed.
+Live plate recognition continuously samples fresh camera frames, including while recording is idle. Three independent, spatially consistent readings confirm a plate; OCR continues for other vehicles. Confirmed plates notify immediately, bypassing recording quiet periods. The same normalized observed plate can notify once per 180 seconds, including after restart; different plates have independent cooldowns. Completed videos keep their own oldest-first queue and video quiet rules. Historical video scanning remains disabled. Private seven-day memory ranks observed OCR alternatives using clean evidence across independent recordings; it does not invent missing characters or retrain the model.
 
 <a id="quick-start"></a>
 ## Quick start
@@ -50,18 +50,18 @@ New person or vehicle activity inside the polygon
   → start recording + local Windows alert and snapshot
   → first 120 seconds: keep detecting; no automatic rollover or new Telegram sends
   → movement from 120 seconds until before 300: close this clip and immediately start the next
-  → each new clip starts another 120-second Telegram quiet period
+  → each new clip starts another 120-second video-upload quiet period
   → 120 seconds without movement, or 300-second maximum: close and wait
   → completed videos stay queued until the current quiet period has ended
 ```
 
 A person or supported vehicle first observed after startup counts as new activity. Normal clips last **120–300 seconds**. Before 120 seconds, movement resets the inactivity interval without splitting the clip. From 120 seconds until the 300-second cap, detected movement ends the old clip and starts a new one immediately. No targets, or only stationary targets, both count as no movement; after 120 continuous seconds without movement, recording ends and waits for renewed movement or a new arrival.
 
-**Automatic Telegram deliveries include completed videos, confirmed plate observations and daily CSV reports.** Starting a clip keeps the Windows alert and local evidence, but sends no Telegram photo. Videos, plate messages and their retries do not start new Telegram sends during the current clip's first 120 seconds; daily CSV delivery remains the explicit exception. Repeated rollovers can therefore delay the backlog. A send already dispatched before the quiet period may still arrive; it cannot be recalled.
+**Automatic Telegram deliveries include completed videos, immediate confirmed plates and daily CSV reports.** Videos and their retries wait during a new clip's first 120 seconds; live plates and the daily CSV bypass this video quiet period. Starting a clip sends no Telegram photo.
 
 Manual stop or capture failure may leave a local partial clip shorter than 120 seconds. It is not padded to simulate extra footage and is not automatically sent before its quiet deadline; pending work also waits for any newer clip's quiet period.
 
-Videos and plate messages share one oldest-first queue, ordered by original detection time. Older retries and unfinished clips hold later events so the newest notification appears at the bottom of Telegram. Captions show Taiwan timestamps and observed plate text; plates already included in a caption are not sent twice. Late OCR older than the delivered timeline stays in local history. Videos upload in bounded chunks without reducing original quality. Existing Telegram messages cannot be reordered; daily CSV remains an independent 23:00 report.
+Live plate notifications and videos use independent delivery workers. Plate recognition never waits for video completion or upload. The same observed plate has a durable 180-second cooldown, while other plates can notify immediately. Videos retain trigger-time order and older failed uploads hold later videos. Captions can repeat the observed plate as video context. Existing Telegram messages cannot be reordered.
 
 Below the preview buttons, a local summary shows the most recent live vehicle detection time and any corresponding confirmed OCR value. Unknown plates stay unconfirmed; recording replay cannot replace the latest live observation. The summary survives restart and wraps within the footer.
 
@@ -99,7 +99,7 @@ These 36-second, silent demonstrations use the **actual preview renderer with a 
 
 ## Latest changes
 
-- People **or vehicles** moving inside the polygon can trigger recording. The 120–300-second clip rules and initial 120-second Telegram quiet period are unchanged.
+- People **or vehicles** moving inside the polygon can trigger recording. The 120–300-second clip rules and initial 120-second video-upload quiet period are unchanged.
 - Telegram video captions and the daily CSV separate people, vehicles and vehicle types. A vehicle clip without a confirmed plate says “車牌未確認” (plate unconfirmed); confirmed records retain the actual OCR text, Taiwan time and any fuzzy allowlist match separately.
 - Completed recordings retain a history result even when no plate is confirmed. Batch replay of existing recordings updates local history without sending a flood of old Telegram alerts; replay records are labeled separately from live observations.
 - Confirmed matches to your private allowlist, within two edits, are expanded by default. Other results stay in a collapsible section. Click a video filename to select the original in Windows File Explorer.
@@ -131,7 +131,7 @@ Keyboard shortcuts require preview focus. Settings persist relative to the camer
 
 **Can it run in VMware?** CPU inference is supported. MuMu needs working nested virtualization; VMware graphics acceleration does not provide CUDA compute. Keep the interactive session and live view available.
 
-**Why has a finished video not arrived?** The current clip's first 120 seconds defer new video/plate sends, including old retries; the daily CSV is exempt. Repeated rollovers extend that wait. Network failures also keep videos queued. A request already dispatched before a quiet period can still arrive during it.
+**Why has a finished video not arrived?** The current clip's first 120 seconds defer video sends and retries; plate messages and daily CSV are exempt. Older failed uploads block later videos until retry succeeds.
 
 <a id="docs"></a>
 <a id="documentation"></a>

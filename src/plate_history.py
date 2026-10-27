@@ -178,7 +178,7 @@ def record_clip_result(root, video, started_at, duration, now=None, request_id=N
               and start <= float(event["timestamp"]) <= end]
     if request_id is not None:
         events = [event for event in events if event.get("request_id") == request_id
-                  and event.get("complete_plate") and event.get("source") == "live_recording"][:1]
+                  and event.get("complete_plate") and event.get("source") == "live_recording"]
     if events:
         for event in events:
             record_result(root, dict(event, source_video=video.name, source_video_path=str(video)), now)

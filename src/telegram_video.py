@@ -1,10 +1,11 @@
-"""Durable Telegram queue; new dispatches honor every clip's quiet period.
+"""Durable video queue and independent immediate live-plate notifications.
 
-Old clips and retries remain queued while any recording is in its first two
+Videos and retries remain queued while any recording is in its first two
 minutes. The guard is checked before preparation and immediately before POST.
 A request already in flight before a quiet period begins cannot be recalled;
 Telegram's eventual delivery time is outside this process's control. Network
-work never holds a recorder transition lock or blocks capture.
+work never holds a recorder transition lock or blocks capture. Production live
+plate messages use a separate worker and a durable 180-second per-plate gate.
 """
 import os
 import subprocess
@@ -112,13 +113,19 @@ def load_credentials(path):
 
 
 class TelegramVideoQueue:
-    def __init__(self, root, log=print):
+    def __init__(self, root, log=print, immediate_plates=False):
         self.root = Path(root)
         self.directory = self.root / "runtime" / "telegram_upload_queue"
         self.directory.mkdir(parents=True, exist_ok=True)
         self.log = log
         self.stop_event = threading.Event()
         self.thread = None
+        self.plate_thread = None
+        self.immediate_plates = immediate_plates
+        self.immediate_sent = {}
+        self.immediate_latest = None
+        self.immediate_seen = set()
+        self.immediate_pending = {}
         self.lock = threading.Lock()
         self.plate_directory = self.root / "runtime" / "plate_events"
         self.plate_delivery = self.root / "runtime" / "telegram_plate_delivery"
@@ -126,6 +133,8 @@ class TelegramVideoQueue:
         self.sent_in_process = set()
         self.sent_details_in_process = {}
         self.order_file = self.root / "runtime" / "telegram_delivery_order.json"
+        if immediate_plates:
+            self.order_file = self.root / "runtime" / "telegram_video_order.json"
 
     def enqueue(self, path, request, duration, complete):
         path = Path(path).resolve()
@@ -136,6 +145,8 @@ class TelegramVideoQueue:
         job["clip_started_at"] = request.get("clip_started_at", job["created_at"]-duration)
         if request.get("single_plate_per_clip"):
             job["single_plate_per_clip"] = True
+        if request.get("continuous_plate_notifications"):
+            job["continuous_plate_notifications"] = True
         job["trigger_created_at"] = request.get("created_at", job["clip_started_at"])
         if isinstance(request.get("object_counts"), dict):
             job["object_counts"] = event_object_counts(request)
@@ -158,6 +169,10 @@ class TelegramVideoQueue:
         return result
 
     def start(self):
+        if self.immediate_plates:
+            self.plate_thread = threading.Thread(target=self.run_immediate_plates,
+                                                name="TelegramPlateNotifier", daemon=True)
+            self.plate_thread.start()
         self.thread = threading.Thread(target=self.run, name="TelegramVideoUploader", daemon=True)
         self.thread.start()
 
@@ -166,6 +181,8 @@ class TelegramVideoQueue:
         if self.thread:
             # Encoding checks the stop event every 100 ms and reaps its child.
             self.thread.join(timeout=6)
+        if self.plate_thread:
+            self.plate_thread.join(timeout=1)
 
     def prepare(self, job):
         source = Path(job["path"])
@@ -270,6 +287,9 @@ class TelegramVideoQueue:
         if job.get("single_plate_per_clip"):
             events = [event for event in events if event.get("request_id") == job.get("request_id")
                       and event.get("complete_plate") and event.get("source") == "live_recording"][:1]
+        elif job.get("continuous_plate_notifications"):
+            events = [event for event in events if event.get("request_id") == job.get("request_id")
+                      and event.get("complete_plate") and event.get("source") == "live_recording"]
         if events:
             text += "\n車牌紀錄（台灣時間）："
         included = []
@@ -326,7 +346,8 @@ class TelegramVideoQueue:
 
     def send_plate(self, event, token, chat_id):
         import requests
-        if self.stop_event.is_set() or not telegram_send_allowed(self.root):
+        if (self.stop_event.is_set() or (self.root / "runtime/stop.flag").exists()
+                or (not self.immediate_plates and not telegram_send_allowed(self.root))):
             raise TelegramDeferred("Telegram dispatch is currently deferred")
         response = requests.post("https://api.telegram.org/bot%s/sendMessage" % token,
             data=dict(chat_id=chat_id, text="SuperLive AI 車牌／車輛紀錄（台灣時間）\n"+event_line(event)
@@ -379,8 +400,8 @@ class TelegramVideoQueue:
         # Old-version sent jobs can remain for cleanup. They must not establish
         # a new watermark ahead of that version's undelivered video backlog.
         if "notified_through" in job:
-            self.advance_delivery_time(float(job["notified_through"]))
-        for event in job.get("notified_plates", []):
+            self.advance_delivery_time(event_time(job) if self.immediate_plates else float(job["notified_through"]))
+        for event in ([] if self.immediate_plates else job.get("notified_plates", [])):
             receipt = self.plate_receipt(event["id"])
             previous = read_json(receipt, {})
             if not previous.get("sent_at"):
@@ -399,7 +420,7 @@ class TelegramVideoQueue:
                 raise ValueError("Unreadable pending video")
             if not job.get("sent_at"):
                 items.append((event_time(job), 0, "video:"+manifest.name, manifest, job, job))
-        for event in self.plate_events():
+        for event in ([] if self.immediate_plates else self.plate_events()):
             manifest = self.plate_receipt(event["id"])
             state = read_json(manifest, {})
             if state.get("sent_at") or state.get("local_only"):
@@ -424,9 +445,112 @@ class TelegramVideoQueue:
         return start is None or stamp >= start
 
     def process_plates_once(self, now):
+        if self.immediate_plates:
+            return self.process_immediate_plates(now)
         # Compatibility for callers: never run an independent plate-only pass
         # that could overtake a video waiting in the shared timeline.
         self.process_once(now)
+
+    @staticmethod
+    def plate_key(event):
+        # Use the observed plate, never merge different vehicles via a fuzzy target.
+        return "".join(c for c in str(event.get("text") or event.get("raw_text") or "").upper()
+                       if c.isascii() and c.isalnum())
+
+    def process_immediate_plates(self, now=None):
+        """Live plates bypass video quiet/order gates, with durable per-plate cooldown."""
+        if self.stop_event.is_set() or (self.root / "runtime/stop.flag").exists():
+            return
+        fixed_now = now
+        if self.immediate_latest is None:
+            latest = {}
+            for path in self.plate_delivery.glob("*.json"):
+                receipt = read_json(path)
+                if not isinstance(receipt, dict):
+                    raise ValueError("Unreadable plate delivery receipt")
+                if receipt.get("plate_key") and receipt.get("sent_at"):
+                    key, stamp = receipt["plate_key"], float(receipt["sent_at"])
+                    if not math.isfinite(stamp):
+                        raise ValueError("Invalid plate delivery timestamp")
+                    latest[key] = max(latest.get(key, float("-inf")), stamp)
+            self.immediate_latest = latest
+        current_time = time.time() if fixed_now is None else fixed_now
+        self.immediate_latest = {key: stamp for key, stamp in self.immediate_latest.items()
+                                 if current_time-stamp < 180}
+        latest = self.immediate_latest
+        for receipt in self.immediate_sent.values():
+            key, stamp = receipt["plate_key"], receipt["sent_at"]
+            latest[key] = max(latest.get(key, float("-inf")), stamp)
+        # Event files are immutable after atomic publication. Read new files only,
+        # rather than repeatedly decoding seven days of OCR records every poll.
+        paths = list(self.plate_directory.glob("*.json"))
+        self.immediate_seen.intersection_update(path.name for path in paths)
+        for path in paths:
+            if path.name in self.immediate_seen:
+                continue
+            event = read_json(path)
+            if not isinstance(event, dict):
+                continue  # Retry a transient Windows sharing lock next poll.
+            try:
+                if event.get("confirmed") and event.get("id"):
+                    event_line(event)
+                    if event.get("notification_mode") == "immediate_plate" and event.get("source") in ("live", "live_recording"):
+                        self.immediate_pending[event["id"]] = event
+                self.immediate_seen.add(path.name)
+            except (ValueError, TypeError, KeyError, OSError, OverflowError):
+                continue
+        for event in sorted(list(self.immediate_pending.values()), key=lambda e: float(e["timestamp"])):
+            # Do not replay pre-upgrade or historical OCR notifications.
+            if event.get("notification_mode") != "immediate_plate" or event.get("source") not in ("live", "live_recording"):
+                continue
+            now = time.time() if fixed_now is None else fixed_now
+            if self.stop_event.is_set() or (self.root / "runtime/stop.flag").exists():
+                return
+            path = self.plate_receipt(event["id"])
+            state = read_json(path, {})
+            if state.get("sent_at") or state.get("local_only"):
+                self.immediate_pending.pop(event["id"], None)
+                continue
+            if state.get("retry_at", 0) > now:
+                continue
+            key = self.plate_key(event)
+            if not key:
+                continue
+            try:
+                if event["id"] not in self.immediate_sent:
+                    if now-latest.get(key, float("-inf")) < 180:
+                        atomic_json(path, dict(event_id=event["id"], local_only=True,
+                            reason="plate_cooldown_180s", retained_at=now))
+                        self.immediate_pending.pop(event["id"], None)
+                        continue
+                    token, chat_id = load_credentials(self.root / "config/telegram.env")
+                    if not token or not chat_id:
+                        raise RuntimeError("Telegram configuration missing")
+                    self.send_plate(event, token, chat_id)
+                    sent_at = time.time() if fixed_now is None else now
+                    self.immediate_sent[event["id"]] = dict(event_id=event["id"],
+                        event_timestamp=float(event["timestamp"]), plate_key=key, sent_at=sent_at)
+                    latest[key] = sent_at
+                atomic_json(path, self.immediate_sent[event["id"]])
+                del self.immediate_sent[event["id"]]
+                self.immediate_pending.pop(event["id"], None)
+                self.log("TELEGRAM_PLATE=PASS")
+            except TelegramDeferred:
+                return
+            except Exception as error:
+                attempts = int(state.get("attempts", 0))+1
+                state.update(event_id=event["id"], attempts=attempts,
+                             retry_at=now+min(300, 10*2**min(attempts, 5)))
+                atomic_json(path, state)
+                self.log("TELEGRAM_PLATE=RETRY TYPE=%s" % type(error).__name__)
+
+    def run_immediate_plates(self):
+        while not self.stop_event.is_set():
+            try:
+                self.process_immediate_plates()
+            except Exception as error:
+                self.log("TELEGRAM_PLATE_QUEUE_ERROR=%s" % type(error).__name__)
+            self.stop_event.wait(0.5)
 
     def process_once(self, now=None):
         fixed_now = now
@@ -435,7 +559,7 @@ class TelegramVideoQueue:
             return
         # New-version successful plate receipts carry their observation time.
         # Reconcile a crash/write failure between receipt and watermark writes.
-        for manifest in self.plate_delivery.glob("*.json"):
+        for manifest in ([] if self.immediate_plates else self.plate_delivery.glob("*.json")):
             receipt = read_json(manifest, {})
             if receipt.get("sent_at") and "event_timestamp" in receipt:
                 self.advance_delivery_time(float(receipt["event_timestamp"]))
