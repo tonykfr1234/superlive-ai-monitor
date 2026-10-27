@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-27 — Small-plate OCR enhancement
+
+- Compare original OCR with bounded enlargement, edge-preserving denoising, local contrast and mild sharpening; preserve raw evidence and count one source frame once.
+- Keep failed variants isolated and retain the original image for human review. No generative reconstruction or historical video scan.
+- Add a direct ZIP installation entry and explain extraction, first-run configuration and enhancement limitations.
+
 ## 2026-10-27 — Manual plate confirmation and vehicle registry
 
 - Add the P / Confirm plate button and a separate frozen-image review window, with per-vehicle selection, editable correct plate/color, and a private transactional SQLite registry with audit records.

@@ -488,11 +488,34 @@ def read_plate_sample(path, control, now, last_sample=None):
             time.sleep(0.02 * (2 ** attempt))
 
 
+def enhanced_plate_crops(crop):
+    """Bounded, non-generative OCR inputs; every output is still one source frame."""
+    import cv2
+    if crop.size == 0 or crop.shape[0] < 3 or crop.shape[1] < 8:
+        return []
+    height, width = crop.shape[:2]
+    if height >= 96 or width >= 384:
+        return []
+    enlarged = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_LANCZOS4)
+    results = [('lanczos3', enlarged)]
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    if float(gray.std()) < 2:
+        return results  # Blank pixels contain no characters to recover.
+    scale = min(4., 768./width, 192./height)
+    gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_LANCZOS4)
+    denoised = cv2.bilateralFilter(gray, 5, 25, 25)
+    contrast = cv2.createCLAHE(clipLimit=2., tileGridSize=(4, 4)).apply(denoised)
+    sharpened = cv2.addWeighted(contrast, 1.5, cv2.GaussianBlur(contrast, (0, 0), 1.), -.5, 0)
+    results.extend((name, cv2.cvtColor(pixels, cv2.COLOR_GRAY2BGR)) for name, pixels in
+                   [('denoise', denoised), ('contrast', contrast), ('unsharp', sharpened)])
+    return results
+
+
 def recognition_candidates(alpr, frame, prediction):
-    """Try one crop enlargement; choose by OCR confidence, never by allowlist.
+    """Compare original, enlarged and enhanced crops without consulting targets.
 
     Each source frame still contributes one consensus vote. Upscaling changes
-    interpolation, not the amount of camera detail, and both readings survive.
+    interpolation, not the amount of camera detail; all actual readings survive.
     """
     import cv2
     original = prediction.ocr
@@ -506,15 +529,14 @@ def recognition_candidates(alpr, frame, prediction):
     height, width = frame.shape[:2]
     crop = frame[max(0, int(box.y1)):min(height, int(box.y2)),
                  max(0, int(box.x1)):min(width, int(box.x2))]
-    if crop.size and crop.shape[0] < 96 and crop.shape[1] < 384:
-        enlarged = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_LANCZOS4)
+    for name, enhanced in enhanced_plate_crops(crop):
         try:
-            reading = alpr.ocr.predict(enlarged)
+            reading = alpr.ocr.predict(enhanced)
             if reading is not None:
                 candidates.append({"raw_text": reading.text,
                     "confidence": character_confidence(reading.text, reading.confidence),
                     "min_character_confidence": character_confidence(reading.text, reading.confidence, minimum=True),
-                    "variant": "lanczos3"})
+                    "variant": name})
         except Exception:
             pass  # A failed second attempt must not fabricate a replacement.
     valid = [item for item in candidates if 4 <= len(normalize_plate(item["raw_text"])) <= 12]
