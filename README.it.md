@@ -19,6 +19,15 @@ Per impostazione predefinita sono espansi solo i risultati confermati che corris
 
 Stato OCR, qualità e avanzamento del gruppo restano accanto ai comandi inferiori. Con il riconoscimento targhe attivo, le corrispondenze sono sempre visibili a destra, raggruppate per data di Taiwan con il conteggio giornaliero e le più recenti per prime. Nelle finestre strette l’elenco passa sotto l’immagine, che mantiene le proporzioni. “其他紀錄” espande gli altri risultati e porta a quella sezione; richiuderli riporta alle corrispondenze.
 
+
+## Interfaccia a quattro riquadri
+
+Video dal vivo in alto a sinistra, cronologia targhe a destra, ultima foto del veicolo in basso e comandi raggruppati. Trascina i titoli per scambiare i riquadri; L ripristina la disposizione. Esempio sintetico renderizzato con l’interfaccia reale.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Avvio rapido
 

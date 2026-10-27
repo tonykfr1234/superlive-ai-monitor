@@ -97,5 +97,8 @@ foreach ($Name in @('app_branding.py', 'hq_video.py', 'daily_report.py')) {
     if (-not (Test-Path -LiteralPath "$FreshRoot\scripts\$Name")) { throw "Missing new runtime helper: $Name" }
 }
 if ((Get-FileHash "$FreshRoot\assets\superlive-ai.ico").Hash -ne (Get-FileHash "$Kit\assets\superlive-ai.ico").Hash) { throw 'Icon deployment mismatch' }
+foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md', 'media\dashboard-preview.png', 'media\dashboard-guide.en.png', 'media\dashboard-guide.zh-TW.png', 'media\dashboard-layout.gif')) {
+    if ((Get-FileHash "$FreshRoot\docs\$Name").Hash -ne (Get-FileHash "$Kit\docs\$Name").Hash) { throw "Dashboard documentation mismatch: $Name" }
+}
 # Leave a small fixture for inspection. No recursive deletion is performed.
 Write-Host "FIXTURE=$TestRoot"

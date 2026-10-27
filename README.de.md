@@ -19,6 +19,15 @@ Bestätigte Treffer der privaten Kennzeichenliste mit höchstens zwei Zeichenän
 
 Erkennungsstatus, Bildqualität und Stapelfortschritt bleiben bei den unteren Bedienelementen. Bei aktivierter Kennzeichenerkennung stehen passende Einträge dauerhaft rechts, nach taiwanischem Kalenderdatum mit Tagesanzahl gruppiert, neueste zuerst. In schmalen Fenstern steht die Liste unter dem Kamerabild; dessen Seitenverhältnis bleibt erhalten. „其他紀錄“ öffnet die übrigen Einträge darunter und springt dorthin; erneutes Schließen führt zu den passenden Einträgen zurück.
 
+
+## Dashboard mit vier Bereichen
+
+Livebild oben links, Kennzeichenverlauf oben rechts, letztes Fahrzeugfoto unten links und alle Bedienelemente unten rechts. Titel ziehen, um Bereiche zu tauschen; L setzt die Anordnung zurück. Synthetische Darstellung mit dem echten UI-Renderer.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Schnellstart
 

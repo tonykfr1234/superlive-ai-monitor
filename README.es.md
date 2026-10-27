@@ -19,6 +19,15 @@ Por defecto se muestran los resultados confirmados que coinciden con la lista pr
 
 El estado del OCR, la calidad y el progreso del lote permanecen junto a los controles inferiores. Con el reconocimiento de matrículas activado, las coincidencias aparecen siempre a la derecha, agrupadas por fecha de Taiwán con un recuento diario y las más recientes primero. En ventanas estrechas, la lista pasa debajo de la cámara, que conserva su proporción. “其他紀錄” despliega y lleva a los demás registros; al contraerlos, vuelve a las coincidencias.
 
+
+## Panel de cuatro áreas
+
+Vídeo en directo arriba a la izquierda, historial de matrículas a la derecha, última foto del vehículo abajo y controles agrupados. Arrastra los títulos para intercambiar áreas; L restaura el diseño. Ejemplo sintético generado con la interfaz real.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Inicio rápido
 

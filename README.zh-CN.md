@@ -31,6 +31,15 @@ SuperLive AI Monitor 为 Windows 上 MuMu 中的 SuperLive 实时画面添加人
 
 识别状态、画质和批次进度保留在底部按钮区。启用车牌识别时，匹配名单的记录常驻右侧，按台湾日期分组并显示每日数量，日期和记录由新到旧排列；窄窗口将列表放在画面下方，影像保持等比例。“其他紀錄”按钮展开并跳到下方其他结果，收起后返回匹配记录。
 
+
+## 四区动态监控界面
+
+左上实时画面、右上车牌记录、左下最近车辆图片、右下集中按钮。拖动标题交换位置，按 L 恢复。示例由实际界面绘制，车辆和车牌均为合成内容。
+
+![Dashboard diagram](docs/media/dashboard-guide.zh-TW.png)
+
+[操作說明 / Guide](docs/DASHBOARD.zh-TW.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## 快速开始
 

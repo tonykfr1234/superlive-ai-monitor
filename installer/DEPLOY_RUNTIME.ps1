@@ -82,7 +82,7 @@ if ([string]::IsNullOrWhiteSpace($Recording.record_root)) { throw 'Recording dir
 if (Test-Path -LiteralPath $Root) {
     $Backup = Join-Path $Root ('backups\event_recording_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '_' + [guid]::NewGuid().ToString('N').Substring(0, 6))
     New-Item -ItemType Directory -Force -Path $Backup | Out-Null
-    foreach ($Name in @('scripts', 'config', 'assets', 'Start_AI_Monitor.bat', 'Stop_AI_Monitor.bat')) {
+    foreach ($Name in @('scripts', 'config', 'assets', 'docs', 'Start_AI_Monitor.bat', 'Stop_AI_Monitor.bat')) {
         $Source = Join-Path $Root $Name
         if (Test-Path -LiteralPath $Source) { Copy-Item -LiteralPath $Source -Destination $Backup -Recurse -Force }
     }
@@ -170,6 +170,19 @@ if ($InstallDependencies -or $InstallUpdateDependencies) {
 foreach ($Name in $ScriptMap.Keys) { Copy-Item -LiteralPath "$Repo\src\$Name" -Destination (Join-Path "$Root\scripts" $ScriptMap[$Name]) -Force }
 New-Item -ItemType Directory -Force -Path "$Root\assets" | Out-Null
 Copy-Item -LiteralPath "$Repo\assets\superlive-ai.ico" -Destination "$Root\assets\superlive-ai.ico" -Force
+New-Item -ItemType Directory -Force -Path "$Root\docs\media" | Out-Null
+foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md')) {
+    Copy-Item -LiteralPath "$Repo\docs\$Name" -Destination "$Root\docs\$Name" -Force
+}
+foreach ($Name in @('dashboard-preview.png', 'dashboard-guide.en.png', 'dashboard-guide.zh-TW.png', 'dashboard-layout.gif')) {
+    Copy-Item -LiteralPath "$Repo\docs\media\$Name" -Destination "$Root\docs\media\$Name" -Force
+}
+foreach ($Guide in Get-ChildItem -LiteralPath "$Repo\docs" -Filter '*.txt' -File) {
+    Copy-Item -LiteralPath $Guide.FullName -Destination "$Root\docs" -Force
+    if (-not (Test-Path -LiteralPath (Join-Path $Root $Guide.Name))) {
+        Copy-Item -LiteralPath $Guide.FullName -Destination $Root
+    }
+}
 $Policy | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "$Root\config\notification_policy.json" -Encoding UTF8
 $Recording | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "$Root\config\recording_config.json" -Encoding UTF8
 Copy-Item -LiteralPath "$Repo\requirements-plates.txt" -Destination "$Root\requirements-plates.txt" -Force

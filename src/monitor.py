@@ -328,7 +328,7 @@ def main():
     next_capture = 0.0
     capture_status = "WAITING_FOR_MUMU"
     last_frame = np.zeros((540, 960, 3), dtype=np.uint8)
-    canvas_size = (1100, 760) if plate_service else (960, 720)
+    canvas_size = (1280, 820)
     controller = PreviewController(cfg["roi"])
     controller.plate_enabled = bool(plate_service)
     controller.plate_filter_targets = load_allowlist(ROOT)
@@ -336,6 +336,11 @@ def main():
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     latest_vehicle = LatestVehicleTracker(ROOT)
     controller.latest_vehicle = latest_vehicle.snapshot()
+    view_settings = read_json(ROOT / "runtime/preview_layout.json", {})
+    saved_order = view_settings.get("panel_order") if isinstance(view_settings, dict) else None
+    if (isinstance(saved_order, list) and len(saved_order) == 4
+            and all(isinstance(name, str) for name in saved_order) and set(saved_order) == set(controller.panel_order)):
+        controller.panel_order = saved_order
     detection_session = DetectionSession()
     ui_actions = []
     message = None
@@ -460,7 +465,7 @@ def main():
                     cv2.rectangle(evidence, (x1, y1), (x2, y2), color, 2)
                 count = len(people)
             controller.object_counts = object_counts(people) if count is not None else None
-            latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None)
+            latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None, frame=frame)
 
             if plate_service:
                 if time.monotonic() >= next_plate_filter_read:
@@ -486,12 +491,14 @@ def main():
             except (cv2.error, AttributeError):
                 pass
             controller.latest_vehicle = latest_vehicle.snapshot()
+            controller.latest_vehicle_image = latest_vehicle.image
             controller.layout = PreviewLayout.create(width, height, *canvas_size,
                 show_plates=controller.plate_enabled,
                 plate_sidebar=controller.plate_enabled,
                 plates_open=controller.plate_panel_open if plate_service else False,
                 plate_status_text="",
-                latest_vehicle_status=latest_vehicle_footer_text(controller))
+                latest_vehicle_status=latest_vehicle_footer_text(controller),
+                dashboard=True, panel_order=controller.panel_order)
             state = read_json(STATE_FILE)
             status = preview_status(state, REQUEST_FILE.exists(), capture_status)
             elapsed = state.get("elapsed_seconds") if isinstance(state, dict) else None
@@ -515,6 +522,11 @@ def main():
                 action = ui_actions.pop(0)
                 if action.kind == "stop":
                     STOP_FLAG.write_text("STOP", encoding="utf-8")
+                elif action.kind == "layout_changed":
+                    try:
+                        atomic_json(ROOT / "runtime/preview_layout.json", dict(panel_order=controller.panel_order))
+                    except OSError:
+                        message, message_until = "排列已更新，本次無法儲存設定", time.monotonic()+5
                 elif action.kind == "reveal_video":
                     if reveal_thread is None or not reveal_thread.is_alive():
                         reveal_thread = threading.Thread(target=reveal_in_background,

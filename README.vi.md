@@ -30,6 +30,15 @@ Mặc định chỉ mở các kết quả đã xác nhận khớp danh sách ri�
 
 Trạng thái OCR, chất lượng và tiến độ xử lý vẫn nằm cùng các nút phía dưới. Khi bật nhận dạng biển số, các kết quả khớp luôn hiển thị bên phải, nhóm theo ngày tại Đài Loan kèm số lượng mỗi ngày và xếp mới nhất trước. Với cửa sổ hẹp, danh sách nằm dưới camera; hình ảnh giữ nguyên tỷ lệ. Nút “其他紀錄” mở rộng và chuyển đến các bản ghi khác bên dưới; thu gọn sẽ quay lại các kết quả khớp.
 
+
+## Giao diện bốn khu vực
+
+Video trực tiếp ở trên trái, lịch sử biển số ở trên phải, ảnh xe gần nhất ở dưới trái và các nút điều khiển ở dưới phải. Kéo tiêu đề để đổi vị trí; nhấn L để đặt lại. Hình minh họa tổng hợp được tạo bằng giao diện thật.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Bắt đầu nhanh
 

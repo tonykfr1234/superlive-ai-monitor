@@ -9,6 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import math
+import time
 
 from region_policy import roi_vertices, validate_roi
 from latest_vehicle import latest_vehicle_text
@@ -44,10 +45,15 @@ class PreviewLayout:
     plate_sidebar: bool = False
     latest_vehicle_lines: tuple = ()
     latest_vehicle_top: int = 0
+    panels: object = None
+    headers: object = None
 
     @classmethod
     def create(cls, frame_width, frame_height, width=960, height=720, show_plates=False,
-               plates_open=False, plate_status_text="", plate_sidebar=False, latest_vehicle_status=""):
+               plates_open=False, plate_status_text="", plate_sidebar=False, latest_vehicle_status="",
+               dashboard=False, panel_order=None):
+        if dashboard:
+            return cls.four_panel(frame_width, frame_height, width, height, show_plates, panel_order)
         width = max(320, int(width))
         plate_sidebar = bool(show_plates and plate_sidebar)
         side_panel = plate_sidebar and width >= 900
@@ -100,6 +106,45 @@ class PreviewLayout:
         return cls(width, height, video, footer, buttons, font_size, line_height, line_count,
                    plates, plate_lines, plate_sidebar, latest_lines, latest_top)
 
+    @classmethod
+    def four_panel(cls, frame_width, frame_height, width, height, show_plates, order):
+        width, height = max(640, int(width)), max(720, int(height))
+        gap, margin, header = 12, 12, 38
+        available = width-margin*2-gap
+        left = round(available*(.62 if width >= 1000 else .5))
+        right = available-left
+        # Match the camera aspect where possible, while reserving useful lower cards.
+        top = min(height-margin*2-gap-330, max(330, round(left*frame_height/max(1, frame_width))+header))
+        bottom = height-margin*2-gap-top
+        slots = [Rect(margin, margin, left, top), Rect(margin+left+gap, margin, right, top),
+                 Rect(margin, margin+top+gap, left, bottom),
+                 Rect(margin+left+gap, margin+top+gap, right, bottom)]
+        names = ("camera", "plates", "latest", "controls")
+        order = (list(order) if isinstance(order, (list, tuple)) and len(order) == 4
+                 and all(isinstance(name, str) for name in order) and set(order) == set(names) else list(names))
+        panels = dict(zip(order, slots))
+        headers = {name: Rect(rect.x, rect.y, rect.width, header) for name, rect in panels.items()}
+        camera = panels["camera"]
+        content = Rect(camera.x+2, camera.y+header, camera.width-4, camera.height-header-2)
+        scale = min(content.width/max(1, frame_width), content.height/max(1, frame_height))
+        vw, vh = max(1, round(frame_width*scale)), max(1, round(frame_height*scale))
+        video = Rect(content.x+(content.width-vw)//2, content.y+(content.height-vh)//2, vw, vh)
+        control = panels["controls"]
+        size = max(12, min(18, control.width//24))
+        line_height = size+6
+        footer = Rect(control.x+12, control.y+header+4, control.width-24, control.height-header-16)
+        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("reset_layout",))
+        button_height = max(32, size+20)
+        button_top = control.y+control.height-12-len(rows)*(button_height+8)
+        buttons = {name: Rect(control.x+12+col*((control.width-24-8*(len(names_in_row)-1))//len(names_in_row)+8),
+                              button_top+row*(button_height+8),
+                              (control.width-24-8*(len(names_in_row)-1))//len(names_in_row), button_height)
+                   for row, names_in_row in enumerate(rows) for col, name in enumerate(names_in_row)}
+        p = panels["plates"]
+        plates = Rect(p.x+2, p.y+header, p.width-4, p.height-header-2) if show_plates else None
+        return cls(width, height, video, footer, buttons, size, line_height, 4,
+                   plates=plates, plate_sidebar=True, panels=panels, headers=headers)
+
     def button_at(self, x, y):
         return next((name for name, rect in self.buttons.items() if rect.contains(x, y)), None)
 
@@ -146,6 +191,11 @@ class PreviewController:
         self.plate_scan_status = ""
         self.object_counts = None
         self.latest_vehicle = {}
+        self.latest_vehicle_image = None
+        self.panel_order = ["camera", "plates", "latest", "controls"]
+        self._panel_drag = None
+        self.hover_point = None
+        self.animation_time = None
         self.plate_scroll = 0
         self.plate_scroll_max = 0
         self.plate_page_lines = 1
@@ -173,6 +223,10 @@ class PreviewController:
         self.pressed_button = None
 
     def command(self, name):
+        if name == "reset_layout":
+            self.panel_order = ["camera", "plates", "latest", "controls"]
+            self._panel_drag = None
+            return UIAction("layout_changed", event=list(self.panel_order))
         if name == "plates" and self.layout is not None and "plates" in self.layout.buttons:
             if self.layout.plate_sidebar:
                 self.plate_other_expanded = not self.plate_other_expanded
@@ -210,6 +264,9 @@ class PreviewController:
         return None
 
     def key(self, key):
+        if key == 27 and self._panel_drag:
+            self._panel_drag = None
+            return None
         # waitKeyEx keeps Win32 extended keys; X11 values support other backends.
         if key in ("page_up", 0x210000, 65365):
             self.scroll_plates(-self.plate_page_lines)
@@ -229,6 +286,8 @@ class PreviewController:
             return self.command("full")
         if key in (ord("q"), ord("Q")):
             return self.command("stop")
+        if key in (ord("l"), ord("L")):
+            return self.command("reset_layout")
         if key == 27:
             return self.command("cancel" if self.selecting else "stop")
         if key in (8, 127):
@@ -264,6 +323,26 @@ class PreviewController:
     def mouse(self, event, x, y):
         if self.layout is None:
             return None
+        self.hover_point = (x, y)
+        if self.layout.panels:
+            if self._panel_drag:
+                if event == "up":
+                    source, self._panel_drag = self._panel_drag, None
+                    target = next((name for name, rect in self.layout.panels.items() if rect.contains(x, y)), None)
+                    if target and target != source:
+                        a, b = self.panel_order.index(source), self.panel_order.index(target)
+                        self.panel_order[a], self.panel_order[b] = self.panel_order[b], self.panel_order[a]
+                        self.plate_links, self.plate_group_hits = [], []
+                        self._plate_hit_state = None
+                        return UIAction("layout_changed", event=list(self.panel_order))
+                return None
+            if event == "down":
+                header = next((name for name, rect in self.layout.headers.items() if rect.contains(x, y)), None)
+                if header:
+                    self._panel_drag = header
+                    self.pressed_button = None
+                    self._pressed_plate = None
+                    return None
         if event in ("wheel_up", "wheel_down"):
             if self.layout.plates and self.layout.plates.contains(x, y):
                 self.scroll_plates(-3 if event == "wheel_up" else 3)
@@ -402,8 +481,8 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
     hint = "按鈕可點擊｜R 設定區域・C 全畫面・Q 停止" if chinese else "Click buttons | R: region  C: full frame  Q: stop"
     if status == "RECORDING":
         if elapsed is None or elapsed < 120:
-            hint = ("前 2 分鐘不切段・Telegram 靜默｜滿 2 分鐘後移動即切新段" if chinese else
-                    "First 2 min: no split, Telegram quiet | Then movement starts a new clip")
+            hint = ("前 2 分鐘不切段・影片傳送靜默｜滿 2 分鐘後移動即切新段" if chinese else
+                    "First 2 min: no split, video quiet | Then movement starts a new clip")
         else:
             hint = ("移動即切新段｜連續 2 分鐘無移動結束｜單段最多 5 分鐘" if chinese else
                     "Movement: new clip | End after 2 min inactivity | 5 min maximum")
@@ -680,11 +759,154 @@ def render_plate_panel(draw, controller, font, chinese):
     draw.rounded_rectangle(thumb.bounds, radius=4, fill=(85, 169, 193) if controller.plate_scroll_max else (63, 92, 111))
 
 
+def _dashboard_photo(image, source, rect, contain=True):
+    """Display the full source on a soft backdrop without cropping evidence."""
+    from PIL import Image, ImageOps, ImageFilter
+    backdrop = source.resize((48, 32)).filter(ImageFilter.GaussianBlur(5))
+    backdrop = Image.blend(backdrop, Image.new("RGB", backdrop.size, (18, 32, 49)), .65)
+    image.paste(backdrop.resize((rect.width, rect.height), Image.Resampling.BILINEAR), (rect.x, rect.y))
+    if contain:
+        fitted = ImageOps.contain(source, (rect.width, rect.height), Image.Resampling.BILINEAR)
+        image.paste(fitted, (rect.x+(rect.width-fitted.width)//2, rect.y+(rect.height-fitted.height)//2))
+
+
+def render_dashboard(frame, controller, status, count=None, infer_ms=None, elapsed=None, message=None):
+    import numpy as np
+    from PIL import Image, ImageDraw
+    layout = controller.layout
+    now = controller.animation_time if controller.animation_time is not None else time.monotonic()
+    pulse = (math.sin(now*2.5)+1)/2
+    image = Image.new("RGB", (layout.width, layout.height), (10, 17, 29))
+    draw = ImageDraw.Draw(image)
+    font, chinese = ui_font(layout.font_size)
+    title_font, _ = ui_font(17 if layout.width >= 1000 else 14)
+    small, _ = ui_font(max(12, layout.font_size-2))
+    titles = ({"camera": "01  即時監視", "plates": "02  車牌紀錄", "latest": "03  最近車輛", "controls": "04  操作中心"}
+              if chinese else {"camera": "01  LIVE CAMERA", "plates": "02  PLATE HISTORY", "latest": "03  LATEST VEHICLE", "controls": "04  CONTROLS"})
+    for name, panel in layout.panels.items():
+        draw.rounded_rectangle((panel.x+2, panel.y+4, panel.x+panel.width+2, panel.y+panel.height+4), 14, fill=(5, 10, 18))
+        edge = (45, 76, 102)
+        if name == "camera" and status == "RECORDING":
+            edge = (int(140+90*pulse), 72, 83)
+        if controller._panel_drag and controller.hover_point and panel.contains(*controller.hover_point):
+            edge = (89, 225, 235)
+        draw.rounded_rectangle(panel.bounds, 14, fill=(17, 29, 45), outline=edge, width=2)
+        draw.text((panel.x+14, panel.y+9), titles[name], font=title_font, fill=(200, 229, 244))
+        for dx in (0, 5):
+            for dy in (0, 5, 10):
+                x, y = panel.x+panel.width-27+dx, panel.y+13+dy
+                draw.ellipse((x, y, x+2, y+2), fill=(100, 155, 180))
+    camera = layout.panels["camera"]
+    content = Rect(camera.x+2, camera.y+38, camera.width-4, camera.height-40)
+    source = Image.fromarray(frame[:, :, ::-1])
+    _dashboard_photo(image, source, content, contain=False)
+    image.paste(source.resize((layout.video.width, layout.video.height), Image.Resampling.BILINEAR),
+                (layout.video.x, layout.video.y))
+    draw = ImageDraw.Draw(image)
+    if controller.roi is not None:
+        points = layout.roi_points(controller.roi)
+        draw.line(points+points[:1], fill=(66, 219, 224), width=2)
+    if controller.selecting and controller.draft:
+        points = [layout.canvas_point(point) for point in controller.draft]
+        color = (255, 192, 80) if controller.can_confirm or len(points) < 3 else (255, 117, 112)
+        if len(points) > 1:
+            draw.line(points+(points[:1] if len(points) >= 3 else []), fill=color, width=3)
+        for x, y in points:
+            draw.ellipse((x-4, y-4, x+4, y+4), fill=color)
+    if status == "RECORDING":
+        x, y = camera.x+camera.width-75, camera.y+19
+        draw.ellipse((x-3, y-3, x+3, y+3), fill=(int(160+90*pulse), 89, 104))
+        draw.text((x+8, y-9), "REC", font=small, fill=(255, 162, 170))
+    render_plate_panel(draw, controller, font, chinese)
+    if layout.plates is None:
+        p = layout.panels["plates"]
+        draw.text((p.x+16, p.y+54), "車牌辨識未啟用" if chinese else "Plate recognition disabled", font=font, fill=(142, 164, 185))
+    # The saved crop and its own timestamp are separate from current camera pixels.
+    p = layout.panels["latest"]
+    area = Rect(p.x+12, p.y+48, p.width-24, p.height-60)
+    photo = controller.latest_vehicle_image
+    record = controller.latest_vehicle
+    meta_height = 78 if area.width < 450 else 90
+    picture = Rect(area.x, area.y, area.width, max(28, area.height-meta_height))
+    if photo is not None and getattr(photo, "size", 0):
+        _dashboard_photo(image, Image.fromarray(photo[:, :, ::-1]), picture)
+        draw = ImageDraw.Draw(image)
+    else:
+        draw.rounded_rectangle(picture.bounds, 9, fill=(24, 42, 60), outline=(43, 69, 89))
+        label = "等待車輛影像" if chinese else "Waiting for a vehicle image"
+        draw.text((picture.x+14, picture.y+max(6, picture.height//2-12)), label, font=font, fill=(139, 177, 195))
+    stamp = record.get("timestamp")
+    date = (datetime.fromtimestamp(stamp, timezone(timedelta(hours=8))).strftime("%Y/%m/%d %H:%M:%S")
+            if isinstance(stamp, (int, float)) and math.isfinite(stamp) and stamp > 0 else "--")
+    lines = [("最近偵測  " if chinese else "Last seen  ")+date]
+    if record.get("plate"):
+        lines.append(("車牌  " if chinese else "Plate  ")+str(record["plate"]))
+    photo_stamp = record.get("image_timestamp")
+    if photo is not None and isinstance(photo_stamp, (int, float)):
+        lines.append(("影像時間  " if chinese else "Image captured  ")+
+                     datetime.fromtimestamp(photo_stamp, timezone(timedelta(hours=8))).strftime("%H:%M:%S"))
+    for index, text in enumerate(lines):
+        draw.text((area.x+2, picture.y+picture.height+8+index*22), text,
+                  font=font if index < 2 else small, fill=(155, 227, 199) if index == 1 else (182, 207, 223))
+    # All actions stay in the controls card, including layout reset.
+    control = layout.panels["controls"]
+    status_bottom = min(rect.y for rect in layout.buttons.values())-6
+    lines = status_lines(controller, status, count, infer_ms, elapsed, message)
+    if controller.selecting:
+        lines = [lines[1], lines[0]]  # Selection errors must remain visible in short cards.
+    elif message:
+        lines = [message, lines[0]]
+    text_y = control.y+44
+    for line in lines:
+        for text in wrap_panel_text(draw, line, small, control.width-28):
+            if text_y+layout.line_height > status_bottom:
+                break
+            draw.text((control.x+14, text_y), text, font=small, fill=(157, 206, 226))
+            text_y += layout.line_height
+        if text_y+layout.line_height > status_bottom:
+            break
+    labels = ({"select": "R  設定區域", "full": "C  全畫面", "stop": "Q  停止",
+               "confirm": "Enter  儲存", "cancel": "Esc  取消", "plates": "收起其他" if controller.plate_other_expanded else "其他紀錄",
+               "reset_layout": "L  還原四區排列"} if chinese else
+              {"select": "R  Set region", "full": "C  Full frame", "stop": "Q  Stop",
+               "confirm": "Enter  Save", "cancel": "Esc  Cancel", "plates": "Hide others" if controller.plate_other_expanded else "Other records",
+               "reset_layout": "L  Reset layout"})
+    for name, rect in layout.buttons.items():
+        enabled = name not in ("confirm", "cancel") or (controller.can_confirm if name == "confirm" else controller.selecting)
+        if name == "plates" and not controller.plate_enabled:
+            enabled = False
+        hover = controller.hover_point and rect.contains(*controller.hover_point)
+        color = (34, 66, 86) if enabled else (25, 36, 50)
+        if name == "stop":
+            color = (106, 45, 58)
+        elif name == "select" and controller.selecting:
+            color = (21, 100, 114)
+        if hover and enabled:
+            color = tuple(min(255, value+18) for value in color)
+        draw.rounded_rectangle(rect.bounds, 8, fill=color,
+                               outline=(92, 190, 211) if hover and enabled else (48, 79, 101))
+        text = labels[name]
+        button_font = font
+        for size in range(layout.font_size, 10, -1):
+            button_font = ui_font(size)[0]
+            if draw.textbbox((0, 0), text, font=button_font)[2] <= rect.width-12:
+                break
+        box = draw.textbbox((0, 0), text, font=button_font)
+        draw.text((rect.x+(rect.width-(box[2]-box[0]))/2, rect.y+(rect.height-(box[3]-box[1]))/2-box[1]),
+                  text, font=button_font, fill=(230, 242, 250) if enabled else (99, 120, 140))
+    if controller._panel_drag:
+        p = layout.panels[controller._panel_drag]
+        draw.rounded_rectangle(p.bounds, 14, outline=(95, 232, 237), width=3)
+    return np.array(image)[:, :, ::-1].copy()
+
+
 def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed=None, message=None):
     """Return a BGR canvas; never change the source/evidence frame."""
     import numpy as np
     from PIL import Image, ImageDraw
     layout = controller.layout
+    if layout.panels:
+        return render_dashboard(frame, controller, status, count, infer_ms, elapsed, message)
     image = Image.new("RGB", (layout.width, layout.height), (9, 14, 21))
     source = Image.fromarray(frame[:, :, ::-1]).resize((layout.video.width, layout.video.height), Image.Resampling.BILINEAR)
     image.paste(source, (layout.video.x, layout.video.y))

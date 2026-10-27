@@ -31,6 +31,15 @@ The 12 README languages translate the documentation. The application preview cur
 
 Live plate recognition continuously samples fresh camera frames, including while recording is idle. Three independent, spatially consistent readings confirm a plate; OCR continues for other vehicles. Confirmed plates notify immediately, bypassing recording quiet periods. The same normalized observed plate can notify once per 180 seconds, including after restart; different plates have independent cooldowns. Completed videos keep their own oldest-first queue and video quiet rules. Historical video scanning remains disabled. Private seven-day memory ranks observed OCR alternatives using clean evidence across independent recordings; it does not invent missing characters or retrain the model.
 
+
+## Four-panel dashboard
+
+Live camera at top left, plate history at top right, latest vehicle photo below, and all controls together. Drag card headers to swap positions; press L to reset. Synthetic illustration, rendered by the actual application.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Quick start
 
@@ -86,6 +95,8 @@ Movement is a proxy derived from person/vehicle-box position and size, not pose 
 
 <a id="demo"></a>
 ## Demo
+
+The following workflow clips show the earlier layout; use the dashboard guide above for the current UI and immediate plate notification policy.
 
 These 36-second, silent demonstrations use the **actual preview renderer with a synthetic scene, scripted person boxes and simulated recording states**. Bilingual captions explain the workflow. They are not real camera recordings or evidence of YOLO detection accuracy. The video **compresses the 120-second intervals** to show the initial Telegram quiet period, movement-triggered rollover and subsequent waiting quickly.
 

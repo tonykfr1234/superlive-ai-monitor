@@ -281,7 +281,8 @@ class ActivityMonitorTests(unittest.TestCase):
         self.patch(monitor, "capture_frame", capture_frame)
         model = SimpleNamespace(predict=Mock(return_value=[SimpleNamespace(boxes=None)]))
         self.patch(monitor, "YOLO", Mock(return_value=model))
-        controller = SimpleNamespace(roi=None, selecting=False, layout=None, key=Mock(return_value=None))
+        controller = SimpleNamespace(roi=None, selecting=False, layout=None, key=Mock(return_value=None),
+                                     panel_order=['camera', 'plates', 'latest', 'controls'])
         if select_after_inference:
             def key(_):
                 controller.selecting = True

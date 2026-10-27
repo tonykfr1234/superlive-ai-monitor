@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import math
 from pathlib import Path
 import time
+import hashlib
 
 from record_protocol import atomic_json, read_json
 
@@ -92,6 +93,24 @@ class LatestVehicleTracker:
         self._dirty = False
         self._last_write = -math.inf
         self.persistence_error = False
+        self.image = None
+        self._last_image_at = -math.inf
+        self.image_path = self.path.with_suffix(".jpg")
+        # A hash binds the restored photo to the JSON observation. A crash between
+        # the two atomic writes cannot display a previous vehicle under a new plate.
+        if self.latest and isinstance(saved, dict) and saved.get("image_sha256"):
+            try:
+                import cv2
+                import numpy as np
+                data = self.image_path.read_bytes()
+                if hashlib.sha256(data).hexdigest() == saved["image_sha256"]:
+                    image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                    image_stamp = _stamp(saved.get("image_timestamp"))
+                    if image is not None and image_stamp is not None and image_stamp <= self.latest["timestamp"]:
+                        self.image = image
+                        self.latest.update(image_timestamp=image_stamp, image_sha256=saved["image_sha256"])
+            except (OSError, ValueError, ImportError):
+                pass
 
     def snapshot(self):
         return deepcopy(self.latest)
@@ -116,7 +135,7 @@ class LatestVehicleTracker:
         self._observations.clear()
         self.flush(force=True)
 
-    def observe(self, detections, timestamp, frame_size, available=True):
+    def observe(self, detections, timestamp, frame_size, available=True, frame=None):
         """Observe only a successfully captured, inferred, non-editing ROI frame."""
         if not available:
             self.suspend()
@@ -143,6 +162,8 @@ class LatestVehicleTracker:
             self._context_start = stamp
             self._observations.clear()
             self.latest = {"timestamp": stamp, "plate": "", "plate_timestamp": None}
+            self.image = None
+            self._last_image_at = -math.inf
         else:
             boxes = ordered
         self.latest["timestamp"] = stamp
@@ -151,7 +172,45 @@ class LatestVehicleTracker:
         while self._observations and stamp-self._observations[0][0] > HISTORY_SECONDS:
             self._observations.popleft()
         self._dirty = True
+        if frame is not None:
+            self.capture_image(frame, boxes, stamp)
         self.flush(force=not same_group)
+
+    def capture_image(self, frame, boxes, stamp):
+        """Keep a bounded, local crop of this vehicle group; never use stale frames."""
+        if stamp-self._last_image_at < 1 or not boxes:
+            return
+        import cv2
+        height, width = frame.shape[:2]
+        if self._frame_size != (width, height):
+            return
+        left, top = min(b[0] for b in boxes), min(b[1] for b in boxes)
+        right, bottom = max(b[2] for b in boxes), max(b[3] for b in boxes)
+        pad_x, pad_y = (right-left)*.12, (bottom-top)*.12
+        x1, y1 = max(0, int((left-pad_x)*width)), max(0, int((top-pad_y)*height))
+        x2, y2 = min(width, math.ceil((right+pad_x)*width)), min(height, math.ceil((bottom+pad_y)*height))
+        crop = frame[y1:y2, x1:x2].copy()
+        if not crop.size:
+            return
+        scale = min(1, 960/crop.shape[1], 540/crop.shape[0])
+        if scale < 1:
+            crop = cv2.resize(crop, (max(1, round(crop.shape[1]*scale)), max(1, round(crop.shape[0]*scale))))
+        self.image = crop
+        self.latest["image_timestamp"] = stamp
+        self.latest.pop("image_sha256", None)
+        self._last_image_at = stamp
+        try:
+            ok, encoded = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            if not ok:
+                return
+            data = encoded.tobytes()
+            self.image_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.image_path.with_suffix(".jpg.tmp")
+            temporary.write_bytes(data)
+            temporary.replace(self.image_path)
+            self.latest["image_sha256"] = hashlib.sha256(data).hexdigest()
+        except (OSError, cv2.error):
+            self.persistence_error = True
 
     def update_plates(self, events):
         if not self._observations:

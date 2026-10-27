@@ -30,6 +30,15 @@ Secara bawaan, hanya hasil terkonfirmasi yang cocok dengan daftar pribadi hingga
 
 Status OCR, kualitas gambar, dan progres pemrosesan tetap bersama kontrol bawah. Saat pengenalan pelat aktif, hasil yang cocok selalu terlihat di kanan, dikelompokkan menurut tanggal Taiwan dengan jumlah harian dan hasil terbaru di atas. Pada jendela sempit, daftar berada di bawah kamera; rasio gambar tetap terjaga. “其他紀錄” membuka dan menuju catatan lainnya; menutupnya mengembalikan tampilan ke hasil yang cocok.
 
+
+## Dasbor empat panel
+
+Video langsung di kiri atas, riwayat pelat di kanan atas, foto kendaraan terbaru di kiri bawah, dan semua kontrol di kanan bawah. Seret judul untuk bertukar posisi; tekan L untuk mengatur ulang. Contoh sintetis dirender dengan antarmuka asli.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Mulai cepat
 

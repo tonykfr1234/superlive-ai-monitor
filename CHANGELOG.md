@@ -2,6 +2,10 @@
 
 ## 2026-10-27
 
+- Add a responsive four-card preview: live camera, plate history, latest vehicle crop and consolidated controls. Drag headers to swap cards, press L to restore the default layout, and persist ordering locally. Preserve camera proportions with a soft backdrop, recording pulse and hover/drag highlights.
+- Save only the latest bounded vehicle-group crop locally, with its capture time and a hash binding it to the observation JSON. Restore matching photos after restart; a new group never inherits the previous vehicle photo. Publish regenerated synthetic screenshots, bilingual diagram captions and an animated layout demo.
+- 改為四區介面：左上即時畫面、右上車牌紀錄、左下最近車輛圖片與時間、右下集中操作。拖曳標題可交換位置，L 還原預設排列並儲存本機；畫面等比例呈現、柔化背景補齊，加入錄影呼吸燈及滑鼠提示效果。
+- 最近車輛圖片只保存在本機，附擷取時間並核對圖片雜湊後還原；新車群不沿用舊圖片。同步更新合成示例圖、中英文圖說、排列動畫及使用說明，不公開真實監視器畫面。
 - Replace the earlier one-plate-per-clip policy with continuous live-frame OCR, including while idle. Confirm each reading across independent frames, keep scanning other plates, and persist a 180-second cooldown per normalized observed plate across restarts and clip rollovers. Do not process historical videos.
 - Send new live plate alerts immediately from an independent worker, bypassing recording quiet periods and video uploads. Successful plate deliveries enforce their own durable 180-second cooldown; videos remain ordered by recording trigger time with a separate watermark. Video captions may include multiple plates belonging to that exact clip. Old/historical plate events are not replayed.
 - 車牌改為持續辨識即時畫面，未錄影時也運作，不再每段只留一個車牌；多影格確認後通知，同一實際讀值三分鐘內不重複，重啟與換片保留冷卻，不處理歷史影片。

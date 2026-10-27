@@ -30,6 +30,15 @@ Por padrão, ficam expandidos apenas os resultados confirmados que correspondem 
 
 O status do OCR, a qualidade e o progresso do lote permanecem junto aos controles inferiores. Com o reconhecimento de placas ativado, as correspondências ficam sempre visíveis à direita, agrupadas pela data de Taiwan com contagem diária e as mais recentes primeiro. Em janelas estreitas, a lista fica abaixo da câmera, que mantém a proporção da imagem. “其他紀錄” expande e leva aos outros registros; recolhê-los retorna às correspondências.
 
+
+## Painel com quatro áreas
+
+Vídeo ao vivo no canto superior esquerdo, histórico de placas à direita, última foto do veículo embaixo e controles agrupados. Arraste os títulos para trocar as áreas; L restaura a disposição. Exemplo sintético renderizado pela interface real.
+
+![Dashboard diagram](docs/media/dashboard-guide.en.png)
+
+[操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
+
 <a id="quick-start"></a>
 ## Instalação rápida
 

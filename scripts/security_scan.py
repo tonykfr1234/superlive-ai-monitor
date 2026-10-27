@@ -29,6 +29,10 @@ DEMO_MEDIA = {
     'docs/media/inactivity-rearm.png': 'png',
     'docs/media/superlive-demo.gif': 'gif',
     'docs/media/superlive-demo.mp4': 'mp4',
+    'docs/media/dashboard-preview.png': 'png',
+    'docs/media/dashboard-guide.zh-TW.png': 'png',
+    'docs/media/dashboard-guide.en.png': 'png',
+    'docs/media/dashboard-layout.gif': 'gif',
 }
 PATTERNS = {
     'Telegram bot token': re.compile(r'\b\d{8,12}:[A-Za-z0-9_-]{30,}\b'),
