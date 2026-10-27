@@ -35,6 +35,7 @@ from capture_region import CaptureInfo
 from plate_recognition import PlateService, load_allowlist
 from video_location import reveal_video, VideoLocationError
 from latest_vehicle import LatestVehicleTracker
+from plate_review import launch_review
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -347,6 +348,8 @@ def main():
     message_until = 0.0
     reveal_results = SimpleQueue()
     reveal_thread = None
+    review_process = None
+    next_review_read = 0.0
 
     def reveal_in_background(event):
         try:
@@ -472,10 +475,11 @@ def main():
                     controller.plate_filter_targets = load_allowlist(ROOT)
                     next_plate_filter_read = time.monotonic() + 2
                 if capture_ok:
-                    plate_service.submit(frame, frame_timestamp, None)
+                    plate_service.submit(frame, frame_timestamp, None, vehicles=people)
                 else:
                     plate_service.pause()
                 plate_state = plate_service.snapshot()
+                latest_vehicle.update_candidate(plate_state.get('candidate'))
                 history = plate_state.get("recent", [])
                 if history != controller.plate_events:
                     controller.plate_events = history
@@ -490,6 +494,9 @@ def main():
                     canvas_size = (view_width, view_height)
             except (cv2.error, AttributeError):
                 pass
+            if time.monotonic() >= next_review_read:
+                latest_vehicle.apply_manual_confirmation(read_json(ROOT/'runtime/manual_plate_confirmation.json', {}))
+                next_review_read = time.monotonic()+.5
             controller.latest_vehicle = latest_vehicle.snapshot()
             controller.latest_vehicle_image = latest_vehicle.image
             controller.latest_plate_image = latest_vehicle.plate_image
@@ -528,6 +535,15 @@ def main():
                         atomic_json(ROOT / "runtime/preview_layout.json", dict(panel_order=controller.panel_order))
                     except OSError:
                         message, message_until = "排列已更新，本次無法儲存設定", time.monotonic()+5
+                elif action.kind == 'review_plate':
+                    if review_process is None or review_process.poll() is not None:
+                        try:
+                            review_process = launch_review(ROOT, latest_vehicle)
+                            message, message_until = '已開啟車牌確認視窗，監控繼續運作', time.monotonic()+6
+                        except ValueError as error:
+                            message, message_until = str(error), time.monotonic()+6
+                        except Exception:
+                            message, message_until = '車牌確認視窗無法開啟，請稍後重試', time.monotonic()+6
                 elif action.kind == "reveal_video":
                     if reveal_thread is None or not reveal_thread.is_alive():
                         reveal_thread = threading.Thread(target=reveal_in_background,

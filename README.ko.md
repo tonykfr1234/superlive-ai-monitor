@@ -42,6 +42,8 @@ SuperLive 및 MuMu 제공업체와 관련이 없는 비공식 커뮤니티 프�
 
 **새 PC 설치:** 루트의 `INSTALL.bat`를 실행하고 설정 창에서 ADB, Telegram, 번호판을 설정하세요. 왼쪽 아래에는 차량과 확대 번호판이 나란히 표시됩니다. [설치 안내(영어)](docs/INSTALL.en.md).
 
+**P**를 눌러 번호판과 차량 색상을 확인하고 로컬 데이터베이스에 저장하세요. 이후 비교는 1~3글자 차이를 허용합니다. [영어 안내](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## 빠른 시작
 

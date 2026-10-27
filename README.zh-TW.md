@@ -42,6 +42,8 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 
 **新電腦一鍵安裝：** 雙擊最外層 `INSTALL.bat`，安裝後在視窗設定 ADB、Telegram 與車牌；左下角左側車輛、右側車牌放大圖。[安裝與校正圖說](docs/INSTALL.zh-TW.md)。
 
+按 **P／確認車牌**，人工確認正確車牌與車色，保存於本機資料庫；後續可容錯 1～3 碼並搭配車色。[完整圖說](docs/VEHICLE_DATABASE.zh-TW.md)。
+
 <a id="quick-start"></a>
 ## 快速開始
 

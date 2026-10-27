@@ -22,6 +22,8 @@ $ScriptMap = [ordered]@{
     'adb_discovery.py' = 'adb_discovery.py'
     'setup_wizard.py' = 'setup_wizard.py'
     'plate_corrections.py' = 'plate_corrections.py'
+    'vehicle_registry.py' = 'vehicle_registry.py'
+    'plate_review.py' = 'plate_review.py'
     'capture_region.py' = 'capture_region.py'
     'app_branding.py' = 'app_branding.py'
     'hq_video.py' = 'hq_video.py'
@@ -177,7 +179,7 @@ foreach ($Name in $ScriptMap.Keys) { Copy-Item -LiteralPath "$Repo\src\$Name" -D
 New-Item -ItemType Directory -Force -Path "$Root\assets" | Out-Null
 Copy-Item -LiteralPath "$Repo\assets\superlive-ai.ico" -Destination "$Root\assets\superlive-ai.ico" -Force
 New-Item -ItemType Directory -Force -Path "$Root\docs\media" | Out-Null
-foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md', 'INSTALL.en.md', 'INSTALL.zh-TW.md')) {
+foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md', 'INSTALL.en.md', 'INSTALL.zh-TW.md', 'VEHICLE_DATABASE.en.md', 'VEHICLE_DATABASE.zh-TW.md')) {
     Copy-Item -LiteralPath "$Repo\docs\$Name" -Destination "$Root\docs\$Name" -Force
 }
 foreach ($Name in @('dashboard-preview.png', 'dashboard-guide.en.png', 'dashboard-guide.zh-TW.png', 'dashboard-layout.gif')) {

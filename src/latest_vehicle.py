@@ -7,6 +7,7 @@ from pathlib import Path
 import time
 import hashlib
 import re
+import uuid
 
 from record_protocol import atomic_json, read_json
 
@@ -96,6 +97,10 @@ class LatestVehicleTracker:
         self.persistence_error = False
         self.image = None
         self.plate_image = None
+        self.review_images = []
+        self.review_colors = []
+        self._candidate_timestamp = 0
+        self._manual_receipt_id = None
         self._last_image_at = -math.inf
         self.image_path = self.path.with_suffix(".jpg")
         self.plate_image_path = self.path.with_name('latest_plate.jpg')
@@ -127,6 +132,12 @@ class LatestVehicleTracker:
         if self.latest.get('plate'):
             self.latest['plate_display'] = _text(saved.get('plate_display')) or self.latest['plate']
             self.latest['user_corrected'] = saved.get('user_corrected') is True
+        if self.latest:
+            self.latest.update(group_id=saved.get('group_id') or uuid.uuid4().hex,
+                               vehicle_count=saved.get('vehicle_count', 1))
+            for key in ('plate_vehicle_index', 'observed_plate', 'database_matched'):
+                if key in saved:
+                    self.latest[key] = saved[key]
 
     def snapshot(self):
         return deepcopy(self.latest)
@@ -178,12 +189,15 @@ class LatestVehicleTracker:
             self._context_start = stamp
             self._observations.clear()
             self.latest = {"timestamp": stamp, "plate": "", "plate_timestamp": None}
+            self.latest['group_id'] = uuid.uuid4().hex
             self.image = None
             self.plate_image = None
+            self.review_images, self.review_colors = [], []
             self._last_image_at = -math.inf
         else:
             boxes = ordered
         self.latest["timestamp"] = stamp
+        self.latest['vehicle_count'] = len(boxes)
         self._boxes, self._frame_size, self._active = boxes, frame_size, True
         self._observations.append((stamp, boxes, width, height))
         while self._observations and stamp-self._observations[0][0] > HISTORY_SECONDS:
@@ -213,6 +227,18 @@ class LatestVehicleTracker:
         if scale < 1:
             crop = cv2.resize(crop, (max(1, round(crop.shape[1]*scale)), max(1, round(crop.shape[0]*scale))))
         self.image = crop
+        from vehicle_registry import vehicle_color
+        self.review_images, self.review_colors = [], []
+        for bx1, by1, bx2, by2 in boxes:
+            bounds = [int(bx1*width), int(by1*height), min(width, math.ceil(bx2*width)), min(height, math.ceil(by2*height))]
+            single = frame[bounds[1]:bounds[3], bounds[0]:bounds[2]].copy()
+            if not single.size:
+                continue
+            scale = min(1, 640/single.shape[1], 400/single.shape[0])
+            if scale < 1:
+                single = cv2.resize(single, (max(1, round(single.shape[1]*scale)), max(1, round(single.shape[0]*scale))))
+            self.review_images.append(single)
+            self.review_colors.append(vehicle_color(frame, bounds))
         self.latest["image_timestamp"] = stamp
         self.latest.pop("image_sha256", None)
         self._last_image_at = stamp
@@ -230,7 +256,7 @@ class LatestVehicleTracker:
             self.persistence_error = True
 
     def update_plates(self, events):
-        if not self._observations:
+        if not self._observations or self.latest.get('manual_locked'):
             return
         for event in events:
             if (not isinstance(event, dict) or event.get("confirmed") is not True
@@ -248,7 +274,8 @@ class LatestVehicleTracker:
             samples = {}
             for sample in evidence:
                 if (not isinstance(sample, dict) or not sample.get("sample_id")
-                        or _text(sample.get("text")) != observed_text):
+                        or not (_text(sample.get("text")) == observed_text
+                                or (event.get('database_matched') and sample.get('registry_plate') == text))):
                     continue
                 sample_time = _stamp(sample.get("timestamp"))
                 if sample_time is None or not self._context_start <= sample_time <= stamp:
@@ -275,7 +302,11 @@ class LatestVehicleTracker:
                     self.latest.pop('plate_image_sha256', None)
                 self.latest.update(plate=text, plate_timestamp=plate_time)
                 self.latest.update(plate_display=_text(event.get('display_text')) or text,
-                                   user_corrected=event.get('user_corrected') is True)
+                                   user_corrected=event.get('user_corrected') is True,
+                                   observed_plate=observed_text, database_matched=event.get('database_matched') is True)
+                self.latest['plate_vehicle_index'] = max(
+                    (i for i in samples if len(samples[i]) >= 2 and len(set(samples[i].values())) >= 2),
+                    key=lambda i: max(samples[i].values()))
                 image_meta = event.get('plate_image')
                 if isinstance(image_meta, dict) and any(
                         len(values) >= 2 and len(set(values.values())) >= 2
@@ -285,6 +316,49 @@ class LatestVehicleTracker:
                     self.load_plate_image(image_meta)
                 self._dirty = True
         self.flush(force=True)
+
+    def update_candidate(self, event):
+        if not self._observations or not isinstance(event, dict) or self.latest.get('plate'):
+            return
+        stamp = _stamp(event.get('timestamp'))
+        if stamp is None or stamp <= self._candidate_timestamp or not self._context_start <= stamp <= self.latest['timestamp']+SAMPLE_SKEW_SECONDS:
+            return
+        observed, boxes, width, height = min(self._observations, key=lambda row: abs(row[0]-stamp))
+        box = _box(event.get('bbox'), width, height)
+        if box is None or abs(observed-stamp) > SAMPLE_SKEW_SECONDS:
+            return
+        matches = [index for index, vehicle in enumerate(boxes) if _intersection(box, vehicle)/_area(box) >= .8]
+        if len(matches) != 1:
+            return
+        self._candidate_timestamp = stamp
+        self.latest.update(candidate_plate=_text(event.get('text')), plate_vehicle_index=matches[0])
+        meta = event.get('plate_image')
+        self.plate_image = None
+        self.latest.pop('plate_image_sha256', None)
+        if isinstance(meta, dict) and meta.get('timestamp') == stamp:
+            self.load_plate_image(meta)
+        self._dirty = True
+        self.flush()
+
+    def apply_manual_confirmation(self, receipt):
+        if not isinstance(receipt, dict) or not receipt.get('id') or receipt['id'] == self._manual_receipt_id:
+            return False
+        self._manual_receipt_id = receipt['id']
+        if receipt.get('group_id') != self.latest.get('group_id') or not _text(receipt.get('plate')):
+            return False
+        index = receipt.get('vehicle_index')
+        if not isinstance(index, int) or not 0 <= index < self.latest.get('vehicle_count', 0):
+            return False
+        if index != self.latest.get('plate_vehicle_index'):
+            self.plate_image = None
+            self.latest.pop('plate_image_sha256', None)
+        self.latest.update(plate=receipt['plate'], plate_display=receipt.get('plate_display') or receipt['plate'],
+                           user_corrected=True, database_matched=False, plate_vehicle_index=index,
+                           observed_plate=receipt.get('observed_plate', ''), manual_locked=True,
+                           plate_timestamp=self.latest['timestamp'])
+        self._dirty = True
+        self.flush(force=True)
+        return True
 
     def load_plate_image(self, metadata):
         name = metadata.get('file', '')

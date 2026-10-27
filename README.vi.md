@@ -41,6 +41,8 @@ Video trực tiếp ở trên trái, lịch sử biển số ở trên phải, �
 
 **Cài đặt trên máy tính mới:** chạy `INSTALL.bat` ở thư mục gốc, sau đó cấu hình ADB, Telegram và biển số trong cửa sổ cài đặt. Góc dưới bên trái hiển thị xe và ảnh biển số phóng to cạnh nhau. [Hướng dẫn tiếng Anh](docs/INSTALL.en.md).
 
+Nhấn **P** để xác nhận biển số và màu xe, lưu vào cơ sở dữ liệu cục bộ. Lần đối chiếu sau hỗ trợ sai khác 1–3 ký tự. [Hướng dẫn tiếng Anh](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Bắt đầu nhanh
 

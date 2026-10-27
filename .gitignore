@@ -55,4 +55,5 @@ Desktop.ini
 **/capture_config.json
 **/plate_allowlist.json
 **/plate_corrections.json
+**/vehicle_registry.sqlite3*
 **/telegram.env.tmp

@@ -96,7 +96,7 @@ Write-Host 'ISOLATED_DEPLOYMENT_TEST=PASS'
 foreach ($Name in @('app_branding.py', 'hq_video.py', 'daily_report.py')) {
     if (-not (Test-Path -LiteralPath "$FreshRoot\scripts\$Name")) { throw "Missing new runtime helper: $Name" }
 }
-foreach ($Name in @('adb_discovery.py', 'plate_corrections.py', 'setup_wizard.py')) {
+foreach ($Name in @('adb_discovery.py', 'plate_corrections.py', 'setup_wizard.py', 'vehicle_registry.py', 'plate_review.py')) {
     if ((Get-FileHash "$FreshRoot\scripts\$Name").Hash -ne (Get-FileHash "$Kit\src\$Name").Hash) { throw "New helper mismatch: $Name" }
 }
 if (-not (Test-Path "$FreshRoot\Settings.bat")) { throw 'Settings launcher missing' }

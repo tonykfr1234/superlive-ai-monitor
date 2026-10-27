@@ -50,6 +50,7 @@ def _forbidden_name(name):
     if name in {'.env.example', 'telegram.env.example'}:
         return False
     return (name == '.env' or name.startswith('.env.')
+            or name.startswith('vehicle_registry.sqlite3')
             or name == 'telegram.env' or name.startswith('telegram.env.')
             or name in {'plate_allowlist.json', 'capture_config.json', 'plate_corrections.json'}
             or name.startswith(('telegram_profile', 'credentials', 'secrets')))

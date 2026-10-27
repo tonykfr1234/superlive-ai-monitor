@@ -7,7 +7,7 @@ from record_protocol import read_json
 
 
 def normalized(text):
-    return re.sub('[^A-Z0-9]', '', str(text).upper())
+    return re.sub('[^A-Z0-9]', '', str(text or '').upper())
 
 
 def display_plate(text):

@@ -23,6 +23,7 @@ from record_protocol import atomic_json, read_json
 from region_policy import box_in_roi, validate_roi
 from plate_history import load_history, record_result, prune_history
 from plate_corrections import load_corrections, prefer_verified, correct_event, save_plate_crop
+from vehicle_registry import DatabaseConsensus, color_for_plate
 
 
 DETECTOR_MODEL = "yolo-v9-t-384-license-plate-end2end"
@@ -317,6 +318,7 @@ class LiveClipConsensus:
                     except (TypeError, ValueError, KeyError):
                         pass
         self.memory = PlateLearningMemory(root)
+        self.database = DatabaseConsensus(root)
         self.context = None
         self.tracker = PlateConsensus([], min_confidence=.85, debounce=0)
         self.boxes = {}
@@ -335,6 +337,7 @@ class LiveClipConsensus:
 
     def reset(self):
         self.tracker.reset()
+        self.database.reset()
         self.tracker.last_emitted.clear()
         self.boxes.clear()
         self.influenced_samples.clear()
@@ -360,6 +363,11 @@ class LiveClipConsensus:
 
     def observe(self, prediction, timestamp, sample_id, allowlist, frame=None):
         if not self.context or timestamp < self.context["started_at"] or self.winner():
+            return None
+        database_event = self.database.observe(prediction, timestamp, sample_id)
+        if database_event is not None:
+            return self.finish_event(database_event, timestamp, sample_id, allowlist, frame)
+        if self.database.pending:
             return None
         variants = prediction.get("variants") or [prediction.get("selected")]
         variants = [item for item in variants if isinstance(item, dict)]
@@ -400,13 +408,17 @@ class LiveClipConsensus:
         if event is None:
             return None
         correct_event(event, corrections)
+        return self.finish_event(event, timestamp, sample_id, allowlist, frame)
+
+    def finish_event(self, event, timestamp, sample_id, allowlist, frame):
         canonical = event['text']
         if self.continuous and timestamp-self.last_confirmed.get(canonical, float('-inf')) < 180:
             return None
         event.update(match_plate(event["text"], allowlist))
         event.update(id=self.event_path().stem, request_id=self.context["request_id"],
-            source="live_recording", complete_plate=True, single_plate_per_clip=True,
-            learning_influenced=any(item["sample_id"] in self.influenced_samples for item in event["evidence"]))
+            source="live_recording", complete_plate=True, single_plate_per_clip=True, model=MODEL_LABEL,
+            learning_influenced=event.get('learning_influenced', False) or any(
+                item["sample_id"] in self.influenced_samples for item in event["evidence"]))
         if self.continuous:
             event.update(id="live-"+uuid.uuid4().hex, single_plate_per_clip=False,
                          source=self.context.get("source", "live_recording"),
@@ -425,6 +437,24 @@ class LiveClipConsensus:
         if not event.get('user_corrected'):
             self.memory.learn(event, timestamp)
         return event
+
+
+def publish_candidate(root, prediction, metadata, frame):
+    """One replaceable unconfirmed sample, for review only; never a Telegram event."""
+    variants = prediction.get('variants') or [prediction.get('selected')]
+    usable = [v for v in variants if isinstance(v, dict)]
+    if not usable:
+        return
+    selected = max(usable, key=lambda v: v.get('confidence', 0))
+    text = normalize_plate(selected.get('raw_text'))
+    if not text:
+        return
+    sample = dict(text=text, raw_text=selected.get('raw_text'), timestamp=metadata['timestamp'],
+                  sample_id=metadata['sample_id'], bbox=prediction['bbox'])
+    candidate = dict(id='candidate-current', text=text, timestamp=metadata['timestamp'],
+                     bbox=prediction['bbox'], evidence=[sample], confirmed=False, session=metadata['session'])
+    save_plate_crop(root, candidate, frame, metadata['sample_id'])
+    atomic_json(Path(root)/'runtime/plate_candidate.json', candidate)
 
 
 def valid_sample(metadata, control, now):
@@ -766,7 +796,7 @@ class PlateService:
             except OSError as error:
                 self._schedule_restart(now, "Cannot start plate worker: " + type(error).__name__)
 
-    def submit(self, frame, now=None, roi=None):
+    def submit(self, frame, now=None, roi=None, vehicles=None):
         if self._thread is None or self._closed:
             return False
         now = time.time() if now is None else float(now)
@@ -789,7 +819,9 @@ class PlateService:
             self._last_submit = now
             self._active = True
             self._latest = (frame.copy(), {"timestamp": now, "session": self.session,
-                "generation": self.generation, "sample_id": uuid.uuid4().hex, "roi": roi})
+                "generation": self.generation, "sample_id": uuid.uuid4().hex, "roi": roi,
+                "vehicles": [{"class_id": int(v['class_id']), "box": list(map(float, v['box']))}
+                             for v in (vehicles or []) if v.get('class_id') in (2, 3, 5, 7)]})
         self._wake.set()
         return True
 
@@ -856,6 +888,8 @@ class PlateService:
         if now - self._read_at >= 0.5:
             self._read_at = now
             self._read_state()
+            candidate = read_json(self.root/'runtime/plate_candidate.json', {})
+            self._snapshot['candidate'] = candidate if isinstance(candidate, dict) and candidate.get('session') == self.session else {}
         state = dict(self._snapshot)
         if state.get("session") != self.session:
             state = {"recent": state.get("recent", [])}
@@ -1055,6 +1089,9 @@ def run_worker(root, session):
                 if not current_recording or current_recording["request_id"] != recording["request_id"]:
                     live_clip.reset()
                     break
+                prediction['vehicle_color'] = color_for_plate(frame, prediction['bbox'], metadata.get('vehicles', []))
+                if prediction is predictions[0]:
+                    publish_candidate(root, prediction, metadata, frame)
                 event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1], frame=frame)
                 if event is None:
                     continue

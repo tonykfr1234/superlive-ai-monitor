@@ -30,6 +30,8 @@ Vídeo en directo arriba a la izquierda, historial de matrículas a la derecha, 
 
 **Instalación en un PC nuevo:** ejecuta `INSTALL.bat` en la carpeta principal y configura ADB, Telegram y matrículas en la ventana de ajustes. Abajo a la izquierda aparecen el vehículo y la matrícula ampliada. [Guía en inglés](docs/INSTALL.en.md).
 
+Pulsa **P** para confirmar la matrícula y el color y guardarlos localmente. La comparación posterior admite diferencias de 1–3 caracteres. [Guía en inglés](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Inicio rápido
 

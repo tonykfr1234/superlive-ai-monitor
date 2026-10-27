@@ -133,7 +133,7 @@ class PreviewLayout:
         size = max(12, min(18, control.width//24))
         line_height = size+6
         footer = Rect(control.x+12, control.y+header+4, control.width-24, control.height-header-16)
-        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("reset_layout",))
+        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("review_plate", "reset_layout"))
         button_height = max(32, size+20)
         button_top = control.y+control.height-12-len(rows)*(button_height+8)
         buttons = {name: Rect(control.x+12+col*((control.width-24-8*(len(names_in_row)-1))//len(names_in_row)+8),
@@ -224,6 +224,8 @@ class PreviewController:
         self.pressed_button = None
 
     def command(self, name):
+        if name == 'review_plate':
+            return UIAction('review_plate')
         if name == "reset_layout":
             self.panel_order = ["camera", "plates", "latest", "controls"]
             self._panel_drag = None
@@ -289,6 +291,8 @@ class PreviewController:
             return self.command("stop")
         if key in (ord("l"), ord("L")):
             return self.command("reset_layout")
+        if key in (ord('p'), ord('P')):
+            return self.command('review_plate')
         if key == 27:
             return self.command("cancel" if self.selecting else "stop")
         if key in (8, 127):
@@ -852,7 +856,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
         label = "尚未取得車牌影像" if chinese else "No plate image yet"
         for i, line in enumerate(wrap_panel_text(draw, label, small, plate_pixels.width-4)):
             draw.text((plate_pixels.x+2, plate_pixels.y+8+i*20), line, font=small, fill=(139, 177, 195))
-    plate_label = str(record.get('plate_display') or record.get('plate') or '--')
+    plate_label = str(record.get('plate_display') or record.get('plate') or record.get('candidate_plate') or '--')
     plate_font = ui_font(26)[0]
     for size in range(26, 10, -1):
         plate_font = ui_font(size)[0]
@@ -866,7 +870,11 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
     lines = [("最近偵測  " if chinese else "Last seen  ")+date]
     if record.get("plate"):
         lines.append(("人工校正  " if chinese and record.get('user_corrected') else
-                      'Reviewed  ' if record.get('user_corrected') else '車牌  ' if chinese else 'Plate  ')+plate_label)
+                      'Reviewed  ' if record.get('user_corrected') else
+                      '資料庫匹配  ' if chinese and record.get('database_matched') else
+                      'Database match  ' if record.get('database_matched') else '車牌  ' if chinese else 'Plate  ')+plate_label)
+    elif record.get('candidate_plate'):
+        lines.append(('待確認  ' if chinese else 'Unconfirmed  ')+plate_label)
     photo_stamp = record.get("image_timestamp")
     if photo is not None and isinstance(photo_stamp, (int, float)):
         lines.append(("影像時間  " if chinese else "Image captured  ")+
@@ -893,10 +901,10 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
             break
     labels = ({"select": "R  設定區域", "full": "C  全畫面", "stop": "Q  停止",
                "confirm": "Enter  儲存", "cancel": "Esc  取消", "plates": "收起其他" if controller.plate_other_expanded else "其他紀錄",
-               "reset_layout": "L  還原四區排列"} if chinese else
+               "reset_layout": "L  還原排列", 'review_plate': 'P  確認車牌'} if chinese else
               {"select": "R  Set region", "full": "C  Full frame", "stop": "Q  Stop",
                "confirm": "Enter  Save", "cancel": "Esc  Cancel", "plates": "Hide others" if controller.plate_other_expanded else "Other records",
-               "reset_layout": "L  Reset layout"})
+               "reset_layout": "L  Reset layout", 'review_plate': 'P  Confirm plate'})
     for name, rect in layout.buttons.items():
         enabled = name not in ("confirm", "cancel") or (controller.can_confirm if name == "confirm" else controller.selecting)
         if name == "plates" and not controller.plate_enabled:

@@ -77,6 +77,8 @@ def event_line(event):
     text = "%s 辨識：%s" % (stamp, observed)
     if event.get('user_corrected'):
         text += '（人工校正）'
+    elif event.get('database_matched') and event.get('database_distance', 0):
+        text += '（資料庫匹配，原讀值：'+compact(event.get('observed_text', '?'))+'）'
     if event.get("matched"):
         target = compact(event["matched"])
         normalize = lambda value: "".join(c for c in value.upper() if c.isascii() and c.isalnum())

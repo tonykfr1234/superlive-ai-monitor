@@ -18,3 +18,6 @@ The lower-left card shows the vehicle on its left and an enlarged plate crop plu
 Verified spellings can rank near-tied, high-confidence candidates actually returned by OCR; they never insert unseen characters. Explicit manual aliases use `observed=correct` (synthetic example: `ABC1235=ABC1234`) and apply only to that complete observed string. Raw evidence is retained and notifications mark manual corrections. Aliases share the corrected plate's three-minute cooldown and are excluded from automatic learning anchors.
 
 Credentials, camera selections, real plates, corrections and images remain in local `config`/`runtime` directories. Do not publish the installed runtime folder. Public illustrations use synthetic scenes only.
+
+
+Press P in the dashboard to manually confirm a plate and vehicle color. Subsequent live recognition prioritizes the reviewed local database with configurable 1–3-character tolerance and explicit inference labels. See [manual confirmation and vehicle database](VEHICLE_DATABASE.en.md).

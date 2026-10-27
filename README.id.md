@@ -41,6 +41,8 @@ Video langsung di kiri atas, riwayat pelat di kanan atas, foto kendaraan terbaru
 
 **Instalasi di PC baru:** jalankan `INSTALL.bat` di folder utama, lalu atur ADB, Telegram, dan pelat melalui jendela pengaturan. Panel kiri bawah menampilkan kendaraan dan pelat yang diperbesar berdampingan. [Panduan bahasa Inggris](docs/INSTALL.en.md).
 
+Tekan **P** untuk mengonfirmasi pelat dan warna kendaraan ke basis data lokal. Pencocokan berikutnya mendukung selisih 1–3 karakter. [Panduan bahasa Inggris](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Mulai cepat
 

@@ -30,6 +30,8 @@ Video dal vivo in alto a sinistra, cronologia targhe a destra, ultima foto del v
 
 **Installazione su un nuovo PC:** avvia `INSTALL.bat` nella cartella principale e configura ADB, Telegram e targhe nella finestra delle impostazioni. In basso a sinistra sono affiancati il veicolo e la targa ingrandita. [Guida in inglese](docs/INSTALL.en.md).
 
+Premi **P** per confermare targa e colore e salvarli localmente. Il confronto successivo ammette differenze di 1–3 caratteri. [Guida in inglese](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Avvio rapido
 

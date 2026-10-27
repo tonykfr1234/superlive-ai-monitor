@@ -30,6 +30,8 @@ Livebild oben links, Kennzeichenverlauf oben rechts, letztes Fahrzeugfoto unten 
 
 **Installation auf einem neuen PC:** `INSTALL.bat` im Hauptordner starten und ADB, Telegram sowie Kennzeichen im Einstellungsfenster konfigurieren. Unten links stehen Fahrzeugbild und vergrößertes Kennzeichen nebeneinander. [Anleitung auf Englisch](docs/INSTALL.en.md).
 
+Mit **P** Kennzeichen und Fahrzeugfarbe bestätigen und lokal speichern. Der spätere Abgleich erlaubt 1–3 Zeichen Abweichung. [Anleitung auf Englisch](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Schnellstart
 

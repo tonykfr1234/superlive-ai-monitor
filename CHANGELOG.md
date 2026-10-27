@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-27 — Manual plate confirmation and vehicle registry
+
+- Add the P / Confirm plate button and a separate frozen-image review window, with per-vehicle selection, editable correct plate/color, and a private transactional SQLite registry with audit records.
+- Prioritize human-confirmed plates within configurable 1–3-character edit distance. Require three independent spatially consistent frames; use reliable body color only as supporting evidence and retain ambiguous candidates for review.
+- Keep raw OCR evidence, mark database inferences in the GUI/Telegram, share canonical plate cooldowns, and exclude inferred results from learning anchors. Late manual confirmations cannot relabel a newer vehicle.
+- Show unconfirmed live candidates and exact-frame crops for review. Manual saves do not send retrospective notifications or scan old recordings. Database entries persist; review pictures expire after seven days.
+
+
 ## 2026-10-27 — One-click setup and plate close-up
 
 - Root INSTALL.bat installs dependencies and opens a local ADB / Telegram / plate settings window; Settings.bat reopens it later.

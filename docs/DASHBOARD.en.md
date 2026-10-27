@@ -27,3 +27,6 @@ Regenerate these assets with `python scripts/generate_dashboard_demo.py`. The ge
 
 
 The latest vehicle card now places the vehicle on the left and its verified evidence-frame plate crop and text on the right. See [one-click installation and local corrections](INSTALL.en.md).
+
+
+Press P in the dashboard to manually confirm a plate and vehicle color. Subsequent live recognition prioritizes the reviewed local database with configurable 1–3-character tolerance and explicit inference labels. See [manual confirmation and vehicle database](VEHICLE_DATABASE.en.md).

@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import math
+import re
 from pathlib import Path
 import time
 
@@ -169,6 +170,20 @@ def prune_history(root, now=None):
             if path.stat().st_mtime < now-RETENTION_SECONDS:
                 path.unlink(missing_ok=True)
         except OSError:
+            pass
+    review_root = (runtime/'plate_reviews').resolve()
+    for folder in review_root.glob('*'):
+        if not re.fullmatch('[0-9a-f]{32}', folder.name) or folder.resolve().parent != review_root:
+            continue
+        snapshot = read_json(folder/'snapshot.json', {})
+        try:
+            if float(snapshot.get('captured_at', now)) >= now-RETENTION_SECONDS:
+                continue
+            for path in folder.iterdir():
+                if path.is_file() and (path.name in ('snapshot.json', 'plate.jpg') or re.fullmatch(r'vehicle_\d+\.jpg', path.name)):
+                    path.unlink(missing_ok=True)
+            folder.rmdir()  # Only an empty, owned snapshot directory; no recursive deletion.
+        except (OSError, ValueError, TypeError):
             pass
     return removed
 

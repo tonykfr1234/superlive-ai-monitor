@@ -42,6 +42,8 @@ Live camera at top left, plate history at top right, latest vehicle photo below,
 
 **New-PC setup:** double-click the root `INSTALL.bat`, then configure ADB, Telegram and plates in the local settings window. The lower-left card shows the vehicle beside its enlarged plate crop. [Installation and correction guide](docs/INSTALL.en.md).
 
+Press **P / Confirm plate** to save a reviewed plate and vehicle color locally. Future live matching supports 1–3-character tolerance. [Vehicle database guide](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Quick start
 

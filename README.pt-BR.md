@@ -41,6 +41,8 @@ Vídeo ao vivo no canto superior esquerdo, histórico de placas à direita, últ
 
 **Instalação em outro PC:** execute `INSTALL.bat` na pasta principal e configure ADB, Telegram e placas na janela de configurações. O painel inferior esquerdo mostra o veículo e a placa ampliada lado a lado. [Guia em inglês](docs/INSTALL.en.md).
 
+Pressione **P** para confirmar placa e cor e salvar no banco local. A comparação posterior aceita diferenças de 1–3 caracteres. [Guia em inglês](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Instalação rápida
 

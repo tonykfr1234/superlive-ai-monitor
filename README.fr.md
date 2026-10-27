@@ -30,6 +30,8 @@ Vidéo en direct en haut à gauche, historique des plaques à droite, dernière 
 
 **Installation sur un nouveau PC :** lancez `INSTALL.bat` à la racine, puis configurez ADB, Telegram et les plaques dans la fenêtre de réglages. Le panneau inférieur gauche affiche le véhicule et sa plaque agrandie côte à côte. [Guide en anglais](docs/INSTALL.en.md).
 
+Appuyez sur **P** pour confirmer la plaque et la couleur du véhicule et les enregistrer localement. La comparaison accepte 1 à 3 caractères différents. [Guide en anglais](docs/VEHICLE_DATABASE.en.md).
+
 <a id="quick-start"></a>
 ## Démarrage rapide
 
