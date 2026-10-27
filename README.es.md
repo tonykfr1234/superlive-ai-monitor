@@ -28,6 +28,8 @@ Vídeo en directo arriba a la izquierda, historial de matrículas a la derecha, 
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Instalación en un PC nuevo:** ejecuta `INSTALL.bat` en la carpeta principal y configura ADB, Telegram y matrículas en la ventana de ajustes. Abajo a la izquierda aparecen el vehículo y la matrícula ampliada. [Guía en inglés](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Inicio rápido
 

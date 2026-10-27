@@ -34,3 +34,6 @@
 已有待套用更新套件時，執行安裝目錄中的 `套用Telegram更新.bat`；它也包含這次介面更新。更新會保留本機設定、原片、辨識紀錄與私人車牌名單。此專案的公開安裝程序請見 [README](https://github.com/tonykfr1234/superlive-ai-monitor/blob/main/README.zh-TW.md#quick-start)。
 
 重新生成圖解：`python scripts/generate_dashboard_demo.py`。只使用合成影像及實際介面繪圖函式，不開啟模擬器、不載入辨識模型，也不發送 Telegram。
+
+
+最新安裝與車牌顯示：左下角左側為車輛照片，右側為同一車輛的車牌放大圖與辨識文字。照片取自實際辨識影格，沒有可信裁切時顯示提示；設定與人工校正見 [一鍵安裝說明](INSTALL.zh-TW.md)。

@@ -40,12 +40,14 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 
 [操作說明 / Guide](docs/DASHBOARD.zh-TW.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**新電腦一鍵安裝：** 雙擊最外層 `INSTALL.bat`，安裝後在視窗設定 ADB、Telegram 與車牌；左下角左側車輛、右側車牌放大圖。[安裝與校正圖說](docs/INSTALL.zh-TW.md)。
+
 <a id="quick-start"></a>
 ## 快速開始
 
 1. 安裝 MuMu 或逍遙（MEmu），再安裝 SuperLive，登入並開啟要監控的攝影機即時畫面，保持 Windows 使用者登入。
-2. Clone／下載本 Repo，執行 `installer\INSTALL_FROM_REPO.bat` 或上方 PowerShell 指令。
-3. 執行 `installer\SET_TELEGRAM.bat`，在本機設定自己的 Bot 與 Chat；儲存庫不附憑證。
+2. Clone／下載並完整解壓縮本 Repo，雙擊最外層的 **`INSTALL.bat`**。安裝後自動開啟設定視窗。
+3. 視窗內自動偵測 ADB；多台時自行選取。填寫 Telegram Bot Token、Chat ID 及車牌，按「儲存並啟動監控」。[新電腦安裝圖說](docs/INSTALL.zh-TW.md)
 4. 保持即時畫面開啟，執行 `installer\VERIFY_ALL.bat`。
 5. 啟動 `%USERPROFILE%\Downloads\SuperLive_AI\Start_AI_Monitor.bat`，停止使用同目錄的 `Stop_AI_Monitor.bat`。
 
@@ -57,7 +59,7 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 ```text
 多邊形內出現新的人物或車輛活動
   → 開始錄影＋本機 Windows 通知與快照
-  → 前 120 秒持續偵測，不自動分段、不啟動新的 Telegram 傳送
+  → 前 120 秒持續偵測，不自動分段、不啟動影片傳送；車牌即時通知
   → 滿 120 秒、未達 300 秒時偵測到移動，立即結束舊片並開始新片
   → 每段新片重新開始 120 秒影片傳送靜默期
   → 連續 120 秒無移動，或達 300 秒上限，結束並等待
@@ -72,7 +74,7 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 
 影片與車牌分開傳送：影片由早到晚排隊，舊片重試會擋住後面的影片；車牌不等待影片，同一實際讀值三分鐘內只通知一次。影片說明可保留該段實際車牌作為內容摘要，不會阻止即時車牌通知。未符合名單不加文字；指定車牌以醒目圖示標示，容錯比對標為可能符合。
 
-監控視窗按鈕下方顯示最近一次車輛偵測的完整台灣時間；有對應的即時 OCR 才列出實際車牌，否則標示未確認。這份摘要只保存本機，歷史補辨識不會取代即時紀錄。
+左下區塊顯示最近一次車輛偵測的完整台灣時間，左側為車輛、右側為車牌放大圖；有對應的即時 OCR 才列出實際車牌，否則標示未確認。這份摘要只保存本機，歷史補辨識不會取代即時紀錄。
 
 選取區域或擷取／偵測無有效結果時屬於未知，會重設觀察區間；恢復後需重新累計有效觀察時間，不直接當成無移動。
 
@@ -91,7 +93,7 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 | 每日車牌紀錄 | 狀態資訊與按鈕留在底部；啟用車牌辨識時，右側常駐顯示符合名單的結果，按台灣日期分組並列每日筆數，日期與紀錄由新到舊排列。窄視窗改放影像下方，影像維持等比例；按「其他紀錄」展開並跳到其他結果，收起後回到符合紀錄 |
 | 影片傳送 | 實際長度 H.264 MP4；持久化佇列與重試；每段前 120 秒不啟動新傳送 |
 | 自動復原 | 擷取重試、監控與錄影各有 Watchdog；ADB 可設定畫面停滯後重開 SuperLive 並回到指定裝置／頻道 |
-| 儲存 | 10 FPS；`C:\SuperLive_Recordings`；磁碟使用率 80% 開始刪除、78% 停止 |
+| 儲存 | 10 FPS；安裝目錄的 `recordings`（既有設定保留）；磁碟使用率 80% 開始刪除、78% 停止 |
 
 移動判斷依人物／車輛框的位置及大小變化，不是姿態辨識或實體感測器。程式忽略輕微抖動並累積慢速位移，但攝影機移動、遮擋及辨識誤差仍可能影響結果。影片保留完整裁切後的攝影機內容，不裁成多邊形大小。車輛即使沒有讀到車牌，也能依移動觸發錄影；單獨的車牌辨識結果不會啟動錄影。
 
@@ -178,9 +180,9 @@ python .\scripts\security_scan.py .
 
 ### 2026-10-19 · MuMu / MEmu（逍遙模擬器）
 
-支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
+支援 MuMu 與逍遙模擬器。新安裝預設 ADB 自動偵測，模擬器被其他視窗遮住仍可擷取；切換模擬器後重新設定多邊形。四區預覽保持比例，以柔化背景補齊空白。
 
-MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.
+MuMu and MEmu are supported. New installations discover ADB automatically and can capture an obscured emulator. Reselect the polygon after switching emulators. The dashboard preserves aspect ratio with a softened backdrop.
 
 
 [公開版使用說明（繁體中文純文字）](docs/使用說明.txt)

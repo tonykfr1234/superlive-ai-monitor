@@ -85,6 +85,7 @@ def main():
     frame, photo = synthetic_camera()
     c = controller()
     c.latest_vehicle_image = photo
+    c.latest_plate_image = frame[343:373, 475:560].copy()
     preview = render(c, frame, 1)
     preview.save(OUT/'dashboard-preview.png')
     guide(preview, True).save(OUT/'dashboard-guide.zh-TW.png')

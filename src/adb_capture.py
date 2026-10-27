@@ -41,6 +41,7 @@ def settings(root):
 
 class AdbClient:
     def __init__(self, config):
+        self.config = dict(config)
         self.executable = config.get('adb_path') or 'C:/Program Files/Microvirt/MEmu/adb.exe'
         self.serial = config.get('serial', '')
 
@@ -57,6 +58,17 @@ class AdbClient:
         return result.stdout
 
     def select(self):
+        if self.config.get('auto_detect'):
+            from adb_discovery import discover
+            executable, devices = discover(dict(self.config, serial=self.serial))
+            self.executable = executable
+            if self.serial and self.serial not in devices:
+                raise RuntimeError('Configured emulator is offline; retrying connection')
+            if not self.serial:
+                if len(devices) != 1:
+                    raise RuntimeError('Open Settings to select one connected emulator')
+                self.serial = devices[0]
+            return
         def online():
             return [line.split()[0] for line in self.run('devices').decode().splitlines()[1:]
                     if len(line.split()) >= 2 and line.split()[1] == 'device']

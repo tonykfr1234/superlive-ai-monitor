@@ -192,6 +192,7 @@ class PreviewController:
         self.object_counts = None
         self.latest_vehicle = {}
         self.latest_vehicle_image = None
+        self.latest_plate_image = None
         self.panel_order = ["camera", "plates", "latest", "controls"]
         self._panel_drag = None
         self.hover_point = None
@@ -827,20 +828,45 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
     photo = controller.latest_vehicle_image
     record = controller.latest_vehicle
     meta_height = 78 if area.width < 450 else 90
-    picture = Rect(area.x, area.y, area.width, max(28, area.height-meta_height))
+    picture = Rect(area.x, area.y, int((area.width-10)*.57), max(28, area.height-meta_height))
+    plate_picture = Rect(picture.x+picture.width+10, picture.y,
+                         area.width-picture.width-10, picture.height)
     if photo is not None and getattr(photo, "size", 0):
         _dashboard_photo(image, Image.fromarray(photo[:, :, ::-1]), picture)
         draw = ImageDraw.Draw(image)
     else:
         draw.rounded_rectangle(picture.bounds, 9, fill=(24, 42, 60), outline=(43, 69, 89))
-        label = "等待車輛影像" if chinese else "Waiting for a vehicle image"
-        draw.text((picture.x+14, picture.y+max(6, picture.height//2-12)), label, font=font, fill=(139, 177, 195))
+        label = "等待車輛影像" if chinese else "Waiting for vehicle"
+        for i, line in enumerate(wrap_panel_text(draw, label, small, picture.width-12)):
+            draw.text((picture.x+6, picture.y+12+i*22), line, font=small, fill=(139, 177, 195))
+    plate_photo = controller.latest_plate_image
+    draw.rounded_rectangle(plate_picture.bounds, 9, fill=(24, 42, 60), outline=(43, 69, 89))
+    label = "車牌放大" if chinese else "Plate close-up"
+    draw.text((plate_picture.x+6, plate_picture.y+6), label, font=small, fill=(139, 207, 220))
+    plate_pixels = Rect(plate_picture.x+5, plate_picture.y+32, plate_picture.width-10,
+                        max(20, plate_picture.height-72))
+    if plate_photo is not None and getattr(plate_photo, 'size', 0):
+        _dashboard_photo(image, Image.fromarray(plate_photo[:, :, ::-1]), plate_pixels)
+        draw = ImageDraw.Draw(image)
+    else:
+        label = "尚未取得車牌影像" if chinese else "No plate image yet"
+        for i, line in enumerate(wrap_panel_text(draw, label, small, plate_pixels.width-4)):
+            draw.text((plate_pixels.x+2, plate_pixels.y+8+i*20), line, font=small, fill=(139, 177, 195))
+    plate_label = str(record.get('plate_display') or record.get('plate') or '--')
+    plate_font = ui_font(26)[0]
+    for size in range(26, 10, -1):
+        plate_font = ui_font(size)[0]
+        if draw.textbbox((0, 0), plate_label, font=plate_font)[2] <= plate_picture.width-12:
+            break
+    draw.text((plate_picture.x+6, plate_picture.y+plate_picture.height-34), plate_label,
+              font=plate_font, fill=(155, 237, 199))
     stamp = record.get("timestamp")
     date = (datetime.fromtimestamp(stamp, timezone(timedelta(hours=8))).strftime("%Y/%m/%d %H:%M:%S")
             if isinstance(stamp, (int, float)) and math.isfinite(stamp) and stamp > 0 else "--")
     lines = [("最近偵測  " if chinese else "Last seen  ")+date]
     if record.get("plate"):
-        lines.append(("車牌  " if chinese else "Plate  ")+str(record["plate"]))
+        lines.append(("人工校正  " if chinese and record.get('user_corrected') else
+                      'Reviewed  ' if record.get('user_corrected') else '車牌  ' if chinese else 'Plate  ')+plate_label)
     photo_stamp = record.get("image_timestamp")
     if photo is not None and isinstance(photo_stamp, (int, float)):
         lines.append(("影像時間  " if chinese else "Image captured  ")+

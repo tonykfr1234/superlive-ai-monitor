@@ -39,6 +39,8 @@ Video langsung di kiri atas, riwayat pelat di kanan atas, foto kendaraan terbaru
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Instalasi di PC baru:** jalankan `INSTALL.bat` di folder utama, lalu atur ADB, Telegram, dan pelat melalui jendela pengaturan. Panel kiri bawah menampilkan kendaraan dan pelat yang diperbesar berdampingan. [Panduan bahasa Inggris](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Mulai cepat
 

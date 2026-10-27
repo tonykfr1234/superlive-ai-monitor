@@ -39,6 +39,8 @@ Video trực tiếp ở trên trái, lịch sử biển số ở trên phải, �
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Cài đặt trên máy tính mới:** chạy `INSTALL.bat` ở thư mục gốc, sau đó cấu hình ADB, Telegram và biển số trong cửa sổ cài đặt. Góc dưới bên trái hiển thị xe và ảnh biển số phóng to cạnh nhau. [Hướng dẫn tiếng Anh](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Bắt đầu nhanh
 

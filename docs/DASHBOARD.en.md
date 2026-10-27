@@ -24,3 +24,6 @@ Immediate plate notifications and the independent chronological video queue reta
 Apply a prepared local update using `套用Telegram更新.bat` in the installation directory; it includes this dashboard update and preserves local settings and recordings. See the [installation guide](https://github.com/tonykfr1234/superlive-ai-monitor#quick-start) for a fresh install.
 
 Regenerate these assets with `python scripts/generate_dashboard_demo.py`. The generator uses synthetic pixels and the actual renderer without camera access, model inference or Telegram calls.
+
+
+The latest vehicle card now places the vehicle on the left and its verified evidence-frame plate crop and text on the right. See [one-click installation and local corrections](INSTALL.en.md).

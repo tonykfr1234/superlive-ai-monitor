@@ -10,8 +10,10 @@ function Find-Python312 {
         }
     }
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        $Candidate = py -3.12 -c 'import sys; print(sys.executable)' 2>$null
-        if ($LASTEXITCODE -eq 0 -and $Candidate) { return $Candidate.Trim() }
+        try {
+            $Candidate = py -3.12 -c 'import sys; print(sys.executable)' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $Candidate) { return $Candidate.Trim() }
+        } catch { }
     }
     return $null
 }
@@ -34,13 +36,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Repository security scan failed.' }
 # Back up and stop the installed processes before changing files or dependencies.
 & "$PSScriptRoot\DEPLOY_RUNTIME.ps1" -Root $Root -Python $Python -InstallDependencies -ConfigureTorch
 
-powercfg /change monitor-timeout-ac 0 | Out-Null
-powercfg /change standby-timeout-ac 0 | Out-Null
-powercfg /change hibernate-timeout-ac 0 | Out-Null
-
 Write-Host 'INSTALL=PASS'
 Write-Host "Runtime=$Root"
 Write-Host 'Existing polygon, recording directory, storage thresholds and Telegram configuration were preserved.'
-Write-Host 'Configure Telegram locally with installer\SET_TELEGRAM.bat.'
-Write-Host 'Open MuMu / SuperLive live view, then run the deployed Start_AI_Monitor.bat.'
-Write-Host 'No monitor was started and no Telegram test message was sent.'
+Write-Host 'Opening local ADB / Telegram / plate settings. No test messages are sent.'
+& "$Root\.venv\Scripts\python.exe" "$Root\scripts\setup_wizard.py" --root $Root
+if ($LASTEXITCODE -eq 2) { Write-Host 'Setup closed without saving. Reopen Downloads\SuperLive_AI\Settings.bat.' }
+elseif ($LASTEXITCODE -ne 0) { throw 'Settings window failed. Reopen Downloads\SuperLive_AI\Settings.bat.' }
+exit 0

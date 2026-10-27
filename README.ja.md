@@ -40,6 +40,8 @@ SuperLive および MuMu の提供元とは関係のない、非公式のコミ�
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**新しい PC へのインストール:** ルートの `INSTALL.bat` を実行し、設定画面で ADB、Telegram、ナンバープレートを設定します。左下には車両と拡大プレートを並べて表示します。[インストールガイド（英語）](docs/INSTALL.en.md)。
+
 <a id="quick-start"></a>
 ## はじめに
 

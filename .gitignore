@@ -54,3 +54,5 @@ Desktop.ini
 # Local camera/device selection and private plate allowlists
 **/capture_config.json
 **/plate_allowlist.json
+**/plate_corrections.json
+**/telegram.env.tmp

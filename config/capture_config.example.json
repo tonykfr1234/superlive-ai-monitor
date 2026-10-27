@@ -1,6 +1,7 @@
 {
-  "source": "window",
-  "adb_path": "C:/Program Files/Microvirt/MEmu/adb.exe",
+  "source": "adb",
+  "auto_detect": true,
+  "adb_path": "",
   "serial": "",
   "ensure_highest": true,
   "recovery": {

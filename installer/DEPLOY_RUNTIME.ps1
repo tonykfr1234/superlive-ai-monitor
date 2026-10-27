@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Root = "$env:USERPROFILE\Downloads\SuperLive_AI",
     [string]$Python = '',
     [switch]$InstallUpdateDependencies,
@@ -19,6 +19,9 @@ $ScriptMap = [ordered]@{
     'telegram_upload.py' = 'telegram_upload.py'
     'preview_ui.py' = 'preview_ui.py'
     'latest_vehicle.py' = 'latest_vehicle.py'
+    'adb_discovery.py' = 'adb_discovery.py'
+    'setup_wizard.py' = 'setup_wizard.py'
+    'plate_corrections.py' = 'plate_corrections.py'
     'capture_region.py' = 'capture_region.py'
     'app_branding.py' = 'app_branding.py'
     'hq_video.py' = 'hq_video.py'
@@ -74,6 +77,9 @@ if (Test-Path -LiteralPath "$Root\config\recording_config.json") {
     foreach ($Property in $ExistingRecording.PSObject.Properties) {
         $Recording | Add-Member -MemberType NoteProperty -Name $Property.Name -Value $Property.Value -Force
     }
+} else {
+    # New installations must work without elevation or a writable C:\ root.
+    $Recording.record_root = Join-Path $Root 'recordings'
 }
 $Recording.segment_minutes = 5
 if ([string]::IsNullOrWhiteSpace($Recording.record_root)) { throw 'Recording directory is missing in recording_config.json' }
@@ -82,7 +88,7 @@ if ([string]::IsNullOrWhiteSpace($Recording.record_root)) { throw 'Recording dir
 if (Test-Path -LiteralPath $Root) {
     $Backup = Join-Path $Root ('backups\event_recording_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '_' + [guid]::NewGuid().ToString('N').Substring(0, 6))
     New-Item -ItemType Directory -Force -Path $Backup | Out-Null
-    foreach ($Name in @('scripts', 'config', 'assets', 'docs', 'Start_AI_Monitor.bat', 'Stop_AI_Monitor.bat')) {
+    foreach ($Name in @('scripts', 'config', 'assets', 'docs', 'Start_AI_Monitor.bat', 'Stop_AI_Monitor.bat', 'Settings.bat')) {
         $Source = Join-Path $Root $Name
         if (Test-Path -LiteralPath $Source) { Copy-Item -LiteralPath $Source -Destination $Backup -Recurse -Force }
     }
@@ -171,7 +177,7 @@ foreach ($Name in $ScriptMap.Keys) { Copy-Item -LiteralPath "$Repo\src\$Name" -D
 New-Item -ItemType Directory -Force -Path "$Root\assets" | Out-Null
 Copy-Item -LiteralPath "$Repo\assets\superlive-ai.ico" -Destination "$Root\assets\superlive-ai.ico" -Force
 New-Item -ItemType Directory -Force -Path "$Root\docs\media" | Out-Null
-foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md')) {
+foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md', 'INSTALL.en.md', 'INSTALL.zh-TW.md')) {
     Copy-Item -LiteralPath "$Repo\docs\$Name" -Destination "$Root\docs\$Name" -Force
 }
 foreach ($Name in @('dashboard-preview.png', 'dashboard-guide.en.png', 'dashboard-guide.zh-TW.png', 'dashboard-layout.gif')) {
@@ -199,6 +205,12 @@ New-Item -ItemType Directory -Force -Path $Recording.record_root | Out-Null
 
 @'
 @echo off
+"%~dp0.venv\Scripts\python.exe" "%~dp0scripts\setup_wizard.py" --root "%~dp0."
+if errorlevel 1 pause
+'@ | Set-Content -LiteralPath "$Root\Settings.bat" -Encoding ASCII
+
+@'
+@echo off
 setlocal
 for %%I in ("%~dp0.") do set "ROOT=%%~fI"
 set "PY=%ROOT%\.venv\Scripts\python.exe"
@@ -215,7 +227,7 @@ timeout /t 2 /nobreak >nul
 start "SuperLive AI Watchdog" /min "%PY%" "%AIWD%"
 echo Person or vehicle activity starts recording with a local Windows alert and snapshot. No Telegram start photo.
 echo Normal clips last 120 to 300 seconds. Detection continues throughout recording.
-echo First 120 seconds: no automatic rollover and no new Telegram sends, including old videos and retries.
+echo First 120 seconds: no automatic rollover or new video uploads. Confirmed plates notify immediately.
 echo Movement at or after 120 seconds and before 300 seconds immediately starts a new clip and quiet period.
 echo No movement for 120 continuous seconds ends recording; wait for renewed movement or a new arrival.
 echo Videos honor quiet periods. Daily 23:00 Taiwan-time CSV reports are exempt and cover 00:00-23:00 only.

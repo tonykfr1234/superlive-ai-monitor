@@ -22,6 +22,7 @@ import uuid
 from record_protocol import atomic_json, read_json
 from region_policy import box_in_roi, validate_roi
 from plate_history import load_history, record_result, prune_history
+from plate_corrections import load_corrections, prefer_verified, correct_event, save_plate_crop
 
 
 DETECTOR_MODEL = "yolo-v9-t-384-license-plate-end2end"
@@ -212,7 +213,7 @@ class PlateLearningMemory:
     def learn(self, event, now):
         # Only a fresh, raw multi-frame winner from a live clip may be an anchor.
         if (event.get("source") != "live_recording" or not event.get("complete_plate")
-                or not event.get("confirmed") or event.get("learning_influenced")
+                or not event.get("confirmed") or event.get("learning_influenced") or event.get('user_corrected')
                 or not complete_plate(event.get("text"))):
             return
         try:
@@ -357,12 +358,16 @@ class LiveClipConsensus:
         # A briefly locked receipt is not permission to emit a second plate.
         return dict(confirmed=False, unavailable=True)
 
-    def observe(self, prediction, timestamp, sample_id, allowlist):
+    def observe(self, prediction, timestamp, sample_id, allowlist, frame=None):
         if not self.context or timestamp < self.context["started_at"] or self.winner():
             return None
         variants = prediction.get("variants") or [prediction.get("selected")]
         variants = [item for item in variants if isinstance(item, dict)]
         selected, influenced = self.memory.choose(variants, timestamp)
+        corrections = load_corrections(self.root)
+        selected, verified_preference = prefer_verified(
+            [item for item in variants if complete_plate(item.get('raw_text'))], selected, corrections)
+        influenced = influenced or verified_preference
         if selected is None:
             return None
         text = normalize_plate(selected["raw_text"])
@@ -394,6 +399,10 @@ class LiveClipConsensus:
                 item["sample_id"] for queue in self.tracker.observations.values() for item in queue)
         if event is None:
             return None
+        correct_event(event, corrections)
+        canonical = event['text']
+        if self.continuous and timestamp-self.last_confirmed.get(canonical, float('-inf')) < 180:
+            return None
         event.update(match_plate(event["text"], allowlist))
         event.update(id=self.event_path().stem, request_id=self.context["request_id"],
             source="live_recording", complete_plate=True, single_plate_per_clip=True,
@@ -406,13 +415,15 @@ class LiveClipConsensus:
             event.update(source_video=Path(self.context["file"]).name, source_video_path=self.context["file"])
         # Stable identity survives worker restarts and recording rollovers.
         destination = self.root / "runtime/plate_events" / (event["id"]+".json")
+        save_plate_crop(self.root, event, frame, sample_id)
         atomic_json(destination, event)
         if self.continuous:
-            self.last_confirmed[text] = timestamp
+            self.last_confirmed[canonical] = timestamp
             self.last_confirmed = {key: stamp for key, stamp in self.last_confirmed.items()
                                    if timestamp-stamp < 180}
         record_result(self.root, event, now=timestamp)
-        self.memory.learn(event, timestamp)
+        if not event.get('user_corrected'):
+            self.memory.learn(event, timestamp)
         return event
 
 
@@ -1044,7 +1055,7 @@ def run_worker(root, session):
                 if not current_recording or current_recording["request_id"] != recording["request_id"]:
                     live_clip.reset()
                     break
-                event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1])
+                event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1], frame=frame)
                 if event is None:
                     continue
                 state("READY")

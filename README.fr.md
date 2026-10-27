@@ -28,6 +28,8 @@ Vidéo en direct en haut à gauche, historique des plaques à droite, dernière 
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Installation sur un nouveau PC :** lancez `INSTALL.bat` à la racine, puis configurez ADB, Telegram et les plaques dans la fenêtre de réglages. Le panneau inférieur gauche affiche le véhicule et sa plaque agrandie côte à côte. [Guide en anglais](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Démarrage rapide
 

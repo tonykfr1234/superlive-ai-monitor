@@ -1,4 +1,4 @@
-param([string]$Python = (Get-Command python -ErrorAction Stop).Source)
+﻿param([string]$Python = (Get-Command python -ErrorAction Stop).Source)
 $ErrorActionPreference = 'Stop'
 $Kit = Split-Path -Parent $PSScriptRoot
 $TestRoot = Join-Path (Join-Path ([IO.Path]::GetTempPath()) 'superlive-tests') ('deployment_test_' + [guid]::NewGuid().ToString('N'))
@@ -86,7 +86,7 @@ $FreshPolicy = Get-Content -LiteralPath "$FreshRoot\config\notification_policy.j
 if ($null -ne $FreshPolicy.roi -or $FreshPolicy.roi_coordinate_space -ne 'mumu_content_v1') { throw 'New install ROI defaults incorrect' }
 if (-not (Test-Path -LiteralPath "$FreshRoot\runtime\stop.flag")) { throw 'New install must remain stopped for explicit start' }
 $Capture = Get-Content -LiteralPath "$FreshRoot\config\capture_config.json" -Raw | ConvertFrom-Json
-if ($Capture.source -ne 'window' -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }
+if ($Capture.source -ne 'adb' -or $Capture.auto_detect -ne $true -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }
 if ($Capture.recovery.enabled -ne $false -or $Capture.recovery.device_name -ne '' -or $Capture.recovery.channel -ne 1 -or $Capture.recovery.stale_seconds -ne 60 -or $Capture.recovery.retry_seconds -ne 30 -or $null -ne $Capture.recovery.frame_roi) { throw 'Public recovery defaults must stay disabled with no private target' }
 $Allowlist = Get-Content -LiteralPath "$FreshRoot\config\plate_allowlist.json" -Raw
 if ($Allowlist -notmatch '^\s*\[\s*\]\s*$') { throw 'Public installation must not contain a private plate target' }
@@ -96,8 +96,12 @@ Write-Host 'ISOLATED_DEPLOYMENT_TEST=PASS'
 foreach ($Name in @('app_branding.py', 'hq_video.py', 'daily_report.py')) {
     if (-not (Test-Path -LiteralPath "$FreshRoot\scripts\$Name")) { throw "Missing new runtime helper: $Name" }
 }
+foreach ($Name in @('adb_discovery.py', 'plate_corrections.py', 'setup_wizard.py')) {
+    if ((Get-FileHash "$FreshRoot\scripts\$Name").Hash -ne (Get-FileHash "$Kit\src\$Name").Hash) { throw "New helper mismatch: $Name" }
+}
+if (-not (Test-Path "$FreshRoot\Settings.bat")) { throw 'Settings launcher missing' }
 if ((Get-FileHash "$FreshRoot\assets\superlive-ai.ico").Hash -ne (Get-FileHash "$Kit\assets\superlive-ai.ico").Hash) { throw 'Icon deployment mismatch' }
-foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md', 'media\dashboard-preview.png', 'media\dashboard-guide.en.png', 'media\dashboard-guide.zh-TW.png', 'media\dashboard-layout.gif')) {
+foreach ($Name in @('DASHBOARD.en.md', 'DASHBOARD.zh-TW.md', 'INSTALL.en.md', 'INSTALL.zh-TW.md', 'media\dashboard-preview.png', 'media\dashboard-guide.en.png', 'media\dashboard-guide.zh-TW.png', 'media\dashboard-layout.gif')) {
     if ((Get-FileHash "$FreshRoot\docs\$Name").Hash -ne (Get-FileHash "$Kit\docs\$Name").Hash) { throw "Dashboard documentation mismatch: $Name" }
 }
 # Leave a small fixture for inspection. No recursive deletion is performed.

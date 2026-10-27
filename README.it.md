@@ -28,6 +28,8 @@ Video dal vivo in alto a sinistra, cronologia targhe a destra, ultima foto del v
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Installazione su un nuovo PC:** avvia `INSTALL.bat` nella cartella principale e configura ADB, Telegram e targhe nella finestra delle impostazioni. In basso a sinistra sono affiancati il veicolo e la targa ingrandita. [Guida in inglese](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Avvio rapido
 

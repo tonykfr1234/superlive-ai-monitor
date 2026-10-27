@@ -73,8 +73,10 @@ def event_line(event):
     def compact(value):
         return " ".join(str(value).split())[:64]
     stamp = datetime.fromtimestamp(float(event["timestamp"]), timezone(timedelta(hours=8))).strftime("%m/%d %H:%M:%S")
-    observed = compact(event.get("text") or event.get("raw_text") or "?")
+    observed = compact(event.get("display_text") or event.get("text") or event.get("raw_text") or "?")
     text = "%s 辨識：%s" % (stamp, observed)
+    if event.get('user_corrected'):
+        text += '（人工校正）'
     if event.get("matched"):
         target = compact(event["matched"])
         normalize = lambda value: "".join(c for c in value.upper() if c.isascii() and c.isalnum())

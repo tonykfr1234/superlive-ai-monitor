@@ -40,6 +40,8 @@ SuperLive 및 MuMu 제공업체와 관련이 없는 비공식 커뮤니티 프�
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**새 PC 설치:** 루트의 `INSTALL.bat`를 실행하고 설정 창에서 ADB, Telegram, 번호판을 설정하세요. 왼쪽 아래에는 차량과 확대 번호판이 나란히 표시됩니다. [설치 안내(영어)](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## 빠른 시작
 

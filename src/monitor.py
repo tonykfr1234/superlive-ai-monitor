@@ -492,6 +492,7 @@ def main():
                 pass
             controller.latest_vehicle = latest_vehicle.snapshot()
             controller.latest_vehicle_image = latest_vehicle.image
+            controller.latest_plate_image = latest_vehicle.plate_image
             controller.layout = PreviewLayout.create(width, height, *canvas_size,
                 show_plates=controller.plate_enabled,
                 plate_sidebar=controller.plate_enabled,

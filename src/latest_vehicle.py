@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 import time
 import hashlib
+import re
 
 from record_protocol import atomic_json, read_json
 
@@ -94,8 +95,10 @@ class LatestVehicleTracker:
         self._last_write = -math.inf
         self.persistence_error = False
         self.image = None
+        self.plate_image = None
         self._last_image_at = -math.inf
         self.image_path = self.path.with_suffix(".jpg")
+        self.plate_image_path = self.path.with_name('latest_plate.jpg')
         # A hash binds the restored photo to the JSON observation. A crash between
         # the two atomic writes cannot display a previous vehicle under a new plate.
         if self.latest and isinstance(saved, dict) and saved.get("image_sha256"):
@@ -111,6 +114,19 @@ class LatestVehicleTracker:
                         self.latest.update(image_timestamp=image_stamp, image_sha256=saved["image_sha256"])
             except (OSError, ValueError, ImportError):
                 pass
+        if self.latest.get('plate') and saved.get('plate_image_sha256'):
+            try:
+                import cv2
+                import numpy as np
+                data = self.plate_image_path.read_bytes()
+                if hashlib.sha256(data).hexdigest() == saved['plate_image_sha256']:
+                    self.plate_image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                    self.latest['plate_image_sha256'] = saved['plate_image_sha256']
+            except (OSError, ValueError, ImportError):
+                pass
+        if self.latest.get('plate'):
+            self.latest['plate_display'] = _text(saved.get('plate_display')) or self.latest['plate']
+            self.latest['user_corrected'] = saved.get('user_corrected') is True
 
     def snapshot(self):
         return deepcopy(self.latest)
@@ -163,6 +179,7 @@ class LatestVehicleTracker:
             self._observations.clear()
             self.latest = {"timestamp": stamp, "plate": "", "plate_timestamp": None}
             self.image = None
+            self.plate_image = None
             self._last_image_at = -math.inf
         else:
             boxes = ordered
@@ -220,6 +237,7 @@ class LatestVehicleTracker:
                     or event.get("source") not in (None, "", "live", "live_recording")):
                 continue
             text = _text(event.get("text"))
+            observed_text = _text(event.get('observed_text')) or text
             stamp = _stamp(event.get("timestamp"))
             if (not text or stamp is None
                     or not self._context_start <= stamp <= self.latest["timestamp"] + SAMPLE_SKEW_SECONDS):
@@ -230,7 +248,7 @@ class LatestVehicleTracker:
             samples = {}
             for sample in evidence:
                 if (not isinstance(sample, dict) or not sample.get("sample_id")
-                        or _text(sample.get("text")) != text):
+                        or _text(sample.get("text")) != observed_text):
                     continue
                 sample_time = _stamp(sample.get("timestamp"))
                 if sample_time is None or not self._context_start <= sample_time <= stamp:
@@ -252,9 +270,46 @@ class LatestVehicleTracker:
                 continue
             plate_time = max(confirmed_times)
             if plate_time > (self.latest.get("plate_timestamp") or 0):
+                if self.latest.get('plate') != text:
+                    self.plate_image = None
+                    self.latest.pop('plate_image_sha256', None)
                 self.latest.update(plate=text, plate_timestamp=plate_time)
+                self.latest.update(plate_display=_text(event.get('display_text')) or text,
+                                   user_corrected=event.get('user_corrected') is True)
+                image_meta = event.get('plate_image')
+                if isinstance(image_meta, dict) and any(
+                        len(values) >= 2 and len(set(values.values())) >= 2
+                        and image_meta.get('sample_id') in values
+                        and values[image_meta['sample_id']] == image_meta.get('timestamp')
+                        for values in samples.values()):
+                    self.load_plate_image(image_meta)
                 self._dirty = True
         self.flush(force=True)
+
+    def load_plate_image(self, metadata):
+        name = metadata.get('file', '')
+        if not isinstance(name, str) or not re.fullmatch('[0-9a-f]{64}\\.jpg', name):
+            return
+        try:
+            import cv2
+            import numpy as np
+            path = self.path.parent/'plate_crops'/name
+            if path.stat().st_size > 2*1024*1024:
+                return
+            data = path.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()
+            if digest != metadata.get('sha256'):
+                return
+            photo = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            if photo is None:
+                return
+            self.plate_image = photo
+            temporary = self.plate_image_path.with_suffix('.tmp')
+            temporary.write_bytes(data)
+            temporary.replace(self.plate_image_path)
+            self.latest['plate_image_sha256'] = digest
+        except (OSError, ValueError, ImportError):
+            pass
 
 
 def latest_vehicle_text(record, chinese=True):

@@ -40,6 +40,8 @@ SuperLive AI Monitor 为 Windows 上 MuMu 中的 SuperLive 实时画面添加人
 
 [操作說明 / Guide](docs/DASHBOARD.zh-TW.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**新电脑一键安装：** 双击根目录 `INSTALL.bat`，安装后在窗口中设置 ADB、Telegram 和车牌；左下区域左侧显示车辆，右侧显示放大车牌。[安装与校正说明（繁体中文）](docs/INSTALL.zh-TW.md)。
+
 <a id="quick-start"></a>
 ## 快速开始
 

@@ -39,6 +39,8 @@ Vídeo ao vivo no canto superior esquerdo, histórico de placas à direita, últ
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Instalação em outro PC:** execute `INSTALL.bat` na pasta principal e configure ADB, Telegram e placas na janela de configurações. O painel inferior esquerdo mostra o veículo e a placa ampliada lado a lado. [Guia em inglês](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Instalação rápida
 

@@ -40,12 +40,14 @@ Live camera at top left, plate history at top right, latest vehicle photo below,
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**New-PC setup:** double-click the root `INSTALL.bat`, then configure ADB, Telegram and plates in the local settings window. The lower-left card shows the vehicle beside its enlarged plate crop. [Installation and correction guide](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Quick start
 
 1. Install MuMu or MEmu, then SuperLive, sign in, and open the intended live camera view. Keep the Windows session logged in.
-2. Clone/download this repository. Run `installer\INSTALL_FROM_REPO.bat` or the PowerShell command above.
-3. Run `installer\SET_TELEGRAM.bat` to configure your own bot and chat locally. The repository includes no credentials.
+2. Clone/download and extract this repository. Double-click **`INSTALL.bat`**. The local settings window opens after dependency installation.
+3. Confirm the automatically detected ADB emulator, fill Telegram and plate settings, then save and start. [New-PC installation guide](docs/INSTALL.en.md). No credentials are included.
 4. Run `installer\VERIFY_ALL.bat` with the live view open.
 5. Start the deployed `%USERPROFILE%\Downloads\SuperLive_AI\Start_AI_Monitor.bat`; use `Stop_AI_Monitor.bat` to stop.
 
@@ -89,7 +91,7 @@ Selection or invalid capture/inference is unknown and resets the observation int
 | Plate recognition | Full image plus overlapping tile scans, multi-frame confirmation, up to seven days of scrollable recognition history and an automatically restarted OCR worker |
 | Video delivery | Actual-duration H.264 MP4; persistent queue/retries; no new sends during each clip's first 120 seconds |
 | Recovery | Capture retry and separate monitor/recorder watchdogs |
-| Storage | 10 FPS; `C:\SuperLive_Recordings`; drive rotation at 80% down to 78% |
+| Storage | 10 FPS; the runtime `recordings` directory (existing paths preserved); drive rotation at 80% down to 78% |
 
 Movement is a proxy derived from person/vehicle-box position and size, not pose analysis or a physical sensor. Small jitter is ignored and slow displacement accumulates, but camera movement, occlusion and detection errors can affect it. Videos contain the full cropped camera view, not a polygon-shaped crop. Plate OCR is separate from movement detection: a vehicle can trigger recording without a readable plate, and a plate observation alone does not start a clip.
 
@@ -176,9 +178,9 @@ At 23:00 Taiwan time, send a CSV covering that day from 00:00 inclusive to 23:00
 
 ### 2026-10-19 · MuMu / MEmu（逍遙模擬器）
 
-支援 MuMu 與逍遙模擬器；請只開啟一個監看的模擬器視窗，保持攝影機畫面可見。切換模擬器後重新設定多邊形。預覽與錄影均等比例縮放，空白處留黑邊，避免畫面扭曲。
+支援 MuMu 與逍遙模擬器。新安裝預設 ADB 自動偵測，模擬器被其他視窗遮住仍可擷取；切換模擬器後重新設定多邊形。四區預覽保持比例，以柔化背景補齊空白。
 
-MuMu and MEmu are supported. Keep one emulator camera window visible and reselect the polygon after switching emulators. Preview and recorded frames preserve aspect ratio with letterboxing when resized.
+MuMu and MEmu are supported. New installations discover ADB automatically and can capture an obscured emulator. Reselect the polygon after switching emulators. The dashboard preserves aspect ratio with a softened backdrop.
 
 
 [Public user guide (Traditional Chinese, plain text)](docs/使用說明.txt)

@@ -28,6 +28,8 @@ Livebild oben links, Kennzeichenverlauf oben rechts, letztes Fahrzeugfoto unten 
 
 [操作說明 / Guide](docs/DASHBOARD.en.md) · [排列動畫 / Layout animation](docs/media/dashboard-layout.gif)
 
+**Installation auf einem neuen PC:** `INSTALL.bat` im Hauptordner starten und ADB, Telegram sowie Kennzeichen im Einstellungsfenster konfigurieren. Unten links stehen Fahrzeugbild und vergrößertes Kennzeichen nebeneinander. [Anleitung auf Englisch](docs/INSTALL.en.md).
+
 <a id="quick-start"></a>
 ## Schnellstart
 

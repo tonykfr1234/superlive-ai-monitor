@@ -164,6 +164,12 @@ def prune_history(root, now=None):
                 path.unlink(missing_ok=True)
         except (ValueError, TypeError, OSError):
             pass
+    for path in (runtime/'plate_crops').glob('*.jpg'):
+        try:
+            if path.stat().st_mtime < now-RETENTION_SECONDS:
+                path.unlink(missing_ok=True)
+        except OSError:
+            pass
     return removed
 
 

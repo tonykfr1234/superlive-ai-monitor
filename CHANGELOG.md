@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-27 — One-click setup and plate close-up
+
+- Root INSTALL.bat installs dependencies and opens a local ADB / Telegram / plate settings window; Settings.bat reopens it later.
+- Discover local MuMu/MEmu ADB installations and endpoints, retry offline devices and require selection when multiple devices are found. Preserve pinned devices and existing private settings.
+- Latest vehicle card: vehicle on the left, exact-evidence plate crop and formatted plate text on the right. Validate spatial/time association and image hashes; never substitute a later frame.
+- Verified spellings rank only actual confident OCR candidates. Explicit local manual corrections preserve raw evidence, share canonical notification cooldowns and are excluded from automatic training anchors.
+- Fresh recordings default to the runtime recordings directory. Installation no longer changes Windows power settings. Updated setup guides and synthetic dashboard illustrations.
+
+
 ## 2026-10-27
 
 - Add a responsive four-card preview: live camera, plate history, latest vehicle crop and consolidated controls. Drag headers to swap cards, press L to restore the default layout, and persist ordering locally. Preserve camera proportions with a soft backdrop, recording pulse and hover/drag highlights.
