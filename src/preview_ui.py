@@ -15,6 +15,16 @@ from region_policy import roi_vertices, validate_roi
 from latest_vehicle import latest_vehicle_text
 
 
+def enhance_plate_display(picture, size):
+    """Display-only enlargement; preserve source pixels and OCR evidence."""
+    from PIL import Image, ImageOps, ImageFilter
+    factor = min(size[0]/picture.width, size[1]/picture.height)
+    enlarged = picture.resize((max(1, round(picture.width*factor)),
+                               max(1, round(picture.height*factor))), Image.Resampling.LANCZOS)
+    return ImageOps.autocontrast(enlarged, cutoff=1).filter(
+        ImageFilter.UnsharpMask(radius=1.2, percent=120, threshold=3))
+
+
 @dataclass(frozen=True)
 class Rect:
     x: int
@@ -133,13 +143,15 @@ class PreviewLayout:
         size = max(12, min(18, control.width//24))
         line_height = size+6
         footer = Rect(control.x+12, control.y+header+4, control.width-24, control.height-header-16)
-        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("review_plate", "reset_layout"))
+        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("settings", "reset_layout"))
         button_height = max(32, size+20)
         button_top = control.y+control.height-12-len(rows)*(button_height+8)
         buttons = {name: Rect(control.x+12+col*((control.width-24-8*(len(names_in_row)-1))//len(names_in_row)+8),
                               button_top+row*(button_height+8),
                               (control.width-24-8*(len(names_in_row)-1))//len(names_in_row), button_height)
                    for row, names_in_row in enumerate(rows) for col, name in enumerate(names_in_row)}
+        latest = panels["latest"]
+        buttons["review_plate"] = Rect(latest.x+12, latest.y+latest.height-44, latest.width-24, 32)
         p = panels["plates"]
         plates = Rect(p.x+2, p.y+header, p.width-4, p.height-header-2) if show_plates else None
         return cls(width, height, video, footer, buttons, size, line_height, 4,
@@ -224,6 +236,8 @@ class PreviewController:
         self.pressed_button = None
 
     def command(self, name):
+        if name == 'settings':
+            return UIAction('settings')
         if name == 'review_plate':
             return UIAction('review_plate')
         if name == "reset_layout":
@@ -828,7 +842,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
         draw.text((p.x+16, p.y+54), "車牌辨識未啟用" if chinese else "Plate recognition disabled", font=font, fill=(142, 164, 185))
     # The saved crop and its own timestamp are separate from current camera pixels.
     p = layout.panels["latest"]
-    area = Rect(p.x+12, p.y+48, p.width-24, p.height-60)
+    area = Rect(p.x+12, p.y+48, p.width-24, p.height-102)
     photo = controller.latest_vehicle_image
     record = controller.latest_vehicle
     meta_height = 78 if area.width < 450 else 90
@@ -845,12 +859,12 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
             draw.text((picture.x+6, picture.y+12+i*22), line, font=small, fill=(139, 177, 195))
     plate_photo = controller.latest_plate_image
     draw.rounded_rectangle(plate_picture.bounds, 9, fill=(24, 42, 60), outline=(43, 69, 89))
-    label = "車牌放大" if chinese else "Plate close-up"
+    label = "車牌放大・清晰化" if chinese else "Enhanced close-up"
     draw.text((plate_picture.x+6, plate_picture.y+6), label, font=small, fill=(139, 207, 220))
     plate_pixels = Rect(plate_picture.x+5, plate_picture.y+32, plate_picture.width-10,
                         max(20, plate_picture.height-72))
     if plate_photo is not None and getattr(plate_photo, 'size', 0):
-        _dashboard_photo(image, Image.fromarray(plate_photo[:, :, ::-1]), plate_pixels)
+        _dashboard_photo(image, enhance_plate_display(Image.fromarray(plate_photo[:, :, ::-1]), (plate_pixels.width, plate_pixels.height)), plate_pixels)
         draw = ImageDraw.Draw(image)
     else:
         label = "尚未取得車牌影像" if chinese else "No plate image yet"
@@ -884,7 +898,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
                   font=font if index < 2 else small, fill=(155, 227, 199) if index == 1 else (182, 207, 223))
     # All actions stay in the controls card, including layout reset.
     control = layout.panels["controls"]
-    status_bottom = min(rect.y for rect in layout.buttons.values())-6
+    status_bottom = min(rect.y for name, rect in layout.buttons.items() if name != "review_plate")-6
     lines = status_lines(controller, status, count, infer_ms, elapsed, message)
     if controller.selecting:
         lines = [lines[1], lines[0]]  # Selection errors must remain visible in short cards.
@@ -901,10 +915,10 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
             break
     labels = ({"select": "R  設定區域", "full": "C  全畫面", "stop": "Q  停止",
                "confirm": "Enter  儲存", "cancel": "Esc  取消", "plates": "收起其他" if controller.plate_other_expanded else "其他紀錄",
-               "reset_layout": "L  還原排列", 'review_plate': 'P  確認車牌'} if chinese else
+               "reset_layout": "L  還原排列", 'review_plate': 'P  確認車牌與車色 / 存入資料庫', 'settings': 'Telegram 設定'} if chinese else
               {"select": "R  Set region", "full": "C  Full frame", "stop": "Q  Stop",
                "confirm": "Enter  Save", "cancel": "Esc  Cancel", "plates": "Hide others" if controller.plate_other_expanded else "Other records",
-               "reset_layout": "L  Reset layout", 'review_plate': 'P  Confirm plate'})
+               "reset_layout": "L  Reset layout", 'review_plate': 'P  Confirm plate / color', 'settings': 'Telegram settings'})
     for name, rect in layout.buttons.items():
         enabled = name not in ("confirm", "cancel") or (controller.can_confirm if name == "confirm" else controller.selecting)
         if name == "plates" and not controller.plate_enabled:

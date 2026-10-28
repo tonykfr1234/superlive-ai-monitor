@@ -1,5 +1,7 @@
 """Polygon activity starts 2–5 minute clips with a silent minimum period."""
 import csv
+import subprocess
+import sys
 import ctypes
 import json
 import math
@@ -349,6 +351,7 @@ def main():
     reveal_results = SimpleQueue()
     reveal_thread = None
     review_process = None
+    settings_process = None
     next_review_read = 0.0
 
     def reveal_in_background(event):
@@ -530,9 +533,17 @@ def main():
                 action = ui_actions.pop(0)
                 if action.kind == "stop":
                     STOP_FLAG.write_text("STOP", encoding="utf-8")
+                elif action.kind == 'settings':
+                    if settings_process is None or settings_process.poll() is not None:
+                        try:
+                            settings_process = subprocess.Popen([sys.executable, str(ROOT/'scripts/setup_wizard.py'), '--root', str(ROOT), '--tab', 'telegram'], creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                            message, message_until = '已開啟 Telegram 設定；儲存後重新啟動監控生效', time.monotonic()+6
+                        except OSError:
+                            message, message_until = '無法開啟設定，請使用 Settings.bat', time.monotonic()+6
                 elif action.kind == "layout_changed":
                     try:
                         atomic_json(ROOT / "runtime/preview_layout.json", dict(panel_order=controller.panel_order))
+                        message, message_until = "排列已儲存；預設左上即時影像、右上紀錄、左下車輛、右下控制" if controller.panel_order == ["camera", "plates", "latest", "controls"] else "排列已儲存", time.monotonic()+6
                     except OSError:
                         message, message_until = "排列已更新，本次無法儲存設定", time.monotonic()+5
                 elif action.kind == 'review_plate':

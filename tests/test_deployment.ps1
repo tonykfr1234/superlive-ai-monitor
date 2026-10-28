@@ -83,7 +83,8 @@ if ((Get-FileHash -LiteralPath "$FreshRoot\config\telegram.env").Hash -ne (Get-F
 $Template = Get-Content -LiteralPath "$FreshRoot\config\telegram.env"
 if ($Template -notcontains 'BOT_TOKEN=' -or $Template -notcontains 'CHAT_ID=') { throw 'New install must have empty Telegram settings' }
 $FreshPolicy = Get-Content -LiteralPath "$FreshRoot\config\notification_policy.json" -Raw | ConvertFrom-Json
-if ($null -ne $FreshPolicy.roi -or $FreshPolicy.roi_coordinate_space -ne 'mumu_content_v1') { throw 'New install ROI defaults incorrect' }
+$DefaultPolicy = Get-Content -LiteralPath "$Kit\config\notification_policy.example.json" -Raw | ConvertFrom-Json
+if (($FreshPolicy.roi | ConvertTo-Json -Depth 8 -Compress) -ne ($DefaultPolicy.roi | ConvertTo-Json -Depth 8 -Compress) -or $FreshPolicy.roi_coordinate_space -ne 'mumu_content_v1') { throw 'New install ROI defaults incorrect' }
 if (-not (Test-Path -LiteralPath "$FreshRoot\runtime\stop.flag")) { throw 'New install must remain stopped for explicit start' }
 $Capture = Get-Content -LiteralPath "$FreshRoot\config\capture_config.json" -Raw | ConvertFrom-Json
 if ($Capture.source -ne 'adb' -or $Capture.auto_detect -ne $true -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }

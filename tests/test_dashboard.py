@@ -32,8 +32,8 @@ class DashboardTests(unittest.TestCase):
                     self.assertGreaterEqual(r.x, 0)
                     self.assertLessEqual(r.x+r.width, l.width)
                     self.assertLessEqual(r.y+r.height, l.height)
-                for button in l.buttons.values():
-                    r = l.panels['controls']
+                for name, button in l.buttons.items():
+                    r = l.panels['latest' if name == 'review_plate' else 'controls']
                     self.assertTrue(r.contains(button.x, button.y))
                     self.assertLessEqual(button.x+button.width, r.x+r.width)
                     self.assertLessEqual(button.y+button.height, r.y+r.height)

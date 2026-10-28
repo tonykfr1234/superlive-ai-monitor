@@ -97,14 +97,21 @@ def main():
     vehicle_view.pack(side='left', expand=True)
     plate_view = ttk.Label(pictures, anchor='center')
     plate_view.pack(side='right', expand=True)
+    enhanced = tk.BooleanVar(value=True)
+    ttk.Checkbutton(outer, text='放大並清晰化車牌（取消可核對原始裁切）', variable=enhanced, command=lambda: show_car()).pack(anchor='w')
     retained = []
-    def load(meta, size):
+    def load(meta, size, is_plate=False):
         from io import BytesIO
         data = (path.parent/meta['file']).read_bytes()
         if hashlib.sha256(data).hexdigest() != meta['sha256']:
             raise ValueError('確認圖片已變更，請重新開啟確認視窗。')
         picture = Image.open(BytesIO(data)).convert('RGB')
-        picture.thumbnail(size)
+        if is_plate and enhanced.get():
+            from preview_ui import enhance_plate_display
+            picture = enhance_plate_display(picture, size)
+        else:
+            factor = min(size[0]/picture.width, size[1]/picture.height)
+            picture = picture.resize((max(1, round(picture.width*factor)), max(1, round(picture.height*factor))), Image.Resampling.LANCZOS)
         canvas = Image.new('RGB', size, '#152436')
         canvas.paste(picture, ((size[0]-picture.width)//2, (size[1]-picture.height)//2))
         result = ImageTk.PhotoImage(canvas)
@@ -131,7 +138,7 @@ def main():
         try:
             vehicle_view.configure(image=load(cards[index], (440, 215)))
             associated = snapshot.get('plate_vehicle_index') == index
-            plate_view.configure(image=load(snapshot['plate_image'], (330, 215)) if associated and snapshot.get('plate_image') else '',
+            plate_view.configure(image=load(snapshot['plate_image'], (330, 215), is_plate=True) if associated and snapshot.get('plate_image') else '',
                                  text='' if associated and snapshot.get('plate_image') else '沒有可核對的車牌裁切圖')
             plate.set(snapshot.get('plate') or snapshot.get('observed', '') if associated else '')
             color.set(COLORS.get(cards[index].get('color', {}).get('name'), COLORS['unknown']))

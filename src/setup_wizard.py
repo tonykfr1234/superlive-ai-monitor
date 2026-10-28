@@ -73,7 +73,7 @@ def save_settings(root, capture, token, chat, plates, verified, aliases):
 
 
 class SetupWizard:
-    def __init__(self, root, window=None):
+    def __init__(self, root, window=None, tab=None):
         self.root = Path(root)
         self.window = window or tk.Tk()
         self.window.title('SuperLive AI — 安裝與本機設定')
@@ -110,6 +110,9 @@ class SetupWizard:
         tabs.add(connection, text='  1  模擬器連線  ')
         tabs.add(telegram, text='  2  Telegram  ')
         tabs.add(plate, text='  3  車牌與校正  ')
+        ttk.Button(wrapper, text='Telegram Bot Token / Chat ID 設定', command=lambda: tabs.select(telegram)).pack(anchor='w', pady=4)
+        if tab == 'telegram':
+            tabs.select(telegram)
         for tab in (connection, telegram, plate):
             tab.columnconfigure(0, weight=1)
         ttk.Label(connection, text='安裝並開啟 MuMu／逍遙，登入 SuperLive 並開啟攝影機。', wraplength=650).grid(sticky='w', pady=(0, 18))
@@ -255,8 +258,9 @@ class SetupWizard:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', required=True)
+    parser.add_argument('--tab', choices=['telegram'])
     args = parser.parse_args()
-    wizard = SetupWizard(args.root)
+    wizard = SetupWizard(args.root, tab=args.tab)
     wizard.window.mainloop()
     return 0 if wizard.saved else 2
 
