@@ -8,11 +8,40 @@ import subprocess
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import urllib.request
+import requests
 
 from adb_discovery import discover
 from plate_corrections import normalized
 from record_protocol import atomic_json, read_json
+
+
+def verify_telegram_token(token):
+    """Read-only getMe with the same verified HTTPS transport as notifications.
+
+    Never expose exception text: requests URLs contain the bot credential.
+    """
+    if not re.fullmatch(r'\d+:[A-Za-z0-9_-]+', token):
+        return 'Bot Token 格式不正確。'
+    try:
+        response = requests.get('https://api.telegram.org/bot'+token+'/getMe', timeout=(5, 15))
+        if response.status_code in (401, 404):
+            return 'Telegram 拒絕此 Token，請確認是否已撤銷或輸入錯誤。'
+        if response.status_code == 429:
+            return 'Telegram 暫時限制驗證次數，請稍後重試；這不代表 Token 無效。'
+        if response.status_code != 200:
+            return 'Telegram 服務暫時無法完成驗證，請稍後重試。'
+        result = response.json()
+        if isinstance(result, dict) and result.get('ok') is True:
+            return 'Bot Token 驗證成功。此檢查不傳送訊息，也不驗證 Chat ID。'
+        return 'Telegram 回應未確認成功，請稍後重試。'
+    except requests.exceptions.SSLError:
+        return 'HTTPS 憑證驗證異常，尚無法判定 Token；請檢查系統時間與網路憑證。'
+    except requests.exceptions.Timeout:
+        return '連線逾時，尚無法判定 Token；請稍後重試。'
+    except ValueError:
+        return 'Telegram 回應格式異常，尚無法判定 Token；請稍後重試。'
+    except requests.exceptions.RequestException:
+        return '網路連線失敗，尚無法判定 Token；請檢查網路後重試。'
 
 
 def read_telegram(root):
@@ -92,6 +121,7 @@ class SetupWizard:
         self.capture['auto_detect'] = True
         self.token = tk.StringVar()
         self.chat = tk.StringVar()
+        self.telegram_status = tk.StringVar()
         old = read_telegram(root)
         self.token.set(old.get('BOT_TOKEN', '') if ':' in old.get('BOT_TOKEN', '') else '')
         self.chat.set(old.get('CHAT_ID', '') if re.fullmatch(r'-?\d+', old.get('CHAT_ID', '')) else '')
@@ -129,7 +159,9 @@ class SetupWizard:
         ttk.Entry(telegram, textvariable=self.token, show='●').grid(sticky='ew', pady=8)
         ttk.Label(telegram, text='Chat ID（接收通知的使用者或群組數字 ID）').grid(sticky='w', pady=(16, 0))
         ttk.Entry(telegram, textvariable=self.chat).grid(sticky='ew', pady=8)
-        ttk.Button(telegram, text='驗證 Bot Token（不傳送測試訊息）', command=self.verify_token).grid(sticky='w', pady=16)
+        self.verify_button = ttk.Button(telegram, text='驗證 Bot Token（不傳送測試訊息）', command=self.verify_token)
+        self.verify_button.grid(sticky='w', pady=16)
+        ttk.Label(telegram, textvariable=self.telegram_status, wraplength=650).grid(sticky='w', pady=4)
         ttk.Label(telegram, text='請先在 Telegram 開啟自己的 Bot 並按 Start。\n驗證按鈕僅確認 Bot Token；Chat ID 請核對接收對象。\n憑證不會寫入 GitHub 專案或顯示於安裝紀錄。', wraplength=650).grid(sticky='w')
         data = read_json(self.root/'config/plate_allowlist.json', [])
         data = data.get('plates', []) if isinstance(data, dict) else data
@@ -203,6 +235,10 @@ class SetupWizard:
                 self.running = False
                 self.status.set(value)
                 self.window.after(15000, self.scan)
+            elif kind == 'telegram':
+                self.verify_button.configure(state='normal')
+                token, message = value
+                self.telegram_status.set(message if token == self.token.get().strip() else 'Token 已變更，請重新驗證。')
             else:
                 self.status.set(value)
         except queue.Empty:
@@ -212,15 +248,12 @@ class SetupWizard:
     def verify_token(self):
         token = self.token.get().strip()
         if not re.fullmatch(r'\d+:[A-Za-z0-9_-]+', token):
-            self.status.set('Bot Token 格式不正確。')
+            self.telegram_status.set('Bot Token 格式不正確。')
             return
+        self.verify_button.configure(state='disabled')
+        self.telegram_status.set('正在向 Telegram 驗證…')
         def work():
-            try:
-                with urllib.request.urlopen('https://api.telegram.org/bot'+token+'/getMe', timeout=15) as response:
-                    ok = json.load(response).get('ok') is True
-            except Exception:
-                ok = False
-            self.results.put(('telegram', 'Bot Token 驗證成功。' if ok else '驗證失敗，請核對 Token 與網路。'))
+            self.results.put(('telegram', (token, verify_telegram_token(token))))
         threading.Thread(target=work, daemon=True).start()
 
     def save(self, start):
