@@ -90,7 +90,7 @@ $Capture = Get-Content -LiteralPath "$FreshRoot\config\capture_config.json" -Raw
 if ($Capture.source -ne 'adb' -or $Capture.auto_detect -ne $true -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }
 if ($Capture.recovery.enabled -ne $false -or $Capture.recovery.device_name -ne '' -or $Capture.recovery.channel -ne 1 -or $Capture.recovery.stale_seconds -ne 60 -or $Capture.recovery.retry_seconds -ne 30 -or $null -ne $Capture.recovery.frame_roi) { throw 'Public recovery defaults must stay disabled with no private target' }
 $Allowlist = Get-Content -LiteralPath "$FreshRoot\config\plate_allowlist.json" -Raw
-if ($Allowlist -notmatch '^\s*\[\s*\]\s*$') { throw 'Public installation must not contain a private plate target' }
+if ((($Allowlist | ConvertFrom-Json) -join ',') -ne '6122MN') { throw 'New installation must use the explicitly requested default alert plate' }
 if ((Get-FileHash "$FreshRoot\requirements-plates.txt").Hash -ne (Get-FileHash "$Kit\requirements-plates.txt").Hash) { throw 'Isolated OCR requirements missing' }
 if ((Get-FileHash "$InstallRoot\config\capture_config.json").Hash -ne $CaptureHash -or (Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash -ne $AllowlistHash) { throw 'Repeated upgrades changed local camera or plate settings' }
 Write-Host 'ISOLATED_DEPLOYMENT_TEST=PASS'

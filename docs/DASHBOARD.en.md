@@ -9,9 +9,9 @@ All vehicles, plates and events shown are synthetic. This is an interface demons
 | Top left | Full camera image, polygon, pulsing recording border | R to select polygon vertices inside the real image; Enter to save |
 | Top right | Seven-day plate history and collapsible other records | Wheel, PgUp/PgDn or scrollbar; click a video filename to reveal it in Explorer |
 | Bottom left | Latest vehicle time, associated plate and captured image | The photo has its own capture time; simultaneous vehicles share a group crop |
-| Bottom right | All controls and monitoring status | Region, full frame, save, cancel, other records, stop and reset layout |
+| Bottom right | All controls and monitoring status | Region, full frame, save, cancel, other records, stop, Telegram settings and alert plates |
 
-Drag any card header onto another card to swap their positions. Escape cancels an active drag. Press **L** or the reset-layout button to restore the default positions. Ordering is kept locally in `runtime/preview_layout.json`.
+Drag any card header onto another card to swap their positions. Escape cancels an active drag. Alert plates are configurable (default `6122MN`) and pinned above the scrollable history; matching confirmed records appear first. Vehicle/color confirmation is available in the bottom-left card. Ordering is kept locally in `runtime/preview_layout.json`.
 
 ![Synthetic animation showing real drag-and-swap interaction and layout reset](media/dashboard-layout.gif)
 

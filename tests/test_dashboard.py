@@ -43,7 +43,7 @@ class DashboardTests(unittest.TestCase):
                 self.assertLessEqual(v.x+v.width, camera.x+camera.width)
                 self.assertLessEqual(v.y+v.height, camera.y+camera.height)
 
-    def test_header_drag_swaps_panels_without_adding_roi_points_and_reset_restores(self):
+    def test_header_drag_swaps_panels_without_adding_roi_points_and_no_reset_shortcut(self):
         c = self.controller()
         c.command('select')
         h, target = c.layout.headers['camera'], c.layout.panels['latest']
@@ -53,8 +53,9 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(action.kind, 'layout_changed')
         self.assertEqual(c.panel_order, ['latest', 'plates', 'camera', 'controls'])
         self.assertEqual(c.draft, [])
-        self.assertEqual(c.key(ord('l')).kind, 'layout_changed')
-        self.assertEqual(c.panel_order, ['camera', 'plates', 'latest', 'controls'])
+        self.assertIsNone(c.key(ord('l')))
+        self.assertEqual(c.panel_order, ['latest', 'plates', 'camera', 'controls'])
+        self.assertNotIn('reset_layout', c.layout.buttons)
 
     def test_drop_outside_cancels_and_reordered_roi_uses_actual_image_coordinates(self):
         c = self.controller(order=['controls', 'latest', 'plates', 'camera'])

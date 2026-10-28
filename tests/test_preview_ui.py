@@ -443,7 +443,7 @@ class PlateSidebarLayoutTests(unittest.TestCase):
         controller = self.controller(events)
         output = self.render_panel(controller)
         text = "".join(value for _, value, _ in output)
-        for expected in ("指定車牌：AB1234", "符合指定車牌（2 筆）", "2026/01/10 · 2 筆", "XY1234"):
+        for expected in ("置頂警示車牌：AB1234", "警示車牌優先（2 筆）", "2026/01/10 · 2 筆", "XY1234"):
             self.assertIn(expected, text)
         self.assertNotIn("ZZ9999", text)
         self.assertEqual(len(controller.plate_links), 1)
@@ -459,7 +459,7 @@ class PlateSidebarLayoutTests(unittest.TestCase):
         controller.plate_scroll = 0
         text = "".join(value for _, value, _ in self.render_panel(controller))
         self.assertIn("已確認車牌（3 筆）", text)
-        self.assertNotIn("指定車牌：", text)
+        self.assertNotIn("置頂警示車牌：", text)
 
     def test_other_button_jumps_to_other_records_and_returns_to_matches_when_collapsed(self):
         events = [self.event(i) for i in range(10)]
@@ -485,7 +485,7 @@ class PlateSidebarLayoutTests(unittest.TestCase):
         text = "".join(value for _, value, _ in self.render_panel(controller))
         self.assertFalse(controller.plate_other_expanded)
         self.assertEqual(controller.plate_scroll, 0)
-        self.assertIn("指定車牌：AB1234", text)
+        self.assertIn("置頂警示車牌：AB1234", text)
         self.assertTrue(controller.selecting)
         self.assertEqual(controller.roi, old_roi)
         self.assertEqual(controller.draft, old_draft)

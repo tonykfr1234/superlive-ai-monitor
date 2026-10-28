@@ -11,7 +11,7 @@ class SettingsAccessTests(unittest.TestCase):
     def test_click_settings_and_review_in_respective_cards(self):
         c = PreviewController()
         c.layout = PreviewLayout.create(960, 540, 1280, 820, dashboard=True)
-        for name, expected in [('settings', 'settings'), ('review_plate', 'review_plate')]:
+        for name, expected in [('settings', 'settings'), ('alert_settings', 'alert_settings'), ('review_plate', 'review_plate')]:
             button = c.layout.buttons[name]
             c.mouse('down', button.x+5, button.y+5)
             self.assertEqual(c.mouse('up', button.x+5, button.y+5).kind, expected)

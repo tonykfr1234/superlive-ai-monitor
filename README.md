@@ -38,7 +38,7 @@ Live plate recognition continuously samples fresh camera frames, including while
 
 ## Four-panel dashboard
 
-Live camera at top left, plate history at top right, latest vehicle photo below, and all controls together. Drag card headers to swap positions; press L to reset. Synthetic illustration, rendered by the actual application.
+Live camera at top left, plate history at top right, latest vehicle photo below, and all controls together. Drag card headers to swap positions. Use Alert plates to configure pinned alerts (default: `6122MN`). Synthetic illustration, rendered by the actual application.
 
 ![Dashboard diagram](docs/media/dashboard-guide.en.png)
 

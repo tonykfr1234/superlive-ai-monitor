@@ -111,8 +111,8 @@ class SetupWizard:
         tabs.add(telegram, text='  2  Telegram  ')
         tabs.add(plate, text='  3  車牌與校正  ')
         ttk.Button(wrapper, text='Telegram Bot Token / Chat ID 設定', command=lambda: tabs.select(telegram)).pack(anchor='w', pady=4)
-        if tab == 'telegram':
-            tabs.select(telegram)
+        if tab in ('telegram', 'plates'):
+            tabs.select(telegram if tab == 'telegram' else plate)
         for tab in (connection, telegram, plate):
             tab.columnconfigure(0, weight=1)
         ttk.Label(connection, text='安裝並開啟 MuMu／逍遙，登入 SuperLive 並開啟攝影機。', wraplength=650).grid(sticky='w', pady=(0, 18))
@@ -134,7 +134,7 @@ class SetupWizard:
         data = read_json(self.root/'config/plate_allowlist.json', [])
         data = data.get('plates', []) if isinstance(data, dict) else data
         corrections = read_json(self.root/'config/plate_corrections.json', {})
-        self.plates = self.textbox(plate, '特別標示的車牌（每行一筆，或用逗號分隔）', '\n'.join(data or []), 3)
+        self.plates = self.textbox(plate, '置頂警示車牌（每行一筆或逗號分隔；清空可取消）', '\n'.join(data or []), 3)
         self.verified = self.textbox(plate, '已確認的正確車牌（用於優先選擇實際 OCR 候選，不直接猜字）', '\n'.join(corrections.get('verified', [])), 3)
         self.aliases = self.textbox(plate, '人工確認的誤讀校正：原辨識值=正確車牌（每行一筆）', '\n'.join(k+'='+v for k, v in corrections.get('aliases', {}).items()), 3)
         ttk.Label(plate, text='只校正你確認過的完整誤讀值；相近車牌不會自動替換。原始 OCR 證據仍會保留。', wraplength=650).grid(sticky='w', pady=8)
@@ -258,7 +258,7 @@ class SetupWizard:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', required=True)
-    parser.add_argument('--tab', choices=['telegram'])
+    parser.add_argument('--tab', choices=['telegram', 'plates'])
     args = parser.parse_args()
     wizard = SetupWizard(args.root, tab=args.tab)
     wizard.window.mainloop()

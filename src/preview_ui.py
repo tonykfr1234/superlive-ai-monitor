@@ -143,7 +143,7 @@ class PreviewLayout:
         size = max(12, min(18, control.width//24))
         line_height = size+6
         footer = Rect(control.x+12, control.y+header+4, control.width-24, control.height-header-16)
-        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("settings", "reset_layout"))
+        rows = (("select", "full"), ("confirm", "cancel"), ("plates", "stop"), ("settings", "alert_settings"))
         button_height = max(32, size+20)
         button_top = control.y+control.height-12-len(rows)*(button_height+8)
         buttons = {name: Rect(control.x+12+col*((control.width-24-8*(len(names_in_row)-1))//len(names_in_row)+8),
@@ -240,10 +240,8 @@ class PreviewController:
             return UIAction('settings')
         if name == 'review_plate':
             return UIAction('review_plate')
-        if name == "reset_layout":
-            self.panel_order = ["camera", "plates", "latest", "controls"]
-            self._panel_drag = None
-            return UIAction("layout_changed", event=list(self.panel_order))
+        if name == "alert_settings":
+            return UIAction("alert_settings")
         if name == "plates" and self.layout is not None and "plates" in self.layout.buttons:
             if self.layout.plate_sidebar:
                 self.plate_other_expanded = not self.plate_other_expanded
@@ -303,8 +301,6 @@ class PreviewController:
             return self.command("full")
         if key in (ord("q"), ord("Q")):
             return self.command("stop")
-        if key in (ord("l"), ord("L")):
-            return self.command("reset_layout")
         if key in (ord('p'), ord('P')):
             return self.command('review_plate')
         if key == 27:
@@ -705,10 +701,8 @@ def render_plate_panel(draw, controller, font, chinese):
                 for kind, value in plate_record_parts(record, chinese):
                     paragraph(value, colors[kind], ("reveal_video", record) if kind == "video" else None)
                 row_lines.append(("", colors["detail"], None))
-        if sidebar and targets:
-            paragraph(("指定車牌：" if chinese else "Target plates: ")+" / ".join(targets), colors["title"])
         if featured:
-            label = (("符合指定車牌（%d 筆）" if targets else "已確認車牌（%d 筆）") if chinese else
+            label = (("警示車牌優先（%d 筆）" if targets else "已確認車牌（%d 筆）") if chinese else
                      ("Matching plates · %d records" if targets else "Confirmed plates · %d records"))
             paragraph(label % len(featured), colors["title"])
             if sidebar:
@@ -736,6 +730,8 @@ def render_plate_panel(draw, controller, font, chinese):
     heading = (("最近 7 天辨識紀錄（%d 筆）" if chinese else "Last 7 days · %d records") % record_count)
     help_text = "滾輪 / PgUp / PgDn · 點擊捲軸" if chinese else "Wheel / PgUp / PgDn · scrollbar"
     title_lines = wrap_panel_text(draw, heading, font, text_width)
+    if sidebar and targets:
+        title_lines += wrap_panel_text(draw, ("置頂警示車牌：" if chinese else "Pinned alerts: ")+" / ".join(targets), font, text_width)
     title_lines += wrap_panel_text(draw, help_text, font, text_width)
     y = panel.y+8
     for text in title_lines:
@@ -896,7 +892,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
     for index, text in enumerate(lines):
         draw.text((area.x+2, picture.y+picture.height+8+index*22), text,
                   font=font if index < 2 else small, fill=(155, 227, 199) if index == 1 else (182, 207, 223))
-    # All actions stay in the controls card, including layout reset.
+    # Settings stay in controls; vehicle confirmation belongs to the latest card.
     control = layout.panels["controls"]
     status_bottom = min(rect.y for name, rect in layout.buttons.items() if name != "review_plate")-6
     lines = status_lines(controller, status, count, infer_ms, elapsed, message)
@@ -915,10 +911,10 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
             break
     labels = ({"select": "R  設定區域", "full": "C  全畫面", "stop": "Q  停止",
                "confirm": "Enter  儲存", "cancel": "Esc  取消", "plates": "收起其他" if controller.plate_other_expanded else "其他紀錄",
-               "reset_layout": "L  還原排列", 'review_plate': 'P  確認車牌與車色 / 存入資料庫', 'settings': 'Telegram 設定'} if chinese else
+               "alert_settings": "警示車牌設定", 'review_plate': 'P  確認車牌與車色 / 存入資料庫', 'settings': 'Telegram 設定'} if chinese else
               {"select": "R  Set region", "full": "C  Full frame", "stop": "Q  Stop",
                "confirm": "Enter  Save", "cancel": "Esc  Cancel", "plates": "Hide others" if controller.plate_other_expanded else "Other records",
-               "reset_layout": "L  Reset layout", 'review_plate': 'P  Confirm plate / color', 'settings': 'Telegram settings'})
+               "alert_settings": "Alert plates", 'review_plate': 'P  Confirm plate / color', 'settings': 'Telegram settings'})
     for name, rect in layout.buttons.items():
         enabled = name not in ("confirm", "cancel") or (controller.can_confirm if name == "confirm" else controller.selecting)
         if name == "plates" and not controller.plate_enabled:
