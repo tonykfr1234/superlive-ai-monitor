@@ -1,5 +1,7 @@
 **Windows quick start: [Download ZIP](https://github.com/tonykfr1234/superlive-ai-monitor/archive/refs/heads/main.zip) → extract everything → double-click `INSTALL.bat`. See the [installation guide](docs/INSTALL.en.md).**
 
+**Existing installation:** follow the [update and current-behavior guide (繁體中文)](docs/INSTALL.zh-TW.md#現有電腦更新). Publishing source does not update an already installed PC.
+
 <p align="center">
   <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a><br>
   <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.id.md">Bahasa Indonesia</a> · <a href="README.it.md">Italiano</a>

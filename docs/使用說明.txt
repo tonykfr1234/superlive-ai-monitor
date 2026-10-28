@@ -1,5 +1,5 @@
 SuperLive AI 使用說明（繁體中文）
-更新日期：2026-10-27
+更新日期：2026-10-28
 
 一、新電腦一鍵安裝
 1. 安裝並開啟 MuMu 或逍遙模擬器，在模擬器內安裝 SuperLive、登入並開啟攝影機即時畫面；啟用模擬器 ADB。
@@ -77,3 +77,8 @@ GUI／Telegram 標示資料庫匹配，保留原始讀值；同一資料庫車�
 新電腦：下載 GitHub 完整 ZIP → 全部解壓縮 → 雙擊最外層 INSTALL.bat。不能只下載單一 BAT。
 即時車牌先比較原圖與放大、降噪、對比調整、適度銳化結果；同一張圖的多種處理只算一個影格。
 原始圖片保留供核對；不生成或猜補車牌，不處理歷史影片。低信心時按 P 人工確認。
+
+九、現有電腦更新
+下載並完整解壓新版，執行 installer\UPDATE_FROM_REPO.bat。確認更新完成，再執行安裝目錄的 Start_AI_Monitor.bat。
+GitHub 上傳不會自動套用到已安裝的電腦。更新保留私人設定；失敗請保留錯誤訊息及 backups 備份。
+最新完整流程與排錯：https://github.com/tonykfr1234/superlive-ai-monitor/blob/main/docs/INSTALL.zh-TW.md

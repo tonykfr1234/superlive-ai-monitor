@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-28 — Consolidated installation and current behavior guide
+
+- Consolidate fresh installation, existing-PC updates, current recording/plate notification rules and troubleshooting in the Traditional Chinese installation guide.
+- Distinguish publishing source from applying an update on an installed PC; preserve private configuration and keep application activation under user control.
+- This documentation release does not change the monitoring or OCR algorithms. Earlier changelog entries describe superseded behavior where the current guide says otherwise.
+
 ## 2026-10-27 — Small-plate OCR enhancement
 
 - Compare original OCR with bounded enlargement, edge-preserving denoising, local contrast and mild sharpening; preserve raw evidence and count one source frame once.
