@@ -192,6 +192,7 @@ class PreviewController:
         self.draft = None
         self.selection_error = None
         self.pressed_button = None
+        self.focused_button = None
         self.model_label = "YOLO11n"
         self.plate_events = []
         self.plate_enabled = False
@@ -236,6 +237,8 @@ class PreviewController:
         self.pressed_button = None
 
     def command(self, name):
+        # Direct shortcuts and completed actions restore Enter's ROI-save behavior.
+        self.focused_button = None
         if name == 'settings':
             return UIAction('settings')
         if name == 'review_plate':
@@ -279,6 +282,15 @@ class PreviewController:
         return None
 
     def key(self, key):
+        if key in (9, "tab", "backtab", 65056):
+            self.focus_next_button(-1 if key in ("backtab", 65056) else 1)
+            return None
+        if key in (10, 13, 32) and self.focused_button is not None:
+            name = self.focused_button
+            if self.layout and name in self.layout.buttons and self.button_enabled(name):
+                return self.command(name)
+            self.focused_button = None
+            return None
         if key == 27 and self._panel_drag:
             self._panel_drag = None
             return None
@@ -311,6 +323,29 @@ class PreviewController:
             return self.command("confirm")
         return None
 
+    def button_enabled(self, name):
+        if name == "confirm":
+            return self.can_confirm
+        if name == "cancel":
+            return self.selecting
+        if name == "plates" and self.layout and self.layout.panels:
+            return self.plate_enabled
+        return True
+
+    def focus_next_button(self, direction=1):
+        """Follow the current visual order, including after card rearrangement."""
+        if self.layout is None:
+            return
+        names = [name for name, rect in sorted(self.layout.buttons.items(),
+                                               key=lambda item: (item[1].y, item[1].x))
+                 if self.button_enabled(name)]
+        if not names:
+            self.focused_button = None
+        elif self.focused_button in names:
+            self.focused_button = names[(names.index(self.focused_button)+direction) % len(names)]
+        else:
+            self.focused_button = names[0 if direction > 0 else -1]
+
     def scroll_plates(self, lines):
         self.plate_scroll = max(0, min(self.plate_scroll_max, self.plate_scroll+int(lines)))
 
@@ -338,6 +373,8 @@ class PreviewController:
     def mouse(self, event, x, y):
         if self.layout is None:
             return None
+        if event in ("down", "right_down"):
+            self.focused_button = None
         self.hover_point = (x, y)
         if self.layout.panels:
             if self._panel_drag:
@@ -916,9 +953,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
                "confirm": "Enter  Save", "cancel": "Esc  Cancel", "plates": "Hide others" if controller.plate_other_expanded else "Other records",
                "alert_settings": "Alert plates", 'review_plate': 'P  Confirm plate / color', 'settings': 'Telegram settings'})
     for name, rect in layout.buttons.items():
-        enabled = name not in ("confirm", "cancel") or (controller.can_confirm if name == "confirm" else controller.selecting)
-        if name == "plates" and not controller.plate_enabled:
-            enabled = False
+        enabled = controller.button_enabled(name)
         hover = controller.hover_point and rect.contains(*controller.hover_point)
         color = (34, 66, 86) if enabled else (25, 36, 50)
         if name == "stop":
@@ -929,6 +964,8 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
             color = tuple(min(255, value+18) for value in color)
         draw.rounded_rectangle(rect.bounds, 8, fill=color,
                                outline=(92, 190, 211) if hover and enabled else (48, 79, 101))
+        if enabled and controller.focused_button == name:
+            draw.rounded_rectangle(rect.bounds, 8, outline=(255, 208, 119), width=3)
         text = labels[name]
         button_font = font
         for size in range(layout.font_size, 10, -1):
@@ -988,8 +1025,7 @@ def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed
         labels["plates"] = (("收起其他" if controller.plate_other_expanded else "其他紀錄") if chinese else
                             ("Hide others" if controller.plate_other_expanded else "Other records"))
     for name, rect in layout.buttons.items():
-        enabled = (name not in ("confirm", "cancel") or
-                   (controller.selecting if name == "cancel" else controller.can_confirm))
+        enabled = controller.button_enabled(name)
         color = (36, 65, 88) if enabled else (30, 39, 51)
         if name == "select" and controller.selecting:
             color = (25, 103, 119)
@@ -998,6 +1034,8 @@ def render_preview(frame, controller, status, count=None, infer_ms=None, elapsed
         if name == "stop":
             color = (115, 49, 58)
         draw.rounded_rectangle(rect.bounds, radius=5, fill=color, outline=(75, 118, 146) if enabled else (43, 54, 67))
+        if enabled and controller.focused_button == name:
+            draw.rounded_rectangle(rect.bounds, radius=5, outline=(255, 208, 119), width=3)
         text = labels[name]
         box = draw.textbbox((0, 0), text, font=font)
         draw.text((rect.x+(rect.width-(box[2]-box[0]))/2, rect.y+(rect.height-(box[3]-box[1]))/2-box[1]),

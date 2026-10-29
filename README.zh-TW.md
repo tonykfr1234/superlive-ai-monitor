@@ -195,3 +195,8 @@ MuMu and MEmu are supported. New installations discover ADB automatically and ca
 
 
 [ADB、最高畫質與車牌辨識使用說明](docs/PLATE_AND_ADB.zh-TW.md)
+
+
+## Preview UI verification / 預覽介面驗證
+
+[2026-10-29 keyboard candidate, tests and limitations / 鍵盤候選、驗證與限制](docs/UI_UX_2026-10-29.md)
