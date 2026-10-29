@@ -33,6 +33,8 @@ DEMO_MEDIA = {
     'docs/media/dashboard-guide.zh-TW.png': 'png',
     'docs/media/dashboard-guide.en.png': 'png',
     'docs/media/dashboard-layout.gif': 'gif',
+    'docs/ui-ux-20261029/before-keyboard.png': 'png',
+    'docs/ui-ux-20261029/after-keyboard.png': 'png',
 }
 PATTERNS = {
     'Telegram bot token': re.compile(r'\b\d{8,12}:[A-Za-z0-9_-]{30,}\b'),

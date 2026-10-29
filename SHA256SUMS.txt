@@ -12,11 +12,11 @@ b91cf44884e0a74ce9d171eaf474929207e405898b9e0dae45d7e8c6a9ef00df  ./README.id.md
 3b7218791d40bcb4d39df0c23122f467f56eea72ec7e644c78fc01c2f71bf0d5  ./README.it.md
 36dad9f18ab2ffc9f95c4a6f844449fae7d354498a19c1ee748698b38c37f870  ./README.ja.md
 222a13702809495c64d064a39dfe50054124524b3410f706aa335e1006b531f2  ./README.ko.md
-de249136185777c63f9dccaeddc3641ca5e02dce9dc16d57bb3890041c593bbf  ./README.md
+b796799fd28d596749ecc8e7f931fd37b5af80afe7e07eb61be54b1e182a53eb  ./README.md
 459800ec66b3dd6cbd635edcb5beba1d860c7d31c78f29e03190b640111608bd  ./README.pt-BR.md
 f730b3abb1bc497dc90acf3849dc14478d9f458bf4e315c1b8ad3e23c31c7da5  ./README.vi.md
 a96aa42ac66a5fcc6ec223f9d4825d3469de9c62b11ed1cb7c74cd214d4fb2ba  ./README.zh-CN.md
-a566e2cc207bc887bd7f7417f489157a728792b2effac45798cba3708fe0e0e8  ./README.zh-TW.md
+f661e97f96aa838336e8db9a4d5e14b900c71fb560786062c162354e21ade586  ./README.zh-TW.md
 58d3589412c42fd3214718c488b3e4a2eefd44af20b246868e99709f44bee72c  ./SECURITY.md
 1b26aafc9dc35e02eec4543cb6d6ed89bfb880801dd11f63388655e2b29aa45b  ./assets/superlive-ai.ico
 e7e231e8c51b5e5851804846072edceab948ceb990d7ed49df2b903d7842da69  ./assets/superlive-ai.png
@@ -36,6 +36,7 @@ ba652edac93ba2e2c463870d0902f05b679a79855964dcd5ab3800f0d59d4743  ./docs/PLATE_A
 ef26858212dc39cb3b8d176016d60880a545149645eee9d72c9a5f82ca412d18  ./docs/PLATE_ENHANCEMENT.zh-TW.md
 aef0ed65fa61a2e827ee99d91f6be363cb19208cb22293b7e34e35d79846af71  ./docs/RECORDING.md
 ca72c5b89399bdcc8a43de45c8e831bc031a30d44f9f84c98b9a52f3a05b43a4  ./docs/SECURITY.zh-TW.md
+b1dcc4fcbbe2f373e0fc884b8997d87012894799da31e0acfc13ca4050cf78d1  ./docs/UI_UX_2026-10-29.md
 c9213c5518f20778c5d33f473d1bb7664efe8e3090997f4d60ecfc33461e2954  ./docs/USER_GUIDE.md
 b53d0520b98b24b060db857ea8699ae9772ad2ca87bf23b1a4c79c67d311b403  ./docs/USER_GUIDE.zh-TW.md
 65c8eb71ab7ff46eb33e5edd287909fb7a4be869ef1582c2b1ef82cb7f09799b  ./docs/VEHICLE_DATABASE.en.md
@@ -50,6 +51,8 @@ e3f79d62a00ef7092ed22ddb8704b04845d5a7c7240486c505d5abf2fec46984  ./docs/media/d
 6b38c1da95a1e6c4fc1ba5cbf3d98ab2aa0037ecd904ea4a285ef3569f0443d8  ./docs/media/polygon-selection.png
 fc56d7e9913bbfe086a936f6b09f3156b50d21fc618355934523f46751f1e52f  ./docs/media/superlive-demo.gif
 b1c5e6c8b433eda7e0a43e0c1785b5255cf42ce67bea17c8fe28fbc762557ffd  ./docs/media/superlive-demo.mp4
+036068e007b2357769d41cb37763b99580d511ca8b33cf68bf7e9705dbda5965  ./docs/ui-ux-20261029/after-keyboard.png
+aa228084fce8ac3115078f877d8efd4136302402d04473b10e2684ce93b579b4  ./docs/ui-ux-20261029/before-keyboard.png
 63ee8384095461c4538049eaf33f716b712f948761ae82ddaadb15d3446cfd5c  ./docs/使用說明.txt
 b35be4e31e8aba5a3be591e649cc16c2563e2ef0adca51ef5c0db0ee5347463c  ./installer/DEPLOY_RUNTIME.ps1
 eea3839d1b46c422d3b5d82ca92e5e8b165f8aabfb6e0225c17801d69b4e5ed6  ./installer/INSTALL_FROM_REPO.bat
@@ -66,7 +69,7 @@ cf4b4987bffae179d8372740de0ab613d4fa32c2b792e682f434eaadb1e5e8e2  ./installer/UP
 d56e9f9e6993e4e66cc373819e3eebda2f3ac6fdcbc2ad3c3de7bafef20eba64  ./scripts/generate_dashboard_demo.py
 6d0008e87b53a328e25151e4277529248886b42c014caf6413ebaddb906f1e2d  ./scripts/generate_demo.py
 f399fdc12f06e5e13ddd93592fc24e0359d0e0ffc7f7b0eb5a32767fe94ad961  ./scripts/generate_icon.py
-682473d8f18d861e688503344095842a6687d6fefe09c0fae6e096adf503c6b3  ./scripts/security_scan.py
+dd20629ba13e6e58f662d126db4a241179141dfac3612159ab54e936b0b3b37a  ./scripts/security_scan.py
 702a3fce4654bdc390af757e401409f5bbdde22330ab6bfbe33bc4fd7ea017b5  ./src/adb_capture.py
 c6dde344f21bf3fb8b7c726efc7b5ca50702b3095bf60d28218fd071463831c2  ./src/adb_discovery.py
 df48592d17891848ce47b4284d7529e97628f3ad814e00587bf4d87608cc7b29  ./src/app_branding.py
@@ -81,7 +84,7 @@ d37fc762942b7d6c5067cfc39af47211b98f4f913c4cea016347c7c42045eab8  ./src/plate_co
 4434ca1c3366e9d48bab1a9b861de298428c8816df421f565e87ec5191cb7ed7  ./src/plate_recognition.py
 80547820880b152c91414d260a424bf806c46990e3017fe5b7c0ffddcaffd755  ./src/plate_replay.py
 568daed377b29210e912b03dec4ba8c59c3a8d9983a760c41c530d9619d98acd  ./src/plate_review.py
-309db6da545e382e011d2091a02d87b289639de97bfe5b7b68e0809f00405bd5  ./src/preview_ui.py
+236f6dde81a3e01fcc958dcfadc6b2a8c8ba05f544ad0002ca9ce4dae8e3c2d0  ./src/preview_ui.py
 37a242135696de0f2dcd11120e54e583ffdc5ff1c8fc1630d50f0083e5baccf4  ./src/record_protocol.py
 823dddf2bb26365e2892d935bde2948ab12c575e6161c5b083c9be2c61b18d81  ./src/recorder.py
 bf3e2d1df9131c1a36965bccde93b8fd47c38c9cae52e910de1862ec9ddcef63  ./src/recorder_watchdog.py
@@ -123,6 +126,7 @@ c7d0d25f79c22af7c63b9e6b1ab465ee48decda69ea832c75f9cc58fccd4de80  ./tests/test_p
 dc326ec854472f3b64c723f1b9474ccc9002d3e8eb19c347266b72f5495f95b4  ./tests/test_plate_worker_lifecycle.py
 7ef264ba2c71725f290988b4c0910ea4c4aac0af755e0603a52185b535ace03d  ./tests/test_polygon_roi.py
 3ae350f3f8eed0d9f09e77da6050d28c7ff08e9f73cb3cfd06c6ad176f45ce88  ./tests/test_presence_monitor.py
+b252ff519a7bf9c2eb32f1963948c4c068c033df5eb95c6971bf08166eb49db1  ./tests/test_preview_keyboard.py
 aeeb7adb02caa644f96d86bd705d7bd7665a7766295fc903bd3d4cc4e0f1a13c  ./tests/test_preview_ui.py
 f61659655ef872d19f18301b9910a57272c6aa3429761d258b2d7a28988f4882  ./tests/test_recording_end_protocol.py
 87872210b8057ec20ba008edca61998fbee98d449cc025ee4a6a28de72807e37  ./tests/test_security_scan.py
