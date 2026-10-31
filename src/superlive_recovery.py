@@ -53,12 +53,13 @@ class SuperLiveRecovery:
     """
 
     def __init__(self, client, device_name, channel, stop_event=None):
-        if not isinstance(device_name, str) or not device_name.strip():
+        self.restart_only = device_name is None and channel is None
+        if not self.restart_only and (not isinstance(device_name, str) or not device_name.strip()):
             raise ValueError("Recovery requires a configured camera device")
-        if isinstance(channel, bool) or not isinstance(channel, int) or not 1 <= channel <= 64:
+        if not self.restart_only and (isinstance(channel, bool) or not isinstance(channel, int) or not 1 <= channel <= 64):
             raise ValueError("Recovery channel must be an integer between 1 and 64")
         self.client = client
-        self.device_name = device_name.strip()
+        self.device_name = device_name.strip() if device_name else ''
         self.channel = channel
         self.stop_event = stop_event if stop_event is not None else threading.Event()
         self._deadline = None
@@ -336,11 +337,14 @@ class SuperLiveRecovery:
             component = resolved[-1] if resolved else ""
             if not re.fullmatch(re.escape(PACKAGE) + r"/[A-Za-z0-9_.]+", component):
                 raise RuntimeError("SuperLive launcher could not be verified")
-            self._remember_rotation()
+            if not self.restart_only:
+                self._remember_rotation()
             self._run("shell", "am", "force-stop", PACKAGE)
             self._run("shell", "am", "start", "-n", component)
             self._stage = "app startup"
             tree = self._wait_for(lambda t: bool(self._nodes(t, "live_video")), 16)
+            if self.restart_only:
+                return True
             if self._node(tree, "iv_device", False) is not None:
                 self._select_landscape_camera(tree)
             else:

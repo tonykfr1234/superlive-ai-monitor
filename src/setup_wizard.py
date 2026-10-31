@@ -88,6 +88,8 @@ def recovery_settings(previous, enabled, device_name, channel, stale_seconds, re
     result = dict(previous or {}, enabled=bool(enabled))
     if not enabled:
         return result
+    if result.get('mode') == 'restart_only':
+        device_name, channel = 'App 上次畫面', 1
     name = str(device_name).strip()
     if not name:
         raise ValueError('啟用自動復原時，請填寫 SuperLive 裝置列表中的完整裝置名稱。')
@@ -181,14 +183,12 @@ class SetupWizard:
         self.recovery_channel = tk.StringVar(value=str(recovery.get('channel', 1)))
         self.recovery_stale = tk.StringVar(value=str(recovery.get('stale_seconds', 60)))
         self.recovery_retry = tk.StringVar(value=str(recovery.get('retry_seconds', 30)))
-        ttk.Checkbutton(recovery_tab, text='無畫面或畫面停止更新時，自動重啟 SuperLive 並選回指定頻道', variable=self.recovery_enabled).grid(sticky='w', pady=(0, 14))
-        for label, variable in [('SuperLive 裝置名稱（須與 App 裝置列表完全相同）', self.recovery_device),
-                                ('頻道編號（1～64）', self.recovery_channel),
-                                ('無畫面／停止更新等待秒數（預設 60）', self.recovery_stale),
+        ttk.Checkbutton(recovery_tab, text='無畫面時只重啟 SuperLive，回到 App 上次畫面', variable=self.recovery_enabled).grid(sticky='w', pady=(0, 14))
+        for label, variable in [('無畫面／停止更新等待秒數（預設 60）', self.recovery_stale),
                                 ('復原重試間隔秒數（預設 30）', self.recovery_retry)]:
             ttk.Label(recovery_tab, text=label).grid(sticky='w', pady=(8, 2))
             ttk.Entry(recovery_tab, textvariable=variable).grid(sticky='ew')
-        ttk.Label(recovery_tab, text='只重啟 SuperLive；確認裝置與頻道後，等待影像恢復更新。\n模擬器離線時持續重連；遇到登入畫面或目標不明時不會選其他攝影機。\n儲存後重新啟動監控生效。裝置名稱與頻道只存在本機。', wraplength=650).grid(sticky='w', pady=16)
+        ttk.Label(recovery_tab, text='由 SuperLive 自己恢復上次畫面，不操作裝置或頻道選單。\n重啟後仍會確認影像持續更新；模擬器離線時先重連。\n儲存後重新啟動監控生效。', wraplength=650).grid(sticky='w', pady=16)
         ttk.Label(connection, text='安裝並開啟 MuMu／逍遙，登入 SuperLive 並開啟攝影機。', wraplength=650).grid(sticky='w', pady=(0, 18))
         ttk.Label(connection, text='ADB 程式（自動尋找，也可手動選取）').grid(sticky='w')
         ttk.Entry(connection, textvariable=self.adb).grid(sticky='ew', pady=6)
@@ -310,7 +310,7 @@ class SetupWizard:
         try:
             capture = dict(self.capture, source='adb', auto_detect=True,
                            adb_path=self.adb.get(), serial=self.serial.get())
-            capture['recovery'] = recovery_settings(self.capture.get('recovery'), self.recovery_enabled.get(),
+            capture['recovery'] = recovery_settings(dict(self.capture.get('recovery') or {}, mode='restart_only'), self.recovery_enabled.get(),
                 self.recovery_device.get(), self.recovery_channel.get(), self.recovery_stale.get(), self.recovery_retry.get())
             save_settings(self.root, capture, self.token.get(), self.chat.get(),
                           self.plates.get('1.0', 'end'), self.verified.get('1.0', 'end'), self.aliases.get('1.0', 'end'))

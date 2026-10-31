@@ -332,8 +332,9 @@ class AdbStream(SharedAdbReader):
             if (not math.isfinite(self.recovery_retry_seconds)
                     or not 10 <= self.recovery_retry_seconds <= 3600):
                 raise ValueError('Recovery retry interval must be 10 to 3600 seconds')
-            self.recovery = SuperLiveRecovery(self.client, recovery.get('device_name', ''),
-                                             recovery.get('channel'), self.stop_event)
+            restart_only = recovery.get('mode') == 'restart_only'
+            self.recovery = SuperLiveRecovery(self.client, None if restart_only else recovery.get('device_name', ''),
+                                             None if restart_only else recovery.get('channel'), self.stop_event)
         self._recovery_pending = False
         self._last_recovery_at = None
         self._capture_failure_since = None

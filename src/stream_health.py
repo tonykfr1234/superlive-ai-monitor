@@ -77,6 +77,14 @@ class FrameStallDetector:
         x1, y1 = int(left * width), int(top * height)
         x2, y2 = int(math.ceil(right * width)), int(math.ceil(bottom * height))
         camera = frame[y1:y2, x1:x2]
+        # SuperLive's orange loading wheel on a flat dark-grey background is
+        # not live camera motion. Normalize only this specific loading screen.
+        if camera.ndim == 3 and camera.shape[2] >= 3:
+            b, g, r = [camera[..., i].astype(np.int16) for i in range(3)]
+            grey = (abs(b-51) <= 5) & (abs(g-51) <= 5) & (abs(r-51) <= 5)
+            orange = (r > 110) & (g > 55) & (r > g+25) & (g > b+25)
+            if grey.mean() > .94 and orange.mean() > .0001:
+                camera = np.full_like(camera, 51)
         # Area averaging avoids skipping narrow timestamp glyphs. At most
         # 960x960 pixels are compared, once a second during normal streaming.
         scale = min(1.0, 960.0 / max(camera.shape[:2]))
