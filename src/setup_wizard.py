@@ -83,6 +83,27 @@ def parse_aliases(text):
     return result
 
 
+def recovery_settings(previous, enabled, device_name, channel, stale_seconds, retry_seconds):
+    """Validate the exact recovery target before any settings are written."""
+    result = dict(previous or {}, enabled=bool(enabled))
+    if not enabled:
+        return result
+    name = str(device_name).strip()
+    if not name:
+        raise ValueError('啟用自動復原時，請填寫 SuperLive 裝置列表中的完整裝置名稱。')
+    values = []
+    for value, low, high, label in ((channel, 1, 64, '頻道'),
+                                   (stale_seconds, 15, 3600, '無畫面等待秒數'),
+                                   (retry_seconds, 10, 3600, '復原重試間隔')):
+        if isinstance(value, bool) or not re.fullmatch(r'\d+', str(value)) or not low <= int(value) <= high:
+            raise ValueError(f'{label}請填寫 {low}～{high} 的整數。')
+        values.append(int(value))
+    result.update(device_name=name, channel=values[0], stale_seconds=values[1], retry_seconds=values[2])
+    from stream_health import FrameStallDetector
+    FrameStallDetector(result['stale_seconds'], roi=result.get('frame_roi'))
+    return result
+
+
 def save_settings(root, capture, token, chat, plates, verified, aliases):
     root = Path(root)
     token, chat = token.strip(), chat.strip()
@@ -90,6 +111,13 @@ def save_settings(root, capture, token, chat, plates, verified, aliases):
         if not re.fullmatch(r'\d+:[A-Za-z0-9_-]+', token) or not re.fullmatch(r'-?\d+', chat):
             raise ValueError('請完整填寫 Bot Token 與數字 Chat ID；不用 Telegram 時兩欄都留空。')
     allowlist, spellings, mapping = parse_plates(plates), parse_plates(verified), parse_aliases(aliases)
+    if 'recovery' in capture:
+        recovery = capture['recovery']
+        if not isinstance(recovery, dict):
+            raise ValueError('自動復原設定格式不正確。')
+        capture = dict(capture, recovery=recovery_settings(recovery, recovery.get('enabled') is True,
+            recovery.get('device_name', ''), recovery.get('channel', 1),
+            recovery.get('stale_seconds', 60), recovery.get('retry_seconds', 30)))
     cfg = root/'config'
     cfg.mkdir(parents=True, exist_ok=True)
     # Validate all inputs before writing anything. Each file is replaced atomically.
@@ -137,14 +165,30 @@ class SetupWizard:
         connection = ttk.Frame(tabs, padding=18)
         telegram = ttk.Frame(tabs, padding=18)
         plate = ttk.Frame(tabs, padding=18)
+        recovery_tab = ttk.Frame(tabs, padding=18)
         tabs.add(connection, text='  1  模擬器連線  ')
         tabs.add(telegram, text='  2  Telegram  ')
         tabs.add(plate, text='  3  車牌與校正  ')
+        tabs.add(recovery_tab, text='  4  無畫面自動復原  ')
         ttk.Button(wrapper, text='Telegram Bot Token / Chat ID 設定', command=lambda: tabs.select(telegram)).pack(anchor='w', pady=4)
-        if tab in ('telegram', 'plates'):
-            tabs.select(telegram if tab == 'telegram' else plate)
-        for tab in (connection, telegram, plate):
+        if tab in ('telegram', 'plates', 'recovery'):
+            tabs.select({'telegram': telegram, 'plates': plate, 'recovery': recovery_tab}[tab])
+        for tab in (connection, telegram, plate, recovery_tab):
             tab.columnconfigure(0, weight=1)
+        recovery = self.capture.get('recovery') or {}
+        self.recovery_enabled = tk.BooleanVar(value=recovery.get('enabled') is True)
+        self.recovery_device = tk.StringVar(value=recovery.get('device_name', ''))
+        self.recovery_channel = tk.StringVar(value=str(recovery.get('channel', 1)))
+        self.recovery_stale = tk.StringVar(value=str(recovery.get('stale_seconds', 60)))
+        self.recovery_retry = tk.StringVar(value=str(recovery.get('retry_seconds', 30)))
+        ttk.Checkbutton(recovery_tab, text='無畫面或畫面停止更新時，自動重啟 SuperLive 並選回指定頻道', variable=self.recovery_enabled).grid(sticky='w', pady=(0, 14))
+        for label, variable in [('SuperLive 裝置名稱（須與 App 裝置列表完全相同）', self.recovery_device),
+                                ('頻道編號（1～64）', self.recovery_channel),
+                                ('無畫面／停止更新等待秒數（預設 60）', self.recovery_stale),
+                                ('復原重試間隔秒數（預設 30）', self.recovery_retry)]:
+            ttk.Label(recovery_tab, text=label).grid(sticky='w', pady=(8, 2))
+            ttk.Entry(recovery_tab, textvariable=variable).grid(sticky='ew')
+        ttk.Label(recovery_tab, text='只重啟 SuperLive；確認裝置與頻道後，等待影像恢復更新。\n模擬器離線時持續重連；遇到登入畫面或目標不明時不會選其他攝影機。\n儲存後重新啟動監控生效。裝置名稱與頻道只存在本機。', wraplength=650).grid(sticky='w', pady=16)
         ttk.Label(connection, text='安裝並開啟 MuMu／逍遙，登入 SuperLive 並開啟攝影機。', wraplength=650).grid(sticky='w', pady=(0, 18))
         ttk.Label(connection, text='ADB 程式（自動尋找，也可手動選取）').grid(sticky='w')
         ttk.Entry(connection, textvariable=self.adb).grid(sticky='ew', pady=6)
@@ -266,6 +310,8 @@ class SetupWizard:
         try:
             capture = dict(self.capture, source='adb', auto_detect=True,
                            adb_path=self.adb.get(), serial=self.serial.get())
+            capture['recovery'] = recovery_settings(self.capture.get('recovery'), self.recovery_enabled.get(),
+                self.recovery_device.get(), self.recovery_channel.get(), self.recovery_stale.get(), self.recovery_retry.get())
             save_settings(self.root, capture, self.token.get(), self.chat.get(),
                           self.plates.get('1.0', 'end'), self.verified.get('1.0', 'end'), self.aliases.get('1.0', 'end'))
             self.saved = True
@@ -291,7 +337,7 @@ class SetupWizard:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', required=True)
-    parser.add_argument('--tab', choices=['telegram', 'plates'])
+    parser.add_argument('--tab', choices=['telegram', 'plates', 'recovery'])
     args = parser.parse_args()
     wizard = SetupWizard(args.root, tab=args.tab)
     wizard.window.mainloop()

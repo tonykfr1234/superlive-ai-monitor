@@ -31,7 +31,7 @@ a29506b715c947f93d1bc2ac931a911c0631e59b6c8b5770d6bb44dc71d85caf  ./docs/BASELIN
 8030d5b462d2a7b35aa0d4f68cfd9627b97f836f797dd66c865fbe0a2f5fe2ec  ./docs/DASHBOARD.zh-TW.md
 e58ce370099bd8be63e080be4a94d79d13534310f8364371df15ff27ea420d20  ./docs/HARDWARE.md
 18f5c63fa9a392085db4464a24b2d993924fd812501015acf3ee482248be2d10  ./docs/INSTALL.en.md
-87960e962078d5e5bf7fbdf5110be3382a9ec96532747886b611750a04e6cbf8  ./docs/INSTALL.zh-TW.md
+db571e60b1edcf8048639f2bec4939367c4950c726610b6f4d0a99185b8bc720  ./docs/INSTALL.zh-TW.md
 ba652edac93ba2e2c463870d0902f05b679a79855964dcd5ab3800f0d59d4743  ./docs/PLATE_AND_ADB.zh-TW.md
 ef26858212dc39cb3b8d176016d60880a545149645eee9d72c9a5f82ca412d18  ./docs/PLATE_ENHANCEMENT.zh-TW.md
 aef0ed65fa61a2e827ee99d91f6be363cb19208cb22293b7e34e35d79846af71  ./docs/RECORDING.md
@@ -89,7 +89,7 @@ d37fc762942b7d6c5067cfc39af47211b98f4f913c4cea016347c7c42045eab8  ./src/plate_co
 823dddf2bb26365e2892d935bde2948ab12c575e6161c5b083c9be2c61b18d81  ./src/recorder.py
 bf3e2d1df9131c1a36965bccde93b8fd47c38c9cae52e910de1862ec9ddcef63  ./src/recorder_watchdog.py
 5c12db68f63295839a8008931696d1ae636814d8f7b7ee6a8b19e2f5ba7ced62  ./src/region_policy.py
-951008afebe4577ea4a2b422a6ff7020330f8b471f9c43895179ff49fecffcf2  ./src/setup_wizard.py
+5f73294aae2a11d4d46817b6796acf7f28b23090da5a974d5577c1cb83e40393  ./src/setup_wizard.py
 40a037c6b2a61d96d2479506359567687b08557143cd8d76a12a6e42c453c1c4  ./src/stream_health.py
 2f56791995d2dcf230c5ddd54e443e7956285a8ce71f588fa961079ad4488688  ./src/superlive_recovery.py
 71c1d2aff06768ec8461bc801f51e04a5659f308b90eac98d72e4caa057f029d  ./src/telegram_upload.py
@@ -129,6 +129,7 @@ dc326ec854472f3b64c723f1b9474ccc9002d3e8eb19c347266b72f5495f95b4  ./tests/test_p
 b252ff519a7bf9c2eb32f1963948c4c068c033df5eb95c6971bf08166eb49db1  ./tests/test_preview_keyboard.py
 aeeb7adb02caa644f96d86bd705d7bd7665a7766295fc903bd3d4cc4e0f1a13c  ./tests/test_preview_ui.py
 f61659655ef872d19f18301b9910a57272c6aa3429761d258b2d7a28988f4882  ./tests/test_recording_end_protocol.py
+986d27ebdf5252d2733560f57c6674e57e04fea9d0112d1822be2380bcf243cc  ./tests/test_recovery_settings.py
 87872210b8057ec20ba008edca61998fbee98d449cc025ee4a6a28de72807e37  ./tests/test_security_scan.py
 3bbb23292797fc3051dfba1f3920d4ca6732518941105760bee00ebdd3847f29  ./tests/test_settings_access.py
 ff11438cd27d8e6d43642361fc0ae6d8b4d5630ff901749c72f2e69e61b2d024  ./tests/test_setup_and_plate_images.py
