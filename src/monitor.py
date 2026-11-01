@@ -470,6 +470,9 @@ def main():
                     color = (0, 255, 0) if person["class_id"] == 0 else (255, 190, 0)
                     cv2.rectangle(evidence, (x1, y1), (x2, y2), color, 2)
                 count = len(people)
+                if adb_stream and adb_stream.adaptive_quality:
+                    active = count > 0
+                    atomic_json(RUNTIME / "camera_activity.json", {"active": active, "timestamp": time.time()})
             controller.object_counts = object_counts(people) if count is not None else None
             latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None, frame=frame)
 

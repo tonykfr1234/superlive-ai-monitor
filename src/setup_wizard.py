@@ -148,6 +148,7 @@ class SetupWizard:
         self.capture = self.capture if isinstance(self.capture, dict) else {}
         self.capture.setdefault('source', 'adb')
         self.capture.setdefault('ensure_highest', True)
+        self.capture.setdefault('quality_mode', 'activity')
         self.capture['auto_detect'] = True
         self.token = tk.StringVar()
         self.chat = tk.StringVar()

@@ -155,18 +155,25 @@ class AdbClient:
         self.run('shell', 'input', 'tap', str((x1+x2)//2), str((y1+y2)//2))
 
     def highest_quality(self):
+        return self.set_quality("high")
+
+    def set_quality(self, level):
         """Confirm the selected quality and dismiss its menu before capture.
 
         SuperLive can leave the quality popup open after selecting a row, and
         its controls appear asynchronously. Only observed controls in this app
         receive input; each attempt is bounded so the caller can reconnect.
         """
+        if level not in ("high", "low"):
+            raise ValueError("Unknown camera quality")
+        labels = ("最高", "Highest") if level == "high" else ("低", "Low")
+
         def in_app(tree):
             return any(n.get('package') == 'com.tvt.superliveplus' for n in tree.iter('node'))
 
         def option(tree):
             return next((n for n in tree.iter('node')
-                         if n.get('text') in ('最高', 'Highest')), None)
+                         if n.get('text') in labels), None)
 
         def popup(tree):
             return in_app(tree) and any(n.get('text') in ('最高', 'Highest', '低', 'Low')
@@ -209,7 +216,7 @@ class AdbClient:
         def selected(root):
             if not in_app(root):
                 return False
-            if quality_selected(root):
+            if quality_selected(root, level):
                 return True
             highest = option(root)
             if highest is None:
@@ -275,10 +282,12 @@ def selected_cyan_text(frame, bounds):
     return int(((blue > red+35) & (green > red+35) & (green > 120)).sum()) >= 5
 
 
-def quality_selected(root):
+def quality_selected(root, level="high"):
+    wanted = ("最高", "Highest") if level == "high" else ("低", "Low")
+    other = ("低", "Low") if level == "high" else ("最高", "Highest")
     for node in root.iter('node'):
         texts = {n.get('text') for n in node.iter('node')}
-        if texts.intersection(('最高', 'Highest')) and not texts.intersection(('低', 'Low')):
+        if texts.intersection(wanted) and not texts.intersection(other):
             if node.get('selected') == 'true' or node.get('checked') == 'true':
                 return True
     return False
@@ -328,6 +337,11 @@ class AdbStream(SharedAdbReader):
         self.retry_count = 0
         self.status = 'ADB_CONNECTING'
         self.quality = '未確認'
+        self.adaptive_quality = self.config.get('quality_mode') == 'activity'
+        self._quality_applied = None
+        self._quality_retry_at = 0.0
+        self._quality_ready_at = None
+        self._quality_last_seen = 0.0
         recovery = self.config.get('recovery') or {}
         if not isinstance(recovery, dict):
             raise ValueError('Invalid recovery configuration')
@@ -441,21 +455,61 @@ class AdbStream(SharedAdbReader):
         self._capture_failure_since = None
         return True
 
+    def desired_quality(self):
+        state = read_json(self.root / 'runtime/camera_activity.json', {}) or {}
+        now = time.time()
+        # A brief hold prevents switching menus on every missed detection.
+        active = (state.get('active') is True and 0 <= now - state.get('timestamp', 0) < 15)
+        if active:
+            self._quality_last_seen = time.monotonic()
+        return 'high' if self._quality_last_seen and time.monotonic() - self._quality_last_seen < 15 else 'low'
+
+    def quality_change_due(self):
+        return (self.adaptive_quality and self._quality_ready_at is not None
+                and time.monotonic() >= max(self._quality_ready_at, self._quality_retry_at)
+                and self.desired_quality() != self._quality_applied)
+
+    def apply_activity_quality(self):
+        if not self.quality_change_due():
+            return
+        level = self.desired_quality()
+        self._quality_retry_at = time.monotonic() + 30
+        try:
+            if not self.client.set_quality(level):
+                raise RuntimeError('Quality selection not confirmed')
+            self._quality_applied = level
+            self.quality = '高（人車偵測）' if level == 'high' else '低（待機）'
+            print('ADB_ACTIVITY_QUALITY=' + level, flush=True)
+            self._quality_retry_at = time.monotonic() + 2
+        except Exception as error:
+            # Quality retries must not prevent live detection from resuming.
+            self.quality = '自動畫質待重試'
+            print('ADB_ACTIVITY_QUALITY_RETRY TYPE=' + type(error).__name__, flush=True)
+            self._quality_retry_at = time.monotonic() + 30
+        if self.health:
+            self.health.reset()
+
     def run(self):
-        quality_checked = not self.config.get('ensure_highest', True)
+        quality_checked = self.adaptive_quality or not self.config.get('ensure_highest', True)
         if quality_checked:
-            self.quality = '由使用者設定'
+            self.quality = '自動（待機低／人車高）' if self.adaptive_quality else '由使用者設定'
         while not self.stop_event.is_set():
             try:
                 self.status = 'ADB_CONNECTING' if not self.retry_count else 'ADB_RECONNECTING'
                 try:
                     self.client.select()
                 except Exception:
-                    quality_checked = not self.config.get('ensure_highest', True)
+                    quality_checked = self.adaptive_quality or not self.config.get('ensure_highest', True)
                     self.status = 'ADB_UNAVAILABLE'
                     raise
+                if self.recovery_enabled:
+                    process = self.client.run("shell", "sh", "-c", "'pidof com.tvt.superliveplus || true'", timeout=3)
+                    if isinstance(process, (bytes, str)) and not process.strip():
+                        self._recovery_pending = True
                 if self.restore_camera_if_needed():
-                    quality_checked = not self.config.get('ensure_highest', True)
+                    self._quality_ready_at = None
+                    quality_checked = self.adaptive_quality or not self.config.get('ensure_highest', True)
+                self.apply_activity_quality()
                 if not quality_checked:
                     self.status = 'ADB_QUALITY_CHECK'
                     try:
@@ -471,10 +525,10 @@ class AdbStream(SharedAdbReader):
                     self.stream_once()
                 except CameraAppStopped:
                     self._recovery_pending = True
-                    quality_checked = not self.config.get("ensure_highest", True)
+                    quality_checked = self.adaptive_quality or not self.config.get("ensure_highest", True)
                     raise
                 except CameraFrameStalled:
-                    quality_checked = not self.config.get('ensure_highest', True)
+                    quality_checked = self.adaptive_quality or not self.config.get('ensure_highest', True)
                     self._recovery_pending = self.confirm_camera_stalled()
                     if not self._recovery_pending:
                         # Camera is live: replace just the stalled ADB pipeline.
@@ -484,7 +538,7 @@ class AdbStream(SharedAdbReader):
                     # A quickly restarted emulator may already be online but
                     # have reset the camera quality. Only normal rollovers
                     # retain the previous confirmation.
-                    quality_checked = not self.config.get('ensure_highest', True)
+                    quality_checked = self.adaptive_quality or not self.config.get('ensure_highest', True)
                     if not quality_checked:
                         self.quality = '連線中斷，將重新確認'
                     raise
@@ -588,12 +642,16 @@ class AdbStream(SharedAdbReader):
                 if not self.camera_frame_ready(frame):
                     continue
                 self.publish(frame, self.sequence)
+                if self._quality_ready_at is None:
+                    self._quality_ready_at = time.monotonic() + 10
                 self.sequence += 2
                 self.retry_count = 0
                 if not received:
                     print('ADB_STREAM_READY %dx%d quality=%s' % (width, height, self.quality), flush=True)
                 received = True
                 self.status = 'ADB_STREAMING'
+                if self.quality_change_due():
+                    return
         finally:
             finished.set()
             self.kill_children()

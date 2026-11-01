@@ -68,6 +68,43 @@ class CameraRecoveryTests(unittest.TestCase):
         self.stream.client.screenshot.assert_not_called()
         self.assertLess(self.now, 60)
 
+    def test_closed_app_with_no_decoded_frame_is_restarted_before_quality(self):
+        self.stream.adaptive_quality = True
+        self.stream.client.run.return_value = b''
+        self.stream.stream_once = Mock(side_effect=lambda: self.stream.stop_event.set())
+        self.stream.run()
+        self.navigator.restore.assert_called_once()
+        self.stream.client.set_quality.assert_not_called()
+
+    def test_activity_mode_recovers_without_highest_quality_gate(self):
+        self.stream.adaptive_quality = True
+        self.stream._recovery_pending = True
+        self.stream.stream_once = Mock(side_effect=lambda: self.stream.stop_event.set())
+        self.stream.run()
+        self.navigator.restore.assert_called_once()
+        self.stream.client.highest_quality.assert_not_called()
+        self.stream.stream_once.assert_called_once()
+
+    def test_activity_quality_failure_still_allows_capture(self):
+        self.stream.adaptive_quality = True
+        self.now = 50
+        self.stream._quality_ready_at = 1
+        self.stream.client.set_quality.side_effect = RuntimeError('Menu unavailable')
+        self.stream.stream_once = Mock(side_effect=lambda: self.stream.stop_event.set())
+        self.stream.run()
+        self.stream.stream_once.assert_called_once()
+        self.stream.client.highest_quality.assert_not_called()
+
+    def test_only_recent_detection_requests_high_quality(self):
+        with patch.object(adb_capture.time, 'time', return_value=100), patch.object(adb_capture, 'read_json', return_value={'active': True, 'timestamp': 99}):
+            self.now = 10
+            self.assertEqual(self.stream.desired_quality(), 'high')
+        with patch.object(adb_capture, 'read_json', return_value={'active': False, 'timestamp': 100}):
+            self.now = 20
+            self.assertEqual(self.stream.desired_quality(), 'high')
+            self.now = 26
+            self.assertEqual(self.stream.desired_quality(), 'low')
+
     def test_confirmation_uses_three_separate_png_samples(self):
         self.stream.client.screenshot.side_effect = self.screenshot
         self.assertTrue(self.stream.confirm_camera_stalled())

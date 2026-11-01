@@ -43,6 +43,13 @@ class QualityTransitionTests(unittest.TestCase):
         self.assertEqual(self.client.tap.call_count, 2)
         self.client.run.assert_called_once_with("shell", "input", "keyevent", "4")
 
+    def test_low_quality_selects_low_row_and_verifies_it(self):
+        self.client.quality_screenshot.side_effect = [WHITE, CYAN]
+        self.client.ui = Mock(side_effect=[screen(HIGH, LOW), screen(BUTTON),
+            screen(HIGH, LOW), screen(HIGH, LOW), screen(BUTTON)])
+        self.assertTrue(self.client.set_quality('low'))
+        self.assertEqual(self.client.tap.call_args_list[0].args[0].get('text'), '低')
+
     def test_selection_that_auto_closes_reopens_once_for_confirmation(self):
         self.client.quality_screenshot.side_effect = [WHITE, CYAN]
         self.client.ui = Mock(side_effect=[screen(HIGH, LOW), screen(BUTTON),

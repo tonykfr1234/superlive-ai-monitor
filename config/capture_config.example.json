@@ -11,5 +11,6 @@
     "stale_seconds": 60,
     "retry_seconds": 30,
     "frame_roi": null
-  }
+  },
+  "quality_mode": "activity"
 }
