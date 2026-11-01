@@ -9,6 +9,8 @@ import time
 
 import numpy as np
 
+from stream_health import FrameStallDetector
+
 
 PACKAGE = "com.tvt.superliveplus"
 PREFIX = PACKAGE + ":id/"
@@ -70,7 +72,7 @@ class SuperLiveRecovery:
     def _check(self):
         if self.stop_event.is_set():
             raise InterruptedError("Camera recovery stopped")
-        if self._deadline is not None and time.monotonic() > self._deadline:
+        if self._deadline is not None and time.monotonic() >= self._deadline:
             raise RuntimeError("Camera recovery timed out")
 
     def _wait(self, seconds=0.4):
@@ -81,6 +83,8 @@ class SuperLiveRecovery:
 
     def _run(self, *args, timeout=12):
         self._check()
+        if self._deadline is not None:
+            timeout = min(timeout, max(0.001, self._deadline - time.monotonic()))
         return self.client.run(*args, timeout=timeout)
 
     @staticmethod
@@ -325,8 +329,36 @@ class SuperLiveRecovery:
         finally:
             self._deadline = previous_deadline
 
+    def _wait_for_camera(self):
+        """Check camera pixels within one shared startup/verification budget."""
+        import cv2
+        detector = FrameStallDetector()
+        previous = None
+        while True:
+            self._check()
+            try:
+                raw = self._run("exec-out", "screencap", "-p", timeout=5)
+                frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+                if frame is None:
+                    raise ValueError("Empty capture")
+                # Ignore toolbars and reject blank/loading canvases before
+                # comparing: a transition into a loader is not camera recovery.
+                h, w = frame.shape[:2]
+                camera = frame[int(h*.12):int(h*.88), int(w*.12):int(w*.88)]
+                signature = detector._signature(camera)
+                valid = float(signature.std()) > 8
+                if valid and previous is not None and detector.frames_changed(previous, camera):
+                    return True
+                previous = camera.copy() if valid else None
+            except InterruptedError:
+                raise
+            except Exception:
+                previous = None
+            self._check()
+            self._wait(min(1.0, max(0.001, self._deadline - time.monotonic())))
+
     def restore(self):
-        self._deadline = time.monotonic() + 120
+        self._deadline = time.monotonic() + (60 if self.restart_only else 120)
         self._rotation_before = {}
         self._landscape_changed = False
         try:
@@ -342,9 +374,9 @@ class SuperLiveRecovery:
             self._run("shell", "am", "force-stop", PACKAGE)
             self._run("shell", "am", "start", "-n", component)
             self._stage = "app startup"
-            tree = self._wait_for(lambda t: bool(self._nodes(t, "live_video")), 16)
             if self.restart_only:
-                return True
+                return self._wait_for_camera()
+            tree = self._wait_for(lambda t: bool(self._nodes(t, "live_video")), 16)
             if self._node(tree, "iv_device", False) is not None:
                 self._select_landscape_camera(tree)
             else:

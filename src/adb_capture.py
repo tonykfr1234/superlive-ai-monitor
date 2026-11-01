@@ -417,7 +417,7 @@ class AdbStream(SharedAdbReader):
                 return False
             self._awaiting_fresh_camera = False
             self._fresh_reference = None
-            print('ADB_CAMERA_RECOVERED target_verified=yes frames_updating=yes', flush=True)
+            print('ADB_CAMERA_RECOVERED frames_updating=yes', flush=True)
         self._capture_failure_since = None
         return True
 
