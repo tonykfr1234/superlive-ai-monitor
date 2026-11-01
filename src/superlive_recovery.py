@@ -337,6 +337,8 @@ class SuperLiveRecovery:
         while True:
             self._check()
             try:
+                video = self._node(self._ui(), "live_video")
+                left, top, right, bottom = bounds(video)
                 raw = self._run("exec-out", "screencap", "-p", timeout=5)
                 frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
                 if frame is None:
@@ -344,10 +346,14 @@ class SuperLiveRecovery:
                 # Ignore toolbars and reject blank/loading canvases before
                 # comparing: a transition into a loader is not camera recovery.
                 h, w = frame.shape[:2]
-                camera = frame[int(h*.12):int(h*.88), int(w*.12):int(w*.88)]
+                if right > w or bottom > h:
+                    raise ValueError("Camera bounds changed")
+                camera = frame[top:bottom, left:right]
                 signature = detector._signature(camera)
                 valid = float(signature.std()) > 8
                 if valid and previous is not None and detector.frames_changed(previous, camera):
+                    self.camera_roi = (left/w, top/h, right/w, bottom/h)
+                    print("ADB_CAMERA_VERIFIED elapsed_seconds=%.1f landscape=%s" % (60 - (self._deadline - time.monotonic()), w > h), flush=True)
                     return True
                 previous = camera.copy() if valid else None
             except InterruptedError:
@@ -361,6 +367,9 @@ class SuperLiveRecovery:
         self._deadline = time.monotonic() + (60 if self.restart_only else 120)
         self._rotation_before = {}
         self._landscape_changed = False
+        previous_deadline = getattr(self.client, "operation_deadline", None)
+        if self.restart_only:
+            self.client.operation_deadline = self._deadline
         try:
             self._check()
             self._stage = "launcher verification"
@@ -374,6 +383,8 @@ class SuperLiveRecovery:
             self._run("shell", "am", "force-stop", PACKAGE)
             self._run("shell", "am", "start", "-n", component)
             self._stage = "app startup"
+            if self.restart_only:
+                print("ADB_APP_RESTARTED verification_budget_seconds=60", flush=True)
             if self.restart_only:
                 return self._wait_for_camera()
             tree = self._wait_for(lambda t: bool(self._nodes(t, "live_video")), 16)
@@ -394,4 +405,6 @@ class SuperLiveRecovery:
             self._rollback_display()
             raise
         finally:
+            if self.restart_only:
+                self.client.operation_deadline = previous_deadline
             self._deadline = None

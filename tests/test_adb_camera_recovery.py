@@ -56,6 +56,18 @@ class CameraRecoveryTests(unittest.TestCase):
     def stop_after_wait(self, _):
         self.stream.stop_event.set()
 
+    def test_closed_app_restarts_without_waiting_for_launcher_pixels_to_freeze(self):
+        self.stream.client.run.return_value = b''
+        def cycle():
+            if not self.navigator.restore.called:
+                self.stream.camera_frame_ready(self.changed)
+            self.stream.stop_event.set()
+        self.stream.stream_once = Mock(side_effect=cycle)
+        self.stream.run()
+        self.navigator.restore.assert_called_once()
+        self.stream.client.screenshot.assert_not_called()
+        self.assertLess(self.now, 60)
+
     def test_confirmation_uses_three_separate_png_samples(self):
         self.stream.client.screenshot.side_effect = self.screenshot
         self.assertTrue(self.stream.confirm_camera_stalled())

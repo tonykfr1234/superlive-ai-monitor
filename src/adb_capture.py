@@ -27,6 +27,10 @@ OFFSET = 64
 CAPACITY = 3840 * 2160 * 3
 
 
+class CameraAppStopped(RuntimeError):
+    """The configured SuperLive process is no longer running."""
+
+
 class CameraFrameStalled(RuntimeError):
     """The transport is alive but camera pixels have stopped changing."""
 
@@ -48,6 +52,12 @@ class AdbClient:
     def run(self, *args, timeout=15):
         if getattr(self, 'stop_event', None) is not None and self.stop_event.is_set():
             raise InterruptedError('ADB capture stopped')
+        deadline = getattr(self, 'operation_deadline', None)
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('Camera recovery timed out')
+            timeout = min(timeout, remaining)
         command = [self.executable] + (['-s', self.serial] if self.serial else []) + list(args)
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 timeout=timeout, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
@@ -340,6 +350,7 @@ class AdbStream(SharedAdbReader):
         self._capture_failure_since = None
         self._awaiting_fresh_camera = False
         self._fresh_reference = None
+        self._app_checked_at = None
         try:
             self.memory = shared_memory.SharedMemory(name=self.name, create=True, size=OFFSET+CAPACITY)
         except FileExistsError:
@@ -395,6 +406,9 @@ class AdbStream(SharedAdbReader):
         # Never log private target names or hierarchy text.
         if self.recovery.restore() is not True:
             raise RuntimeError('Configured camera recovery was not verified')
+        camera_roi = getattr(self.recovery, "camera_roi", None)
+        if isinstance(camera_roi, tuple) and len(camera_roi) == 4:
+            self.health.roi = camera_roi
         self.health.reset()
         self._fresh_reference = None
         self._awaiting_fresh_camera = True
@@ -406,6 +420,12 @@ class AdbStream(SharedAdbReader):
         """Gate recovered images until real camera updates have been observed."""
         if not self.recovery_enabled:
             return True
+        now = time.monotonic()
+        if self._app_checked_at is None or now - self._app_checked_at >= 5:
+            self._app_checked_at = now
+            process = self.client.run("shell", "sh", "-c", "'pidof com.tvt.superliveplus || true'", timeout=3)
+            if isinstance(process, (bytes, str)) and not process.strip():
+                raise CameraAppStopped("SuperLive process stopped")
         if self.health.observe(frame):
             raise CameraFrameStalled('Camera content stopped updating')
         if self._awaiting_fresh_camera:
@@ -449,6 +469,10 @@ class AdbStream(SharedAdbReader):
                         raise
                 try:
                     self.stream_once()
+                except CameraAppStopped:
+                    self._recovery_pending = True
+                    quality_checked = not self.config.get("ensure_highest", True)
+                    raise
                 except CameraFrameStalled:
                     quality_checked = not self.config.get('ensure_highest', True)
                     self._recovery_pending = self.confirm_camera_stalled()
