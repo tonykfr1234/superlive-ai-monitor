@@ -2,6 +2,7 @@ import os, time, json, subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
 import psutil
+from telegram_health import TelegramSilenceReminder
 
 ROOT = Path.home()/"Downloads"/"SuperLive_AI"
 PYTHON = ROOT/".venv"/"Scripts"/"python.exe"
@@ -61,6 +62,10 @@ def cleanup():
             except:pass
     log("CLEANUP events=%d logs=%d"%(ev,lg))
 
+silence_reminder = TelegramSilenceReminder(ROOT, log=log)
+silence_reminder.start()
+log("TELEGRAM_SILENCE_WORKER_STARTED interval_seconds=3600")
+
 mon=None; stream=None; last_hb=last_cl=0.0
 try:
     cleanup(); log("WATCHDOG_START PID=%s"%os.getpid())
@@ -89,6 +94,7 @@ try:
         if now-last_cl>=86400:cleanup();last_cl=now
         time.sleep(1)
 finally:
+    silence_reminder.stop.set()
     if mon is not None and mon.poll() is None:
         # The monitor polls stop.flag; allow it to close capture/UI cleanly.
         STOP_FLAG.write_text("STOP",encoding="utf-8")

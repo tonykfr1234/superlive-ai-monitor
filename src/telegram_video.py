@@ -19,6 +19,8 @@ from pathlib import Path
 
 from record_protocol import atomic_json, read_json, telegram_send_allowed
 
+from telegram_health import record_success
+
 MAX_UPLOAD_BYTES = 49_000_000
 # Live OCR rejects samples older than eight seconds. Leave one queue polling
 # interval as well so a later result cannot overtake an earlier inference.
@@ -358,6 +360,7 @@ class TelegramVideoQueue:
                       +self.latest_observation_line(plate=event)), timeout=(15, 30))
         if response.status_code != 200 or not response.json().get("ok"):
             raise RuntimeError("Telegram plate delivery failure")
+        record_success(self.root, "plate")
 
     def send(self, video, job, token, chat_id):
         import requests
@@ -378,6 +381,7 @@ class TelegramVideoQueue:
             raise RuntimeError("Telegram HTTP failure")
         if not response.json().get("ok"):
             raise RuntimeError("Telegram API failure")
+        record_success(self.root, "video")
         return dict(notified_plates=content["plates"], notified_through=content["through"])
 
     def plate_receipt(self, identity):

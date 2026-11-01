@@ -11,6 +11,8 @@ from pathlib import Path
 from record_protocol import atomic_json, read_json
 from telegram_video import VEHICLE_TYPES, event_object_counts, load_credentials
 
+from telegram_health import record_success
+
 TAIPEI = timezone(timedelta(hours=8), "Asia/Taipei")
 HEADER = ["觸發時間（台灣時間）", "事件類型", "人數", "信心值", "事件ID", "影片檔名",
           "車輛數", "車輛類型", "汽車數", "機車數", "巴士數", "卡車數", "總物件數"]
@@ -158,6 +160,7 @@ class DailyReports:
                 files={"document": (Path(job["path"]).name, stream, "text/csv")}, timeout=(10, 45))
         if response.status_code != 200 or not response.json().get("ok"):
             raise RuntimeError("Telegram report delivery failed")
+        record_success(self.root, "report")
         return True
 
     def tick(self):
