@@ -38,6 +38,7 @@ from plate_recognition import PlateService, load_allowlist
 from video_location import reveal_video, VideoLocationError
 from latest_vehicle import LatestVehicleTracker
 from plate_review import launch_review
+from window_layout import apply_default_window_layout
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -367,6 +368,7 @@ def main():
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     apply_window_icon(WINDOW_NAME)
     cv2.resizeWindow(WINDOW_NAME, *canvas_size)
+    layout_applied = False
 
     def mouse_callback(event, x, y, flags, userdata):
         events = {cv2.EVENT_LBUTTONDOWN: "down", cv2.EVENT_MOUSEMOVE: "move",
@@ -535,6 +537,15 @@ def main():
                 current_message = "原區域無法轉換至攝影機影像，請重新點選多邊形並儲存"
             preview = render_preview(evidence, controller, status, count, infer_ms, elapsed, current_message)
             cv2.imshow(WINDOW_NAME, preview)
+            if not layout_applied:
+                emulator_hwnd = hwnd or find_mumu()
+                monitor_hwnd = win32gui.FindWindow(None, WINDOW_NAME)
+                if apply_default_window_layout(emulator_hwnd, monitor_hwnd):
+                    layout_applied = True
+                    emulator_rect = win32gui.GetWindowRect(emulator_hwnd)
+                    monitor_rect = win32gui.GetWindowRect(monitor_hwnd)
+                    print("WINDOW_LAYOUT=RIGHT_COLUMN emulator=%s monitor=%s"
+                          % (emulator_rect, monitor_rect), flush=True)
             key = cv2.waitKeyEx(1)
             action = controller.key(key)
             if action is not None:

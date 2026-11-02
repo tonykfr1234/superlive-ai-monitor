@@ -8,6 +8,10 @@ import psutil
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 PYTHON = ROOT / ".venv" / "Scripts" / "python.exe"
+CHILD_FLAGS = (
+    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+    if os.name == "nt" else 0
+)
 RECORDER = ROOT / "scripts" / "stage5c_recorder.py"
 RUNTIME = ROOT / "runtime"
 LOG_DIR = ROOT / "logs" / "Stage5C"
@@ -63,9 +67,7 @@ try:
                 cwd=str(ROOT),
                 stdout=child_stream,
                 stderr=subprocess.STDOUT,
-                creationflags=(
-                    subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-                ),
+                creationflags=CHILD_FLAGS,
             )
             log("RECORDER_PROCESS_START PID=%s" % process.pid)
 

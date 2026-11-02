@@ -20,6 +20,10 @@ Run `installer\VERIFY_ALL.bat` while the real camera view is open for file/direc
 
 Use the deployed `Start_AI_Monitor.bat` and `Stop_AI_Monitor.bat`. Start launches both watchdogs; Stop requests a deliberate shutdown and saves the current partial clip. A manual stop may produce less than 120 seconds of footage, without padding. Pending video deliveries resume on a later start only after the applicable quiet deadlines.
 
+Both watchdogs and their monitor/recorder children run without console windows. The OpenCV monitoring preview remains visible; diagnostics continue in the files under `logs\Stage5` and `logs\Stage5C`.
+
+On the first rendered frame, the emulator moves to the display's top-right and the SuperLive AI preview to the bottom-right. Their equal-width, aspect-aware rectangles use the current work area and leave a gap between them. The arrangement is applied once; both windows remain freely movable afterward.
+
 The preview currently uses Traditional Chinese, with clickable R, C, Q, Save and Cancel controls below the camera image. README translations are documentation languages, not interface language settings. To define a region:
 
 1. Click R / Select.

@@ -57,6 +57,10 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 4. 保持即時畫面開啟，執行 `installer\VERIFY_ALL.bat`。
 5. 啟動 `%USERPROFILE%\Downloads\SuperLive_AI\Start_AI_Monitor.bat`，停止使用同目錄的 `Stop_AI_Monitor.bat`。
 
+兩個 watchdog 與錄影／偵測子程序會在背景執行，不會出現黑色命令視窗；OpenCV 監控預覽仍會保留。
+
+啟動完成後，逍遙模擬器會自動排在同一螢幕右上，SuperLive AI 預覽排在右下；兩者依工作區大小自適應、保留間隙且不重疊。
+
 **已有安裝？** 執行 `installer\UPDATE_FROM_REPO.bat`。更新器先備份並停止程式，保留本機區域、Telegram 與儲存設定；完成後維持停止，確認畫面再手動啟動。不建立 Windows 自動啟動、排程工作或服務。
 
 <a id="workflow"></a>

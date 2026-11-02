@@ -265,6 +265,7 @@ class ActivityMonitorTests(unittest.TestCase):
         self.patch(monitor, "load_policy", lambda: self.cfg)
         self.patch(monitor, "load_telegram", lambda: ("", ""))
         self.patch(monitor, "find_mumu", lambda: 1)
+        self.patch(monitor, "apply_default_window_layout", Mock(return_value=False))
         self.patch(monitor.win32gui, "IsWindow", lambda _: True)
         self.patch(monitor.win32gui, "IsIconic", lambda _: False)
         self.patch(monitor.torch.cuda, "is_available", lambda: False)

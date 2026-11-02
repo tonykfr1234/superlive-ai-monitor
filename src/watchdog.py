@@ -6,6 +6,8 @@ from telegram_health import TelegramSilenceReminder
 
 ROOT = Path.home()/"Downloads"/"SuperLive_AI"
 PYTHON = ROOT/".venv"/"Scripts"/"python.exe"
+CHILD_FLAGS = ((subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW)
+               if os.name == "nt" else 0)
 MONITOR = ROOT/"scripts"/"stage4b_motion_monitor.py"
 RUNTIME = ROOT/"runtime"
 LOG_DIR = ROOT/"logs"/"Stage5"
@@ -74,7 +76,7 @@ try:
         if STOP_FLAG.exists():log("STOP_FLAG_DETECTED");break
         if mon is None:
             stream=MONITOR_LOG.open("a",encoding="utf-8",buffering=1)
-            mon=subprocess.Popen([str(PYTHON),str(MONITOR)],cwd=str(ROOT),stdout=stream,stderr=subprocess.STDOUT,creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" else 0))
+            mon=subprocess.Popen([str(PYTHON),str(MONITOR)],cwd=str(ROOT),stdout=stream,stderr=subprocess.STDOUT,creationflags=CHILD_FLAGS)
             MONITOR_PID.write_text(str(mon.pid),encoding="utf-8");log("MONITOR_START PID=%s"%mon.pid)
         code=mon.poll()
         if code is not None:

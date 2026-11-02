@@ -36,6 +36,7 @@ $ScriptMap = [ordered]@{
     'plate_history.py' = 'plate_history.py'
     'plate_replay.py' = 'plate_replay.py'
     'video_location.py' = 'video_location.py'
+    'window_layout.py' = 'window_layout.py'
 }
 $Scripts = @($ScriptMap.Values)
 if (-not (Test-Path -LiteralPath "$Repo\assets\superlive-ai.ico" -PathType Leaf)) { throw 'Application icon is missing.' }
@@ -219,18 +220,19 @@ if errorlevel 1 pause
 @echo off
 setlocal
 for %%I in ("%~dp0.") do set "ROOT=%%~fI"
-set "PY=%ROOT%\.venv\Scripts\python.exe"
+set "PYW=%ROOT%\.venv\Scripts\pythonw.exe"
 set "AIWD=%ROOT%\scripts\stage5_watchdog.py"
 set "RECWD=%ROOT%\scripts\stage5c_recorder_watchdog.py"
 set "RUNTIME=%ROOT%\runtime"
-if not exist "%PY%" (echo [FAIL] Python venv missing & pause & exit /b 1)
+if not exist "%PYW%" (echo [FAIL] Windowless Python venv missing & pause & exit /b 1)
 if not exist "%AIWD%" (echo [FAIL] AI watchdog missing & pause & exit /b 1)
 if not exist "%RECWD%" (echo [FAIL] Recorder watchdog missing & pause & exit /b 1)
 if not exist "%RUNTIME%" mkdir "%RUNTIME%"
 if exist "%RUNTIME%\stop.flag" del /f /q "%RUNTIME%\stop.flag"
-start "SuperLive Recorder Watchdog" /min "%PY%" "%RECWD%"
+start "" /b "%PYW%" "%RECWD%"
 timeout /t 2 /nobreak >nul
-start "SuperLive AI Watchdog" /min "%PY%" "%AIWD%"
+start "" /b "%PYW%" "%AIWD%"
+echo Watchdogs run in the background; only the monitor preview window remains open.
 echo Person or vehicle activity starts recording with a local Windows alert and snapshot. No Telegram start photo.
 echo Normal clips last 120 to 300 seconds. Detection continues throughout recording.
 echo First 120 seconds: no automatic rollover or new video uploads. Confirmed plates notify immediately.

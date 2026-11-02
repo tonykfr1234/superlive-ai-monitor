@@ -2,9 +2,13 @@
 
 ## 2026-11-02 — Daytime person/vehicle activity checks
 
+- Launch both watchdogs with `pythonw.exe` and run their monitor/recorder children with `CREATE_NO_WINDOW`. The monitoring preview remains visible, but the two black watchdog consoles no longer appear; logs continue in `logs/Stage5` and `logs/Stage5C`.
+- On first render, place the emulator at the top-right and the SuperLive AI preview at the bottom-right of the same monitor. Equal-width, aspect-aware rectangles are derived from the current work area with a gap between them, so they do not overlap and adapt to the display resolution.
 - Replace the notification-silence counter with fixed Taiwan-time checks at 06:00, 08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00 and 22:00. Send one Telegram prompt to inspect the camera when the preceding two hours contain no person or vehicle observation.
 - Keep the check completely silent from 23:00 through 06:00, including retries that reach the quiet period. Persist the checked slot across restarts and make other Telegram deliveries independent from this activity check.
 - 將原本以「多久沒有成功推播」計時的提醒改為台灣時間固定兩小時檢查。過去兩小時沒有人或車時，推播請使用者查看監視器；23:00～06:00 完全靜默，重啟保留已檢查時段，其他 Telegram 通知不會重設判斷。
+- 兩個 watchdog 改用無主控台模式在背景執行，監控／錄影子程序也不再建立黑色命令視窗；監控預覽仍正常顯示，紀錄仍寫入原本的 `logs` 資料夾。
+- 首次顯示預覽時，自動把逍遙模擬器排在同一螢幕右上、SuperLive AI 預覽排在右下；兩者等寬、依畫面比例分配高度並保留間隔，隨目前工作區大小調整且不重疊。
 
 ## 2026-10-28 — Consolidated installation and current behavior guide
 

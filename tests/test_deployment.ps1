@@ -66,7 +66,7 @@ $Mapping = @{
     'adb_capture.py'='adb_capture.py'; 'plate_recognition.py'='plate_recognition.py'
     'stream_health.py'='stream_health.py'; 'superlive_recovery.py'='superlive_recovery.py'
     'plate_history.py'='plate_history.py'; 'plate_replay.py'='plate_replay.py'
-    'video_location.py'='video_location.py'
+    'video_location.py'='video_location.py'; 'window_layout.py'='window_layout.py'
 }
 foreach ($Name in $Mapping.Keys) {
     if ((Get-FileHash -LiteralPath "$Kit\src\$Name").Hash -ne (Get-FileHash -LiteralPath (Join-Path "$InstallRoot\scripts" $Mapping[$Name])).Hash) {
@@ -91,6 +91,9 @@ if ($Capture.source -ne 'adb' -or $Capture.auto_detect -ne $true -or $Capture.se
 if ($Capture.recovery.enabled -ne $false -or $Capture.recovery.device_name -ne '' -or $Capture.recovery.channel -ne 1 -or $Capture.recovery.stale_seconds -ne 60 -or $Capture.recovery.retry_seconds -ne 30 -or $null -ne $Capture.recovery.frame_roi) { throw 'Public recovery defaults must stay disabled with no private target' }
 $IdleAlert = Get-Content -LiteralPath "$FreshRoot\config\telegram_idle_alert.json" -Raw | ConvertFrom-Json
 if ($IdleAlert.enabled -ne $true) { throw 'Daytime activity checks must be enabled by default' }
+$StartLauncher = Get-Content -LiteralPath "$FreshRoot\Start_AI_Monitor.bat" -Raw
+if ($StartLauncher -notmatch 'pythonw\.exe' -or $StartLauncher -notmatch 'start "" /b "%PYW%"') { throw 'Watchdogs must launch without console windows' }
+if ($StartLauncher -match 'start "SuperLive (Recorder )?Watchdog"') { throw 'Visible watchdog console launcher remains' }
 $Allowlist = Get-Content -LiteralPath "$FreshRoot\config\plate_allowlist.json" -Raw
 if ((($Allowlist | ConvertFrom-Json) -join ',') -ne '6122MN') { throw 'New installation must use the explicitly requested default alert plate' }
 if ((Get-FileHash "$FreshRoot\requirements-plates.txt").Hash -ne (Get-FileHash "$Kit\requirements-plates.txt").Hash) { throw 'Isolated OCR requirements missing' }

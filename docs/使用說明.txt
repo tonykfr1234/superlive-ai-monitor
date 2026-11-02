@@ -19,6 +19,8 @@ SuperLive AI 使用說明（繁體中文）
 Settings.bat：重新開啟 ADB、Telegram、車牌設定視窗。修改後下次啟動監控生效。
 Start_AI_Monitor.bat：啟動監控。
 Stop_AI_Monitor.bat：停止監控，完成正在錄製的影片。
+兩個 watchdog 和錄影／偵測子程序在背景執行，不會出現黑色命令視窗；監控預覽仍會顯示，執行紀錄保存在 logs 資料夾。
+首次顯示時，逍遙模擬器排在目前螢幕右上、SuperLive AI 預覽排在右下；兩者依工作區大小自動調整、保留間距且不重疊，之後仍可手動移動。
 安裝不改 Windows 電源設定、不建立開機自啟或排程；長時間監控請自行確認不會睡眠。
 公開專案更新：下載完整新版，執行 installer\UPDATE_FROM_REPO.bat，再啟動監控。
 既有桌面套件如有「套用Telegram更新.bat」，執行它會套用已準備好的版本並啟動。
