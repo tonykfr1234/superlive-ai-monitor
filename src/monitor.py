@@ -336,6 +336,7 @@ def main():
     controller.plate_enabled = bool(plate_service)
     controller.plate_filter_targets = load_allowlist(ROOT)
     next_plate_filter_read = time.monotonic() + 2
+    next_activity_receipt = 0.0
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     latest_vehicle = LatestVehicleTracker(ROOT)
     controller.latest_vehicle = latest_vehicle.snapshot()
@@ -470,6 +471,14 @@ def main():
                     color = (0, 255, 0) if person["class_id"] == 0 else (255, 190, 0)
                     cv2.rectangle(evidence, (x1, y1), (x2, y2), color, 2)
                 count = len(people)
+                if count > 0 and time.monotonic() >= next_activity_receipt:
+                    counts = object_counts(people)
+                    atomic_json(RUNTIME / "person_vehicle_activity.json", {
+                        "last_seen_at": time.time(),
+                        "people": counts["person"],
+                        "vehicles": count - counts["person"],
+                    })
+                    next_activity_receipt = time.monotonic() + 1
                 if adb_stream and adb_stream.adaptive_quality:
                     active = count > 0
                     atomic_json(RUNTIME / "camera_activity.json", {"active": active, "timestamp": time.time()})

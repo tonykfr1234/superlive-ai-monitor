@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 — Daytime person/vehicle activity checks
+
+- Replace the notification-silence counter with fixed Taiwan-time checks at 06:00, 08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00 and 22:00. Send one Telegram prompt to inspect the camera when the preceding two hours contain no person or vehicle observation.
+- Keep the check completely silent from 23:00 through 06:00, including retries that reach the quiet period. Persist the checked slot across restarts and make other Telegram deliveries independent from this activity check.
+- 將原本以「多久沒有成功推播」計時的提醒改為台灣時間固定兩小時檢查。過去兩小時沒有人或車時，推播請使用者查看監視器；23:00～06:00 完全靜默，重啟保留已檢查時段，其他 Telegram 通知不會重設判斷。
+
 ## 2026-10-28 — Consolidated installation and current behavior guide
 
 - Consolidate fresh installation, existing-PC updates, current recording/plate notification rules and troubleshooting in the Traditional Chinese installation guide.

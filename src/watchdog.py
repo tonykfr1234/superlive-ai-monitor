@@ -64,7 +64,8 @@ def cleanup():
 
 silence_reminder = TelegramSilenceReminder(ROOT, log=log)
 silence_reminder.start()
-log("TELEGRAM_SILENCE_WORKER_STARTED interval_seconds=3600")
+log("TELEGRAM_ACTIVITY_WORKER_STARTED interval_seconds=7200 "
+    "checks=06,08,10,12,14,16,18,20,22 quiet_hours=23:00-06:00_Asia/Taipei")
 
 mon=None; stream=None; last_hb=last_cl=0.0
 try:

@@ -200,6 +200,9 @@ foreach ($Name in @('capture_config', 'plate_allowlist')) {
         Copy-Item -LiteralPath "$Repo\config\$Name.example.json" -Destination "$Root\config\$Name.json"
     }
 }
+if (-not (Test-Path -LiteralPath "$Root\config\telegram_idle_alert.json")) {
+    Copy-Item -LiteralPath "$Repo\config\telegram_idle_alert.example.json" -Destination "$Root\config\telegram_idle_alert.json"
+}
 if (-not (Test-Path -LiteralPath "$Root\config\telegram.env")) {
     Copy-Item -LiteralPath "$Repo\config\telegram.env.example" -Destination "$Root\config\telegram.env"
     Write-Host 'TELEGRAM_CONFIG=TEMPLATE_INSTALLED'
@@ -234,6 +237,7 @@ echo First 120 seconds: no automatic rollover or new video uploads. Confirmed pl
 echo Movement at or after 120 seconds and before 300 seconds immediately starts a new clip and quiet period.
 echo No movement for 120 continuous seconds ends recording; wait for renewed movement or a new arrival.
 echo Videos honor quiet periods. Daily 23:00 Taiwan-time CSV reports are exempt and cover 00:00-23:00 only.
+echo Daytime activity checks run every two hours from 06:00 through 22:00; 23:00-06:00 stays quiet.
 echo Repeated rollovers can delay queued videos. Already-dispatched network requests may still arrive.
 echo Manual stop or capture failure may save a shorter local clip; no padding or delivery before its quiet deadline.
 echo Preview controls: R = select polygon, C = full frame, Q = stop.
@@ -267,6 +271,8 @@ Write-Host 'ROLLOVER=MOVEMENT_AT_LEAST_120_SECONDS_AND_BEFORE_300_SECONDS'
 Write-Host 'INACTIVITY_SECONDS=120'
 Write-Host 'TELEGRAM_AUTO=COMPLETED_VIDEOS_AND_DAILY_TRIGGER_CSV'
 Write-Host 'TELEGRAM_QUIET_SECONDS_PER_CLIP=120_INCLUDES_BACKLOG_AND_RETRIES'
+Write-Host 'TELEGRAM_ACTIVITY_CHECKS=06,08,10,12,14,16,18,20,22_ASIA_TAIPEI'
+Write-Host 'TELEGRAM_ACTIVITY_QUIET_HOURS=23:00-06:00'
 Write-Host 'REARM=PERSON_OR_VEHICLE_MOVEMENT_OR_NEW_ARRIVAL'
 Write-Host 'ACTIVITY_CLASSES=PERSON_CAR_MOTORCYCLE_BUS_TRUCK'
 Write-Host 'ROI=EXISTING_SELECTION_PRESERVED_OR_FULL_FRAME'

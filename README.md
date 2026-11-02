@@ -76,6 +76,8 @@ A person or supported vehicle first observed after startup counts as new activit
 
 **Automatic Telegram deliveries include completed videos, immediate confirmed plates and daily CSV reports.** Videos and their retries wait during a new clip's first 120 seconds; live plates and the daily CSV bypass this video quiet period. Starting a clip sends no Telegram photo.
 
+**Daytime inactivity checks:** no prompt or push is sent from 23:00 through 06:00 Taiwan time. During 06:00–22:59, the monitor checks every two hours and sends a Telegram prompt to inspect the camera when no person or vehicle was detected in the preceding two hours. Other Telegram deliveries do not reset this check.
+
 Manual stop or capture failure may leave a local partial clip shorter than 120 seconds. It is not padded to simulate extra footage and is not automatically sent before its quiet deadline; pending work also waits for any newer clip's quiet period.
 
 Live plate notifications and videos use independent delivery workers. Plate recognition never waits for video completion or upload. The same observed plate has a durable 180-second cooldown, while other plates can notify immediately. Videos retain trigger-time order and older failed uploads hold later videos. Captions can repeat the observed plate as video context. Existing Telegram messages cannot be reordered.
@@ -94,6 +96,7 @@ Selection or invalid capture/inference is unknown and resets the observation int
 | Preview | Clickable controls below the image; wrapped source, quality, OCR status and error lines; separate people/vehicle counts |
 | Activity recording | Normal clips 120–300 seconds; movement after 120 seconds rolls over; 120-second inactivity stop |
 | Notifications | Local alert/evidence at start; Telegram distinguishes people, vehicle types and actual plate observations; unconfirmed plates remain marked unconfirmed |
+| Daytime inactivity check | Silent 23:00–06:00; every two hours otherwise, a Telegram prompt asks the user to inspect the camera when no person or vehicle was seen in the preceding two hours |
 | Plate recognition | Full image plus overlapping tile scans, multi-frame confirmation, up to seven days of scrollable recognition history and an automatically restarted OCR worker |
 | Video delivery | Actual-duration H.264 MP4; persistent queue/retries; no new sends during each clip's first 120 seconds |
 | Recovery | Capture retry and separate monitor/recorder watchdogs |

@@ -89,6 +89,8 @@ if (-not (Test-Path -LiteralPath "$FreshRoot\runtime\stop.flag")) { throw 'New i
 $Capture = Get-Content -LiteralPath "$FreshRoot\config\capture_config.json" -Raw | ConvertFrom-Json
 if ($Capture.source -ne 'adb' -or $Capture.auto_detect -ne $true -or $Capture.serial -ne '' -or $Capture.ensure_highest -ne $true) { throw 'Safe camera capture defaults missing' }
 if ($Capture.recovery.enabled -ne $false -or $Capture.recovery.device_name -ne '' -or $Capture.recovery.channel -ne 1 -or $Capture.recovery.stale_seconds -ne 60 -or $Capture.recovery.retry_seconds -ne 30 -or $null -ne $Capture.recovery.frame_roi) { throw 'Public recovery defaults must stay disabled with no private target' }
+$IdleAlert = Get-Content -LiteralPath "$FreshRoot\config\telegram_idle_alert.json" -Raw | ConvertFrom-Json
+if ($IdleAlert.enabled -ne $true) { throw 'Daytime activity checks must be enabled by default' }
 $Allowlist = Get-Content -LiteralPath "$FreshRoot\config\plate_allowlist.json" -Raw
 if ((($Allowlist | ConvertFrom-Json) -join ',') -ne '6122MN') { throw 'New installation must use the explicitly requested default alert plate' }
 if ((Get-FileHash "$FreshRoot\requirements-plates.txt").Hash -ne (Get-FileHash "$Kit\requirements-plates.txt").Hash) { throw 'Isolated OCR requirements missing' }
