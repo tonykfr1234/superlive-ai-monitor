@@ -1,5 +1,6 @@
 """Camera recovery orchestration without restarting a real Android app."""
 from pathlib import Path
+import subprocess
 import sys
 import unittest
 from unittest.mock import Mock, patch
@@ -67,6 +68,37 @@ class CameraRecoveryTests(unittest.TestCase):
         self.navigator.restore.assert_called_once()
         self.stream.client.screenshot.assert_not_called()
         self.assertLess(self.now, 60)
+
+    def test_quality_worker_does_not_block_frame_publishing(self):
+        import threading
+        self.stream.adaptive_quality = True
+        self.stream._quality_ready_at = 1
+        self.now = 50
+        entered, release = threading.Event(), threading.Event()
+        worker = Mock()
+        def select(level):
+            entered.set()
+            release.wait(2)
+            return True
+        worker.set_quality.side_effect = select
+        with patch.object(adb_capture, 'AdbClient', return_value=worker):
+            self.stream.apply_activity_quality()
+            self.assertTrue(entered.wait(1))
+            self.assertTrue(self.stream._quality_busy.is_set())
+            self.stream.publish(self.frame, 10)
+            self.assertEqual(adb_capture.HEADER.unpack(bytes(self.stream.memory.buf[:adb_capture.HEADER.size]))[0],12)
+            release.set()
+            self.stream._quality_thread.join(2)
+        self.assertFalse(self.stream._quality_busy.is_set())
+        self.assertEqual(self.stream._quality_applied,'low')
+
+    def test_fullscreen_toolbar_container_does_not_mask_camera(self):
+        import xml.etree.ElementTree as ET
+        tree = ET.fromstring('<hierarchy><node package="com.tvt.superliveplus" resource-id="com.tvt.superliveplus:id/video_menu_layout_land" bounds="[0,0][64,32]" /></hierarchy>')
+        self.stream.quality_ui(tree)
+        self.stream._quality_busy.set()
+        frame = self.stream.camera_without_controls(self.frame)
+        np.testing.assert_array_equal(frame[10:20], self.frame[10:20])
 
     def test_closed_app_with_no_decoded_frame_is_restarted_before_quality(self):
         self.stream.adaptive_quality = True
@@ -256,6 +288,33 @@ class CameraRecoveryTests(unittest.TestCase):
             self.stream.camera_frame_ready(self.frame)
         self.assertTrue(self.stream._awaiting_fresh_camera)
 
+    def test_quality_check_waits_for_next_frame_then_gives_up(self):
+        def arrive(_):
+            self.now += 1
+            if self.now == 2:
+                self.stream._raw_frame, self.stream._raw_frame_at = self.changed, self.now
+        self.stream._raw_frame, self.stream._raw_frame_at = self.frame, -10
+        with patch.object(adb_capture.time, 'sleep', side_effect=arrive):
+            self.assertTrue((self.stream.quality_frame() == self.changed).all())
+            self.stream._raw_frame_at = -10
+            with self.assertRaisesRegex(RuntimeError, 'No fresh compositor frame'):
+                self.stream.quality_frame()
+
+    def test_app_check_skipped_while_quality_worker_uses_adb(self):
+        self.stream._quality_busy.set()
+        self.stream.client.run.side_effect = subprocess.TimeoutExpired('adb', 3)
+        self.assertTrue(self.stream.camera_frame_ready(self.changed))
+        self.stream.client.run.assert_not_called()
+
+    def test_slow_app_check_tolerated_until_three_consecutive_timeouts(self):
+        self.stream.client.run.side_effect = subprocess.TimeoutExpired('adb', 3)
+        for step in range(2):
+            self.now = step * 5
+            self.assertTrue(self.stream.camera_frame_ready(self.changed if step % 2 else self.frame))
+        self.now = 10
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.stream.camera_frame_ready(self.frame)
+
     def test_normal_stream_rollover_preserves_health_timer(self):
         self.stream.health = FrameStallDetector(timeout_seconds=200)
         self.stream.health.observe(self.frame)
@@ -267,7 +326,8 @@ class CameraRecoveryTests(unittest.TestCase):
         self.stream.stream_once = Mock(side_effect=cycle)
         self.stream.run()
         self.stream.health.reset.assert_not_called()
-        self.assertEqual(self.stream.health.stale_for(), 179.5)
+        self.assertAlmostEqual(self.stream.health.stale_for(), 179.05)
+        self.stream.client.select.assert_called_once()
         self.stream.client.highest_quality.assert_called_once()
         self.navigator.restore.assert_not_called()
 

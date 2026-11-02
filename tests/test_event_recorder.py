@@ -184,6 +184,46 @@ class RecorderTests(unittest.TestCase):
         self.assertFalse(telegram_send_allowed(self.root, now=clock.now))
         self.assertTrue(telegram_send_allowed(self.root, now=quiet["quiet_until"]))
 
+    def test_short_adb_stall_repeats_last_frame_and_clip_completes(self):
+        recorder, clock, writer, queued = self.make_fake_recorder()
+        original_capture = recorder.capture
+        def capture(*args):
+            if 110 <= clock.now < 118:
+                clock.now += 0.05
+                raise RuntimeError("ADB frame is stale; waiting for stream")
+            return original_capture(*args)
+        recorder.capture = capture
+        with patch.object(recorder_module.time, "monotonic", clock.monotonic), \
+                patch.object(recorder_module.time, "sleep", clock.sleep):
+            self.assertTrue(recorder.record({"request_id": "one"}))
+        self.assertEqual(writer.write.call_count, 3000)
+        self.assertTrue(queued[0][2])
+        logged = [call.args[0] for call in recorder.log.call_args_list]
+        self.assertTrue(any(line.startswith("CAPTURE_RESUMED") for line in logged))
+
+    def test_locked_status_file_does_not_end_recording(self):
+        recorder = Recorder(self.root)
+        recorder.log = Mock()
+        with patch.object(recorder_module, "atomic_json", side_effect=PermissionError("locked")):
+            recorder.publish("RECORDING")
+        recorder.log.assert_called_once_with("RECORDER_STATE_WRITE_DEFERRED")
+        self.assertEqual(recorder.state, "RECORDING")
+
+    def test_first_frame_waits_for_paused_adb_stream(self):
+        recorder, clock, _, queued = self.make_fake_recorder(stop_after=3)
+        original_capture = recorder.capture
+        calls = [0]
+        def capture(*args):
+            calls[0] += 1
+            if calls[0] <= 3:
+                raise RuntimeError("ADB frame is stale; waiting for stream")
+            return original_capture(*args)
+        recorder.capture = capture
+        with patch.object(recorder_module.time, "monotonic", clock.monotonic), \
+                patch.object(recorder_module.time, "sleep", clock.sleep):
+            self.assertFalse(recorder.record({"request_id": "one"}))
+        self.assertEqual(len(queued), 1)
+
     def test_pre_cap_movement_processed_after_cap_keeps_successor(self):
         recorder, _, _, _ = self.make_fake_recorder()
         signal = {"request_id": "one", "created_at": 400, "reason": "MOVEMENT",

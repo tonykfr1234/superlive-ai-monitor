@@ -99,7 +99,7 @@ if ((($Allowlist | ConvertFrom-Json) -join ',') -ne '6122MN') { throw 'New insta
 if ((Get-FileHash "$FreshRoot\requirements-plates.txt").Hash -ne (Get-FileHash "$Kit\requirements-plates.txt").Hash) { throw 'Isolated OCR requirements missing' }
 if ((Get-FileHash "$InstallRoot\config\capture_config.json").Hash -ne $CaptureHash -or (Get-FileHash "$InstallRoot\config\plate_allowlist.json").Hash -ne $AllowlistHash) { throw 'Repeated upgrades changed local camera or plate settings' }
 Write-Host 'ISOLATED_DEPLOYMENT_TEST=PASS'
-foreach ($Name in @('app_branding.py', 'hq_video.py', 'daily_report.py', 'telegram_health.py')) {
+foreach ($Name in @('app_branding.py', 'hq_video.py', 'daily_report.py', 'telegram_health.py', 'plate_display.py')) {
     if (-not (Test-Path -LiteralPath "$FreshRoot\scripts\$Name")) { throw "Missing new runtime helper: $Name" }
 }
 foreach ($Name in @('adb_discovery.py', 'plate_corrections.py', 'setup_wizard.py', 'vehicle_registry.py', 'plate_review.py')) {

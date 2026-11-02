@@ -20,6 +20,7 @@ $ScriptMap = [ordered]@{
     'telegram_upload.py' = 'telegram_upload.py'
     'preview_ui.py' = 'preview_ui.py'
     'latest_vehicle.py' = 'latest_vehicle.py'
+    'plate_display.py' = 'plate_display.py'
     'adb_discovery.py' = 'adb_discovery.py'
     'setup_wizard.py' = 'setup_wizard.py'
     'plate_corrections.py' = 'plate_corrections.py'

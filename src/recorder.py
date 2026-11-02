@@ -113,8 +113,13 @@ class Recorder:
                 value = getattr(self, key, None)
                 if value is not None:
                     extra.setdefault(key, value)
-        atomic_json(self.state_file, dict(status=self.state, pid=os.getpid(),
-            updated_at=time.time(), request_id=self.request_id, **extra))
+        try:
+            atomic_json(self.state_file, dict(status=self.state, pid=os.getpid(),
+                updated_at=time.time(), request_id=self.request_id, **extra))
+        except PermissionError:
+            # A reader briefly holding the status file must not end a clip;
+            # the next heartbeat (0.5 s later) publishes the same state.
+            self.log("RECORDER_STATE_WRITE_DEFERRED")
         self.last_publish = time.monotonic()
 
     def heartbeat(self, **extra):
@@ -204,7 +209,18 @@ class Recorder:
             self.reports.record_trigger(request)
             hwnd = self.find_window()
             sct = self.mss.MSS() if hasattr(self.mss, "MSS") else self.mss.mss()
-            frame = self.capture(sct, hwnd)
+            # An event often starts exactly when the quality switch pauses the
+            # ADB stream; wait briefly for its first fresh frame.
+            first_deadline = time.monotonic() + float(self.config.get("first_frame_wait_seconds", 10))
+            while True:
+                try:
+                    frame = self.capture(sct, hwnd)
+                    break
+                except Exception as error:
+                    if time.monotonic() >= first_deadline or self.stop.exists():
+                        raise
+                    self.log("EVENT_CAPTURE_RETRY TYPE=%s" % type(error).__name__)
+                    time.sleep(0.5)
             height, width = frame.shape[:2]
             size = (width // 2 * 2, height // 2 * 2)
             frame = fit_frame(frame, size, self.cv2)
@@ -226,6 +242,11 @@ class Recorder:
             failures = 0
             last_disk_check = started
             max_failures = max(1, int(self.config.get("capture_max_failures", 5)))
+            # ADB frames pause for a few seconds while the camera quality menu
+            # is operated or the stream reconnects; keep repeating the last
+            # frame through such a gap instead of ending the event clip.
+            stall_limit = max(0.0, float(self.config.get("capture_stall_seconds", 20)))
+            last_capture = started
             disk_interval = max(10, float(self.config.get("disk_check_seconds", 60)))
             while not self.stop.exists():
                 now_mono = time.monotonic()
@@ -257,11 +278,15 @@ class Recorder:
                     continue
                 try:
                     frame = fit_frame(self.capture(sct, hwnd), size, self.cv2)
+                    if failures:
+                        self.log("CAPTURE_RESUMED AFTER=%d STALL_SECONDS=%.1f" % (failures, time.monotonic()-last_capture))
                     failures = 0
+                    last_capture = time.monotonic()
                 except Exception as error:
                     failures += 1
-                    self.log("CAPTURE_ERROR=%s COUNT=%d" % (type(error).__name__, failures))
-                    if failures >= max_failures:
+                    if failures <= max_failures or failures % 50 == 0:
+                        self.log("CAPTURE_ERROR=%s COUNT=%d" % (type(error).__name__, failures))
+                    if failures >= max_failures and time.monotonic() - last_capture >= stall_limit:
                         raise RuntimeError("Capture unavailable; partial clip preserved")
                     try:
                         sct.close()

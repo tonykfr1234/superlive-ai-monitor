@@ -900,7 +900,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
         _dashboard_photo(image, enhance_plate_display(Image.fromarray(plate_photo[:, :, ::-1]), (plate_pixels.width, plate_pixels.height)), plate_pixels)
         draw = ImageDraw.Draw(image)
     else:
-        label = "尚未取得車牌影像" if chinese else "No plate image yet"
+        label = "本段尚無清晰動態車牌" if chinese else "No clear moving plate in this clip"
         for i, line in enumerate(wrap_panel_text(draw, label, small, plate_pixels.width-4)):
             draw.text((plate_pixels.x+2, plate_pixels.y+8+i*20), line, font=small, fill=(139, 177, 195))
     plate_label = str(record.get('plate_display') or record.get('plate') or record.get('candidate_plate') or '--')

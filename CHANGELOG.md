@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-11-02 — 依人車自動切換畫質（工具列隱藏修正）／ Activity quality switching with hidden toolbar
+
+### Release Note 維護規則
+
+- 每次修改程式、設定、安裝器或文件，都必須同步更新本檔，記錄日期、變更內容、驗證結果及已知限制；交付回覆也需附精簡 Release Note。
+
+### 改了什麼
+
+- **畫質按鈕找不到（主因）**：SuperLive 監看畫面的工具列約一秒多就自動隱藏，而 Android 控制項樹（uiautomator dump）一次要 1.5 秒以上，等樹拿到時按鈕已消失。現在改成在同一個 `adb shell` 指令內「點畫面顯示工具列 → 等 0.3 秒 → 點畫質按鈕」，並與「直接點按鈕」交替重試（點畫面會切換工具列顯示／隱藏，兩種狀態都能命中），最多四次，整體 60 秒逾時，失敗 5 秒後重試。
+- 畫質按鈕位置第一次學到後存到本機 `runtime/superlive_quality_button.json`，監控重啟不必再靠剛好抓到工具列；學習時最多重新顯示工具列三次。
+- 畫質切換在背景執行緒執行，AI 擷取與辨識持續進行；切換期間選單區域不送進 AI，車牌辨識暫停。每次切換記錄 `seconds`、`max_frame_gap`、`dumps` 方便現場判讀。
+- 畫質確認若剛好遇到串流換段，最多等 4 秒取得新畫面，不再立即失敗。
+- 串流每 5 秒檢查 SuperLive 程序的 `pidof` 在畫質操作期間暫停；平時單次 3 秒逾時不再讓整條擷取重連，連續三次才視為裝置無回應。
+- **錄影不中斷**：錄影端原本連續 5 次（約 1 秒）讀不到新畫面就結束影片；現在短暫停頓時重複上一張畫面，停頓超過 20 秒（`capture_stall_seconds`）才結束；事件開始時最多等 10 秒取得第一張畫面。
+- **監控／錄影不再因狀態檔被讀取而當掉**：Windows 上其他程式正在讀 `camera_activity.json`、`person_vehicle_activity.json` 或 `recording_state.json` 時，原子取代會出現 `PermissionError`，舊版會讓監控程序結束或錄影中斷；現在略過該次寫入，下一次再寫。畫質判斷讀取活動檔改為每秒最多兩次。
+- 保留 1920×1080 擷取，解碼每秒 10 張；CPU 推論兩個執行緒。
+- 車牌預覽：每段影片獨立驗證清晰度、移動與片段關聯後才顯示（Codex 先前待發布的變更，一併發布）。
+- 提醒規則維持不變：台灣時間 23:00～06:00 靜音；06:00～22:00 每兩小時檢查，過去兩小時沒偵測到人或車就推播請使用者查看監視器。
+
+### 怎麼測
+
+- 單元／回歸：639 項離線測試全部通過（含新增的工具列隱藏、按鈕記憶、`pidof` 逾時容忍、錄影停頓、狀態檔鎖定等測試）；`security_scan=PASS`；隔離部署測試 `ISOLATED_DEPLOYMENT_TEST=PASS`。
+- 實機（逍遙模擬器 + SuperLive，工具列隱藏狀態）：單獨呼叫 `set_quality` 高→低→高→低四次全部成功（18～28 秒）。
+- 實機受控測試（以活動訊號驅動、YOLO 同時推論真實畫面）：低 13.5 秒、高 15.7 秒、低 19.9 秒完成，各階段 YOLO 推論最大間隔 0.89／0.5／0.77 秒，零重試。
+- 實機正式監控、真實人車事件：見下方「實測紀錄」。
+
+### 實測紀錄（2026-11-02，正式監控、真實事件，非測試訊息）
+
+| 時間 | 事件 | 畫質切換 | 切換期間最大畫面間隔 | 錄影／推播 |
+|---|---|---|---|---|
+| 17:56～17:59 | 車輛進入、離開 | 低→高（17:57:41）→低（17:58:45） | —（舊量測，YOLO 間隔 20～30 秒） | 第一段影片 6 秒即中斷（已修正錄影停頓容忍），兩段影片 Telegram 皆 PASS |
+| 18:31～18:36 | 人＋車 | 高 17.7 秒、低 17.6 秒 | 0.6 秒／0.5 秒 | 5 分鐘影片 `COMPLETE=True`，期間多次短暫停頓自動續錄；Telegram PASS |
+| 18:39 | 人 | 高 46.5 秒 | 0.8 秒 | 影片因部署新版被手動停止（非故障）；Telegram PASS |
+
+- 監控在 18:31:00 因 `camera_activity.json` 被同時讀取（`PermissionError`）而結束一次，watchdog 10 秒後自動重啟；本版已改為略過該次寫入，部署後持續運作未再發生。
+- 監控、錄影、兩個 watchdog 在畫質切換期間 PID 不變（17:31～18:11 取樣）。
+
+### 已知限制
+
+- 每次切換約 12～25 秒（主要是 4～6 次 uiautomator dump），期間畫面仍持續送進 AI。
+- 正式監控在 CPU 上本來就約每秒一次推論，閒置時也會有 3～12 秒的推論間隔（畫面靜止時 screenrecord 不出新畫面）；這不是畫質切換造成的。
+- 偶發的 `ADB stream stalled` 重連（約每 15 分鐘一次，與畫質切換無關）仍存在。
+- 23:00 靜音與隔日 06:00 檢查只以模擬時間驗證；本次未發送任何測試用 Telegram 訊息，實測期間的推播都是真實事件。
+
 ## 2026-11-02 — Daytime person/vehicle activity checks
 
 - Launch both watchdogs with `pythonw.exe` and run their monitor/recorder children with `CREATE_NO_WINDOW`. The monitoring preview remains visible, but the two black watchdog consoles no longer appear; logs continue in `logs/Stage5` and `logs/Stage5C`.

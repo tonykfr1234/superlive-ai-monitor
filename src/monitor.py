@@ -37,6 +37,7 @@ from capture_region import CaptureInfo
 from plate_recognition import PlateService, load_allowlist
 from video_location import reveal_video, VideoLocationError
 from latest_vehicle import LatestVehicleTracker
+from plate_display import ClipPlateDisplay
 from plate_review import launch_review
 from window_layout import apply_default_window_layout
 
@@ -317,6 +318,9 @@ def main():
     credentials = ("", "")  # Telegram credentials belong to delivery workers.
     interval = 1.0 / float(cfg["target_fps"])
     device = 0 if torch.cuda.is_available() else "cpu"
+    if device == "cpu":
+        torch.set_num_threads(2)
+        cv2.setNumThreads(1)
     model = YOLO(str(MODEL_PATH) if MODEL_PATH.exists() else "yolo11n.pt")
     print("POLICY=PERSON_VEHICLE_ACTIVITY_REGION_MIN_120S_ROLLOVER_MAX_300S_QUIET_120S", flush=True)
     print("AI_DEVICE=%s" % device, flush=True)
@@ -340,6 +344,7 @@ def main():
     next_activity_receipt = 0.0
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     latest_vehicle = LatestVehicleTracker(ROOT)
+    clip_plate_display = ClipPlateDisplay()
     controller.latest_vehicle = latest_vehicle.snapshot()
     view_settings = read_json(ROOT / "runtime/preview_layout.json", {})
     saved_order = view_settings.get("panel_order") if isinstance(view_settings, dict) else None
@@ -475,15 +480,23 @@ def main():
                 count = len(people)
                 if count > 0 and time.monotonic() >= next_activity_receipt:
                     counts = object_counts(people)
-                    atomic_json(RUNTIME / "person_vehicle_activity.json", {
-                        "last_seen_at": time.time(),
-                        "people": counts["person"],
-                        "vehicles": count - counts["person"],
-                    })
-                    next_activity_receipt = time.monotonic() + 1
+                    try:
+                        atomic_json(RUNTIME / "person_vehicle_activity.json", {
+                            "last_seen_at": time.time(),
+                            "people": counts["person"],
+                            "vehicles": count - counts["person"],
+                        })
+                        next_activity_receipt = time.monotonic() + 1
+                    except PermissionError:
+                        pass  # retried on the next detection
                 if adb_stream and adb_stream.adaptive_quality:
                     active = count > 0
-                    atomic_json(RUNTIME / "camera_activity.json", {"active": active, "timestamp": time.time()})
+                    try:
+                        atomic_json(RUNTIME / "camera_activity.json", {"active": active, "timestamp": time.time()})
+                    except PermissionError:
+                        # A reader holding the file must not stop detection;
+                        # the next inference rewrites the same signal.
+                        pass
             controller.object_counts = object_counts(people) if count is not None else None
             latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None, frame=frame)
 
@@ -491,7 +504,7 @@ def main():
                 if time.monotonic() >= next_plate_filter_read:
                     controller.plate_filter_targets = load_allowlist(ROOT)
                     next_plate_filter_read = time.monotonic() + 2
-                if capture_ok:
+                if capture_ok and not (adb_stream and adb_stream._quality_busy.is_set()):
                     plate_service.submit(frame, frame_timestamp, None, vehicles=people)
                 else:
                     plate_service.pause()
@@ -514,9 +527,10 @@ def main():
             if time.monotonic() >= next_review_read:
                 latest_vehicle.apply_manual_confirmation(read_json(ROOT/'runtime/manual_plate_confirmation.json', {}))
                 next_review_read = time.monotonic()+.5
-            controller.latest_vehicle = latest_vehicle.snapshot()
+            clip_plate_display.update(latest_vehicle, getattr(controller, 'plate_events', []), read_json(STATE_FILE, {}))
+            controller.latest_vehicle = clip_plate_display.display_record(latest_vehicle.snapshot())
             controller.latest_vehicle_image = latest_vehicle.image
-            controller.latest_plate_image = latest_vehicle.plate_image
+            controller.latest_plate_image = clip_plate_display.image
             controller.layout = PreviewLayout.create(width, height, *canvas_size,
                 show_plates=controller.plate_enabled,
                 plate_sidebar=controller.plate_enabled,
