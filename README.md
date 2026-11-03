@@ -59,7 +59,7 @@ Press **P / Confirm plate** to save a reviewed plate and vehicle color locally. 
 
 Both watchdogs and their monitor/recorder children run in the background without console windows. The OpenCV monitoring preview remains visible.
 
-After startup, the emulator is placed at the top-right and the SuperLive AI preview at the bottom-right of the same display. Their adaptive, equal-width rectangles fit the current work area with a gap and do not overlap.
+After startup, only the SuperLive AI preview is placed at the bottom-right of the display the emulator is on. The emulator window keeps whatever size and position you give it; capture follows its current picture area.
 
 **Already installed?** Run `installer\UPDATE_FROM_REPO.bat`. The updater backs up and stops the runtime, preserves local region/Telegram/storage settings and leaves it stopped for a deliberate restart. No Windows auto-start, scheduled task or service is created.
 

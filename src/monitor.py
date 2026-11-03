@@ -562,7 +562,7 @@ def main():
                     layout_applied = True
                     emulator_rect = win32gui.GetWindowRect(emulator_hwnd)
                     monitor_rect = win32gui.GetWindowRect(monitor_hwnd)
-                    print("WINDOW_LAYOUT=RIGHT_COLUMN emulator=%s monitor=%s"
+                    print("WINDOW_LAYOUT=MONITOR_ONLY emulator_untouched=%s monitor=%s"
                           % (emulator_rect, monitor_rect), flush=True)
             key = cv2.waitKeyEx(1)
             action = controller.key(key)

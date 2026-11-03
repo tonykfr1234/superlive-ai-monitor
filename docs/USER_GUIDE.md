@@ -22,7 +22,7 @@ Use the deployed `Start_AI_Monitor.bat` and `Stop_AI_Monitor.bat`. Start launche
 
 Both watchdogs and their monitor/recorder children run without console windows. The OpenCV monitoring preview remains visible; diagnostics continue in the files under `logs\Stage5` and `logs\Stage5C`.
 
-On the first rendered frame, the emulator moves to the display's top-right and the SuperLive AI preview to the bottom-right. Their equal-width, aspect-aware rectangles use the current work area and leave a gap between them. The arrangement is applied once; both windows remain freely movable afterward.
+On the first rendered frame, only the SuperLive AI preview moves to the bottom-right of the emulator's display. The emulator window is never moved or resized; size it as you like, and capture follows its current picture area.
 
 The preview currently uses Traditional Chinese, with clickable R, C, Q, Save and Cancel controls below the camera image. README translations are documentation languages, not interface language settings. To define a region:
 

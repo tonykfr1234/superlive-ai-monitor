@@ -59,7 +59,7 @@ SuperLive AI Monitor 為 Windows 上 MuMu 或逍遙（MEmu）裡的 SuperLive �
 
 兩個 watchdog 與錄影／偵測子程序會在背景執行，不會出現黑色命令視窗；OpenCV 監控預覽仍會保留。
 
-啟動完成後，逍遙模擬器會自動排在同一螢幕右上，SuperLive AI 預覽排在右下；兩者依工作區大小自適應、保留間隙且不重疊。
+啟動完成後，只會把 SuperLive AI 預覽排到模擬器所在螢幕的右下；逍遙模擬器視窗的位置與大小由使用者自己決定，程式不會移動或縮放，擷取會跟著目前畫面區。
 
 **已有安裝？** 執行 `installer\UPDATE_FROM_REPO.bat`。更新器先備份並停止程式，保留本機區域、Telegram 與儲存設定；完成後維持停止，確認畫面再手動啟動。不建立 Windows 自動啟動、排程工作或服務。
 
