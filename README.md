@@ -132,6 +132,10 @@ Local CPU pipeline: YOLOv9-t plate detection on the full 1920×1080 frame plus o
 
 Measured on 16 real local clips (239 frames, indoor car park, CPU): plates were confirmed in 4 clips, all matching the system's earlier confirmations, at 0.38 s per frame. A larger detector (YOLOv9-s-608) boxed 70% more plates but read the same number (58 vs 57 frames) at 8× the cost, so it is not used. This is not a human-labelled accuracy figure. Techniques, numbers, test conditions and limits: [docs/PLATE_RECOGNITION.md](docs/PLATE_RECOGNITION.md).
 
+2026-11-04 diagnosis of all 66 local clips: in 22 the plate never exceeded 45 px and in 8 more the OCR never read a valid plate; the detector was not the bottleneck (larger detectors found no additional readable plate). A vote veto and near-duplicate suppression removed the wrong confirmations seen in replays. A local Taiwan OCR fine-tune did not improve confirmed plates and is not deployed.
+
+2026-11-04 全部 66 段錄影診斷：22 段車牌最寬不到 45 像素、另 8 段 OCR 從未讀出有效車牌；偵測器不是瓶頸。加入投票否決與同車近似讀值抑制，重播中的錯誤確認消失。本機台灣 OCR 微調沒有提升確認結果，未部署。
+
 ## Latest changes
 
 - People **or vehicles** moving inside the polygon can trigger recording. The 120–300-second clip rules and initial 120-second video-upload quiet period are unchanged.

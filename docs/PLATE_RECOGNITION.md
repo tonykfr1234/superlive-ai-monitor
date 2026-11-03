@@ -23,7 +23,8 @@
 | 台灣格式檢查 | 汽車 ABC-1234、AB-1234、1234-AB；機車 ABC-123、123-ABC；拒絕 I、O 與不可能的組合 |
 | 格式修正 | 只在格式確定某位置是字母或數字、而且只有一種格式成立時，修正常見混淆（字母位 8→B、5→S、2→Z、6→G；數字位 O/D/Q→0、I→1、B→8、S→5、Z→2、G→6）；原始讀值仍保存在證據中 |
 | 多幀共識 | 同一段錄影中至少 3 張不同畫面、信心值 ≥ 0.85 才確認 |
-| 字元投票共識 | 小車牌每張畫面常錯一個不同的字：同一個移動中的車牌至少 3 張畫面逐字投票（依每個字元的 OCR 機率加權），投出的車牌須為有效台灣格式、至少 2 張畫面逐字讀到、每個位置勝出比例 > 50% 且累積機率 ≥ 1.5 |
+| 字元投票共識 | 小車牌每張畫面常錯一個不同的字：同一個移動中的車牌至少 3 張畫面逐字投票（依每個字元的 OCR 機率加權），投出的車牌須為有效台灣格式、至少 2 張畫面逐字讀到、每個位置勝出比例 > 50% 且累積機率 ≥ 1.5；只要有一張畫面以 ≥ 0.98 信心讀到另一個有效車牌就不確認 |
+| 同車近似讀值 | 180 秒內與已確認車牌相差 ≤ 2 個字的結果視為同一台車的誤讀，不另外確認或通知 |
 | 畫質自動切換 | 人車事件時切到 SuperLive 最高畫質，每次事件只切一次，失敗最多 3 次 |
 | 人工校正 | 本機確認過的車牌會影響之後的同車比對；資料只留在本機 |
 
@@ -60,6 +61,41 @@
 - 很多「沒有車牌」是正確的：遠處機車（約 80 像素寬）或畫面邊緣的停放車輛，任何畫質都讀不出來。
 - 以上是錄影離線重播；正式監控中的效果要等下一次真實車輛事件確認。
 
+### 全部錄影診斷（2026-11-04，66 段）
+
+方法：2026-10-28～11-03 全部 66 段錄影每秒取 1 張，找出 677 張有移動車輛的畫面，逐階段記錄：有沒有車牌框、框多大、OCR 是否讀出有效台灣格式、共識是否確認。車牌答案由人工看最清楚的畫面判讀（看不清的不標），共 6 個車牌、197 張車牌圖；全部只留在本機。
+
+| 每段影片最遠走到 | 影片數 |
+|---|---|
+| 沒有移動中的車 | 6 |
+| 移動車輛上沒有車牌框 | 2 |
+| 只有信心 < 0.4 的框 | 3 |
+| **車牌最寬 < 45 像素** | **22** |
+| ≥ 45 像素但 OCR 從未讀出有效格式 | 8 |
+| 至少一張讀出有效台灣車牌 | 25 |
+
+- 主要瓶頸是**像素不夠**與 **OCR 讀錯**，不是偵測器：t-384 框到全部 197 張有答案的車牌；t-640（2.1 倍時間）與 s-608（7 倍時間）多找到的框經逐張檢查全是車標、車燈或拖影車牌，沒有可讀車牌。
+- 原本 OCR 在 197 張有答案的車牌圖只完全讀對 77 張；45 像素以下 0 張。80% 的移動車輛畫面屬低畫質串流的清晰度。
+- 整條流程重播發現字元投票會確認「同樣方式連續讀錯」的車牌（11-03 15:36），以及同一台車在 180 秒內多發一個字不同的錯誤車牌（10-28），已修正（見上表）。
+
+| 整條流程重播（原本 OCR） | 修正前（42d1021） | 修正後 |
+|---|---|---|
+| 11-03 保留日：正確／錯誤／未驗證 | 2／**1**／1 | 2／**0**／1 |
+| 10-28～11-02：正確／錯誤／未驗證 | —（只加否決時 10／3／1） | 9／1／1 |
+
+近似讀值抑制把錯誤通知由 3 筆減為 1 筆；但 10-28 22:45 那段先確認到錯的車牌，之後正確的一筆被擋下，所以正確由 10 筆變 9 筆。
+
+### 台灣 OCR 微調實驗（未部署）
+
+以 197 張本機真實車牌圖（訓練只用其中 4 個車牌）加上即時產生的合成台灣車牌，在 CPU 上微調 CCT-S OCR。保留驗證集是 11-03 全部影片加上訓練從未見過的 2 個車牌，共 90 張。
+
+| OCR | 完全讀對 | 格式有效但讀錯 |
+|---|---|---|
+| 原本 CCT-S v2 | 23/90 | 16 |
+| 微調（最佳一版） | 24/90 | 13 |
+
+整條流程重播 11-03 時兩者確認結果完全相同（2 正確、0 錯誤），因此**不部署**。真實車牌種類太少（6 個），模型容易記住訓練車牌；需要更多經使用者確認、不同車牌的圖片才值得再試。程式已支援放在 `models/plate_ocr_tw.onnx`（及 `.yaml`）的本機模型，檔案不存在時沿用原本 OCR；模型與資料永不上傳。
+
 ### 已知限制
 
 - 來源解析度：SuperLive 畫面是 1920×1080，遠處車牌常只有幾十個像素寬；45 像素以下的車牌目前讀不出來。
@@ -88,7 +124,8 @@
 | Taiwan layouts | Cars ABC-1234, AB-1234, 1234-AB; motorcycles ABC-123, 123-ABC; I/O and impossible layouts rejected |
 | Layout repair | Common confusions are fixed only where the layout forces a letter or digit and exactly one layout fits (letter slots 8→B, 5→S, 2→Z, 6→G; digit slots O/D/Q→0, I→1, B→8, S→5, Z→2, G→6); the raw reading stays in the evidence |
 | Consensus | At least 3 distinct frames with confidence ≥ 0.85 within one recording |
-| Character vote | Small plates are often read with a different wrong character per frame: at least 3 frames of one moving plate vote per character, weighted by each character's OCR probability. The voted plate must be a valid Taiwan layout, read verbatim in at least 2 frames, win each position by more than 50%, and reach a summed probability of 1.5 per position |
+| Character vote | Small plates are often read with a different wrong character per frame: at least 3 frames of one moving plate vote per character, weighted by each character's OCR probability. The voted plate must be a valid Taiwan layout, read verbatim in at least 2 frames, win each position by more than 50%, and reach a summed probability of 1.5 per position; one frame reading a different valid plate at ≥ 0.98 confidence vetoes it |
+| Near-duplicate reads | Within 180 s, a result within 2 characters of a confirmed plate is treated as a misread of the same car and is not confirmed or notified again |
 | Quality switch | Highest SuperLive quality during person/vehicle events, once per event, at most 3 attempts |
 | Manual review | Locally confirmed plates inform later matching; data stays local |
 
@@ -124,6 +161,41 @@ In live monitoring all 16 clips of the day were recorded as "no plate recognized
 - Only one vehicle has a human-verified answer, so this is a small sample and **not an accuracy figure**; the other confirmation agreed verbatim across 3 frames and matches the plate as read by eye.
 - Many "no plate" results are correct: a distant scooter (~80 px wide) or a parked car at the frame edge cannot be read at any quality.
 - These are offline replays of recordings; the effect in live monitoring will be confirmed by the next real vehicle event.
+
+### Diagnosis across all recordings (2026-11-04, 66 clips)
+
+Method: one frame per second from all 66 clips (2026-10-28 to 11-03), 677 frames with a moving vehicle, each traced stage by stage: plate box or not, its size, whether OCR produced a valid Taiwan layout, whether consensus confirmed. Ground truth was read by eye from the sharpest frames (unreadable plates left unlabelled): 6 plates, 197 plate crops, all kept locally.
+
+| Furthest stage reached per clip | Clips |
+|---|---|
+| No moving vehicle | 6 |
+| No plate box on a moving vehicle | 2 |
+| Only boxes below 0.4 confidence | 3 |
+| **Plate never wider than 45 px** | **22** |
+| ≥ 45 px but OCR never produced a valid layout | 8 |
+| A valid Taiwan read in at least one frame | 25 |
+
+- The bottlenecks are **too few pixels** and **OCR misreads**, not the detector: t-384 boxed all 197 labelled plates; every extra box from t-640 (2.1× time) and s-608 (7× time) was inspected and was a logo, lamp or smeared plate, never a readable plate.
+- The stock OCR read 77 of the 197 labelled crops exactly, and 0 below 45 px. 80% of moving-vehicle frames had low-quality-stream sharpness.
+- End-to-end replay showed the character vote could confirm a plate misread the same way in consecutive frames (11-03 15:36), and a car could produce an extra, one-character-off plate within 180 s (10-28). Both are fixed (see the techniques table).
+
+| End-to-end replay (stock OCR) | Before (42d1021) | After |
+|---|---|---|
+| Held-out day 11-03: correct / wrong / unverified | 2 / **1** / 1 | 2 / **0** / 1 |
+| 10-28 to 11-02: correct / wrong / unverified | — (veto only: 10 / 3 / 1) | 9 / 1 / 1 |
+
+Near-duplicate suppression cut wrong notifications from 3 to 1; in the 10-28 22:45 clip the wrong plate confirmed first and the later correct one was then suppressed, so correct went from 10 to 9.
+
+### Taiwan OCR fine-tune experiment (not deployed)
+
+The CCT-S OCR was fine-tuned on the CPU with the 197 real local crops (training used only 4 of the plates) plus synthetic Taiwan plates generated on the fly. The held-out set is every 11-03 clip plus 2 plates never seen in training: 90 crops.
+
+| OCR | Exact | Valid layout but wrong |
+|---|---|---|
+| Stock CCT-S v2 | 23/90 | 16 |
+| Fine-tuned (best run) | 24/90 | 13 |
+
+In the end-to-end replay of 11-03 both confirmed exactly the same plates (2 correct, 0 wrong), so it is **not deployed**. Six real plates are too few: the model memorises the training plates. More user-confirmed crops of different plates are needed before trying again. The code loads a local model from `models/plate_ocr_tw.onnx` (plus `.yaml`) when present and otherwise keeps the stock OCR; models and data are never uploaded.
 
 ### Known limits
 

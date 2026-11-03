@@ -46,6 +46,14 @@ class CharacterVoteTests(unittest.TestCase):
         frames = [[read("ABC1234", .83, weak)] for _ in range(4)]
         self.assertIsNone(self.feed(CharacterVote(), frames))
 
+    def test_near_certain_different_read_vetoes_repeated_misread(self):
+        # 2026-11-03: one frame read the plate at .999, then three tilted frames
+        # misread two characters identically and outvoted it.
+        frames = [[read("ABC1234", .999)], [read("HBC1534", .95)], [read("HBC1534", .97)], [read("HBC1534", .96)]]
+        self.assertIsNone(self.feed(CharacterVote(), frames))
+        # Without that near-certain read the same misreads would confirm.
+        self.assertEqual(self.feed(CharacterVote(), [[read("ABC1234", .9)]] + frames[1:])["text"], "HBC1534")
+
     def test_invalid_taiwan_layouts_are_ignored(self):
         frames = [[read("AB12C34", .95)] for _ in range(4)]
         self.assertIsNone(self.feed(CharacterVote(), frames))

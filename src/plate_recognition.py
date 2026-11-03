@@ -28,6 +28,8 @@ from vehicle_registry import DatabaseConsensus, color_for_plate
 
 DETECTOR_MODEL = "yolo-v9-t-384-license-plate-end2end"
 OCR_MODEL = "cct-s-v2-global-model"
+# Optional local fine-tune for Taiwan plates; never committed (see .gitignore).
+LOCAL_OCR_NAME, LOCAL_OCR_CONFIG = "plate_ocr_tw.onnx", "plate_ocr_tw.yaml"
 MODEL_LABEL = "YOLOv9 plate + CCT-S OCR"
 TAIPEI = timezone(timedelta(hours=8))
 DEFAULT_MAX_DISTANCE = 2
@@ -207,12 +209,16 @@ class CharacterVote:
     Taiwan-valid readings, weighted per character by OCR probability. The
     voted plate must be a valid layout, be read verbatim in two frames, win
     every position clearly and carry enough summed character probability, so
-    a character that stays blurred in every frame never confirms.
+    a character that stays blurred in every frame never confirms. A frame that
+    read a different valid plate verbatim at `conflict` confidence vetoes the
+    vote: on 2026-11-03 a tilting plate was misread the same way in three
+    frames and outvoted one near-certain correct read.
     """
     def __init__(self, frames=3, verbatim=2, share=0.5, mass=1.5, window=20.0,
-                 min_confidence=0.4, min_detector=0.5, tracks=4):
+                 min_confidence=0.4, min_detector=0.5, tracks=4, conflict=0.98):
         self.frames, self.verbatim, self.share, self.mass = frames, verbatim, share, mass
         self.window, self.min_confidence, self.min_detector = window, min_confidence, min_detector
+        self.conflict = conflict
         self.max_tracks = tracks
         self.tracks = []
 
@@ -285,8 +291,11 @@ class CharacterVote:
             share = min(max(position.values()) / sum(position.values()) for position in votes)
             mass = min(max(position.values()) for position in votes)
             verbatim = [item for item in group if voted in item["reads"]]
+            disputed = any(voted not in item["reads"] and any(
+                text != voted and confidence >= self.conflict for text, (confidence, _) in item["reads"].items())
+                for item in group)
             if (complete_plate(voted) and share > self.share and mass >= self.mass
-                    and len(verbatim) >= self.verbatim):
+                    and len(verbatim) >= self.verbatim and not disputed):
                 if best is None or (len(group), share) > (best[1], best[2]):
                     best = (voted, len(group), share, mass, group, verbatim)
         if best is None:
@@ -582,7 +591,10 @@ class LiveClipConsensus:
 
     def finish_event(self, event, timestamp, sample_id, allowlist, frame):
         canonical = event['text']
-        if self.continuous and timestamp-self.last_confirmed.get(canonical, float('-inf')) < 180:
+        # A plate within the match tolerance of one confirmed in the last 180 s is
+        # the same car misread (one character off in real replays), not a new plate.
+        if self.continuous and any(timestamp-stamp < 180 and edit_distance(canonical, plate) <= DEFAULT_MAX_DISTANCE
+                                   for plate, stamp in self.last_confirmed.items()):
             return None
         event.update(match_plate(event["text"], allowlist))
         event.update(id=self.event_path().stem, request_id=self.context["request_id"],
@@ -1192,6 +1204,17 @@ class ControlLease:
         return "stop" if now-self.last_seen > HEARTBEAT_MAX_AGE else "wait"
 
 
+def local_ocr_model(root):
+    """A Taiwan fine-tune of the OCR, kept only on this PC (trained on private crops).
+
+    Returns (onnx, config) paths when both files exist in <root>/models, else None,
+    so a missing or removed local model falls back to the hub model.
+    """
+    folder = Path(root) / "models"
+    model, config = folder / LOCAL_OCR_NAME, folder / LOCAL_OCR_CONFIG
+    return (str(model), str(config)) if model.is_file() and config.is_file() else None
+
+
 def run_worker(root, session):
     root = Path(root)
     runtime = root / "runtime" / "plate_recognition"
@@ -1240,10 +1263,14 @@ def run_worker(root, session):
         options = ort.SessionOptions()
         options.intra_op_num_threads = 2
         options.inter_op_num_threads = 1
-        alpr = ALPR(detector_model=DETECTOR_MODEL, ocr_model=OCR_MODEL,
+        local = local_ocr_model(root)
+        alpr = ALPR(detector_model=DETECTOR_MODEL, ocr_model=None if local else OCR_MODEL,
+                    ocr_model_path=local[0] if local else None,
+                    ocr_config_path=local[1] if local else None,
                     detector_providers=["CPUExecutionProvider"],
                     ocr_providers=["CPUExecutionProvider"], ocr_device="cpu",
                     detector_sess_options=options, ocr_sess_options=options)
+        print("PLATE_OCR=" + ("local_taiwan" if local else OCR_MODEL), flush=True)
     except Exception as error:
         # Log exception type only: provider/download errors can contain paths/URLs.
         state("UNAVAILABLE", "Plate model unavailable: " + type(error).__name__)

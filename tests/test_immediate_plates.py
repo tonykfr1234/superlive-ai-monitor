@@ -40,6 +40,12 @@ class ContinuousRecognitionTests(unittest.TestCase):
         self.assertIsNone(self.votes('AB1234', 150, resumed))
         self.assertIsNotNone(self.votes('AB1234', 283, resumed))
 
+    def test_one_character_misread_of_recent_plate_is_not_a_new_plate(self):
+        self.assertIsNotNone(self.votes('ABC1234', 101))
+        self.assertIsNone(self.votes('AEC1234', 150))      # same car, one character off
+        self.assertIsNotNone(self.votes('XYZ9876', 160))   # a different car still confirms
+        self.assertIsNotNone(self.votes('AEC1234', 290))   # after the 180 s cooldown
+
     def test_same_frame_can_confirm_two_plates_but_not_duplicate_votes(self):
         events = []
         for i in range(3):
