@@ -362,17 +362,32 @@ class TelegramVideoQueue:
             raise RuntimeError("Telegram plate delivery failure")
         record_success(self.root, "plate")
 
+    @staticmethod
+    def video_size(video):
+        """Telegram guesses a cropped preview when width/height are omitted."""
+        try:
+            import cv2
+            capture = cv2.VideoCapture(str(video))
+            try:
+                width, height = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            finally:
+                capture.release()
+            return dict(width=width, height=height) if width > 0 and height > 0 else {}
+        except Exception:
+            return {}
+
     def send(self, video, job, token, chat_id):
         import requests
         from telegram_upload import MultipartUploadBody
         content = self.caption_content(job)
+        size = self.video_size(video)
         with Path(video).open("rb") as stream:
             # Encoding can take minutes. Re-read the shared guard at dispatch,
             # including a new clip or rollover that began during preparation.
             if self.stop_event.is_set() or not telegram_send_allowed(self.root):
                 raise TelegramDeferred("Telegram dispatch is currently deferred")
             body = MultipartUploadBody(fields=dict(chat_id=chat_id, caption=content["text"],
-                duration=int(round(job["duration"])), supports_streaming="true"),
+                duration=int(round(job["duration"])), supports_streaming="true", **size),
                 stream=stream, filename=Path(video).name, stop_event=self.stop_event)
             response = requests.post("https://api.telegram.org/bot%s/sendVideo" % token,
                 data=body, headers={"Content-Type": body.content_type}, timeout=(15, 180))

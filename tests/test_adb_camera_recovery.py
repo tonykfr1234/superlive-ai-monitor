@@ -100,6 +100,17 @@ class CameraRecoveryTests(unittest.TestCase):
         frame = self.stream.camera_without_controls(self.frame)
         np.testing.assert_array_equal(frame[10:20], self.frame[10:20])
 
+    def test_recorder_reads_full_frame_while_ai_input_is_masked(self):
+        self.stream._quality_busy.set()
+        self.stream.publish(self.changed, 0)
+        recorder = adb_capture.SharedAdbReader('unused-camera-recovery-test')
+        recorder.memory = self.stream.memory
+        np.testing.assert_array_equal(recorder.capture(), self.changed)
+        masked = self.stream.capture()
+        self.assertTrue((masked[:3] == 51).all())
+        self.assertTrue((masked[-5:] == 51).all())
+        np.testing.assert_array_equal(masked[10:20], self.changed[10:20])
+
     def test_closed_app_with_no_decoded_frame_is_restarted_before_quality(self):
         self.stream.adaptive_quality = True
         self.stream.client.run.return_value = b''
@@ -134,8 +145,54 @@ class CameraRecoveryTests(unittest.TestCase):
         with patch.object(adb_capture, 'read_json', return_value={'active': False, 'timestamp': 100}):
             self.now = 20
             self.assertEqual(self.stream.desired_quality(), 'high')
-            self.now = 26
+            self.now = 69
+            self.assertEqual(self.stream.desired_quality(), 'high')
+            self.now = 71
             self.assertEqual(self.stream.desired_quality(), 'low')
+
+    def run_quality_events(self, results, states):
+        """Drive the switch loop through camera_activity states (one per tick)."""
+        self.stream.adaptive_quality = True
+        self.stream._quality_ready_at = 1
+        self.stream._quality_applied = 'low'
+        worker = Mock()
+        worker.set_quality.side_effect = results
+        with patch.object(adb_capture, 'AdbClient', return_value=worker), \
+             patch.object(adb_capture.time, 'time', side_effect=lambda: self.now):
+            for active in states:
+                self.now += 10
+                with patch.object(adb_capture, 'read_json',
+                                  return_value={'active': active, 'timestamp': self.now}):
+                    self.stream._activity_read_at = None
+                    self.stream.apply_activity_quality()
+                    if self.stream._quality_thread:
+                        self.stream._quality_thread.join(2)
+        return [call.args[0] for call in worker.set_quality.call_args_list]
+
+    def test_one_confirmed_switch_to_high_per_event(self):
+        levels = self.run_quality_events([True] * 5, [True] * 6)
+        self.assertEqual(levels, ['high'])
+        self.assertEqual(self.stream._quality_applied, 'high')
+
+    def test_failed_high_switch_stops_after_three_attempts(self):
+        levels = self.run_quality_events([RuntimeError('Quality menu did not open')] * 5, [True] * 8)
+        self.assertEqual(levels, ['high'] * 3)
+        self.assertEqual(self.stream._quality_applied, 'low')
+        self.assertIn('不再重試', self.stream.quality)
+
+    def test_retry_succeeds_within_limit_then_stops_clicking(self):
+        levels = self.run_quality_events([RuntimeError('x'), True, True], [True] * 6)
+        self.assertEqual(levels, ['high', 'high'])
+        self.assertEqual(self.stream._quality_attempts, 2)
+
+    def test_next_event_gets_fresh_attempts_after_giving_up(self):
+        fail = RuntimeError('x')
+        # Event 1 fails three times; quiet long enough to end it; event 2 succeeds.
+        levels = self.run_quality_events([fail, fail, fail, True],
+                                         [True] * 4 + [False] * 7 + [True])
+        self.assertEqual(levels, ['high'] * 4)
+        self.assertEqual(self.stream._quality_event, 2)
+        self.assertEqual(self.stream._quality_applied, 'high')
 
     def test_confirmation_uses_three_separate_png_samples(self):
         self.stream.client.screenshot.side_effect = self.screenshot

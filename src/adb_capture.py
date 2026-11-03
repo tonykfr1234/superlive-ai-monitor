@@ -406,6 +406,14 @@ class AdbStream(SharedAdbReader):
         self._quality_retry_at = 0.0
         self._quality_ready_at = None
         self._quality_last_seen = 0.0
+        # High quality is for reading plates: switch once per person/vehicle
+        # event and give up after three tries instead of clicking repeatedly.
+        # Idle CPU inference can pause 3-12 s, so hold high for a minute.
+        self.quality_max_attempts = 3
+        self.quality_hold_seconds = 60.0
+        self._quality_target = None
+        self._quality_attempts = 0
+        self._quality_event = 0
         self._quality_thread = None
         self._quality_cancel = threading.Event()
         self._quality_busy = threading.Event()
@@ -452,6 +460,11 @@ class AdbStream(SharedAdbReader):
         except FileExistsError:
             self.memory = shared_memory.SharedMemory(name=self.name)
         self.memory.buf[:HEADER.size] = bytes(HEADER.size)
+
+    def capture(self):
+        # Only the in-process AI reader excludes quality controls; recordings
+        # and Telegram videos read the shared frame directly and stay full.
+        return self.camera_without_controls(super().capture())
 
     def start(self):
         self.thread = threading.Thread(target=self.run, daemon=True, name='SuperLiveADB')
@@ -566,7 +579,8 @@ class AdbStream(SharedAdbReader):
         active = (state.get('active') is True and 0 <= now - state.get('timestamp', 0) < 15)
         if active:
             self._quality_last_seen = time.monotonic()
-        return 'high' if self._quality_last_seen and time.monotonic() - self._quality_last_seen < 15 else 'low'
+        return ('high' if self._quality_last_seen
+                and time.monotonic() - self._quality_last_seen < self.quality_hold_seconds else 'low')
 
     def quality_change_due(self):
         return (self.adaptive_quality and not self._quality_busy.is_set() and self._quality_ready_at is not None
@@ -622,9 +636,16 @@ class AdbStream(SharedAdbReader):
         return clean
 
     def apply_activity_quality(self):
-        if not self.quality_change_due():
+        if not self.adaptive_quality:
             return
         level = self.desired_quality()
+        if level != self._quality_target:
+            self._quality_target, self._quality_attempts = level, 0
+            if level == 'high':
+                self._quality_event += 1
+        if not self.quality_change_due() or self._quality_attempts >= self.quality_max_attempts:
+            return
+        self._quality_attempts += 1
         self._quality_started = self._busy_last_frame = time.monotonic()
         self._busy_max_gap = 0.0
         self._quality_busy.set()
@@ -647,7 +668,8 @@ class AdbStream(SharedAdbReader):
             # Frame gaps show whether live detection kept receiving images.
             now = time.monotonic()
             gap = max(self._busy_max_gap, now - self._busy_last_frame)
-            return ' seconds=%.1f max_frame_gap=%.1f dumps=%d dump_seconds=%.1f' % (
+            return ' event=%d attempt=%d/%d seconds=%.1f max_frame_gap=%.1f dumps=%d dump_seconds=%.1f' % (
+                self._quality_event, self._quality_attempts, self.quality_max_attempts,
                 now - self._quality_started, gap, len(client.ui_seconds), sum(client.ui_seconds))
         try:
             if not client.set_quality(level):
@@ -657,11 +679,18 @@ class AdbStream(SharedAdbReader):
             print('ADB_ACTIVITY_QUALITY=' + level + timing(), flush=True)
             self._quality_retry_at = time.monotonic() + 2
         except Exception as error:
-            self.quality = '自動畫質待重試'
-            print('ADB_ACTIVITY_QUALITY_RETRY TYPE=' + type(error).__name__ + (' REASON=' + str(error) if isinstance(error, RuntimeError) else '') + timing(), flush=True)
+            reason = type(error).__name__ + (' REASON=' + str(error) if isinstance(error, RuntimeError) else '')
+            if self._quality_attempts >= self.quality_max_attempts:
+                self.quality = '畫質切換失敗（本次事件不再重試）'
+                print('ADB_ACTIVITY_QUALITY_GAVE_UP level=' + level + ' TYPE=' + reason + timing(), flush=True)
+            else:
+                self.quality = '自動畫質待重試'
+                print('ADB_ACTIVITY_QUALITY_RETRY level=' + level + ' TYPE=' + reason + timing(), flush=True)
             self._quality_retry_at = time.monotonic() + 5
         finally:
-            self._quality_mask_until = time.monotonic() + (30 if self._quality_masks else 1)
+            # The toolbar auto-hides within about a second of the last tap; a
+            # longer mask would hide plates right after switching to high.
+            self._quality_mask_until = time.monotonic() + (3 if self._quality_masks else 1)
             self._quality_busy.clear()
 
     def run(self):
@@ -826,7 +855,8 @@ class AdbStream(SharedAdbReader):
                     self._busy_last_frame = self._raw_frame_at
                 if not self.camera_frame_ready(frame):
                     continue
-                self.publish(self.camera_without_controls(frame), self.sequence)
+                # The recorder reads this shared frame: keep it full and unmasked.
+                self.publish(frame, self.sequence)
                 if self._quality_ready_at is None:
                     self._quality_ready_at = time.monotonic() + 10
                 self.sequence += 2

@@ -182,10 +182,43 @@ class PlateConsensus:
                     model=MODEL_LABEL, tolerance=int(self.max_distance))
 
 
-def complete_plate(text):
-    """A conservative local format filter, not proof that OCR is correct."""
+# Taiwan plates (separator removed). L = letter, D = digit. Cars: ABC-1234
+# (2012+, also rental/taxi/EV/truck series) and the older AB-1234 / 1234-AB;
+# motorcycles: ABC-123 and the older 123-ABC. Taiwan does not issue the
+# letters I or O, which are easily confused with 1 and 0.
+TAIWAN_LAYOUTS = ("LLLDDDD", "LLDDDD", "DDDDLL", "LLLDDD", "DDDLLL")
+TAIWAN_LETTERS = set("ABCDEFGHJKLMNPQRSTUVWXYZ")
+# Only swaps that are unambiguous once the layout fixes a slot's kind.
+TO_DIGIT = {"O": "0", "D": "0", "Q": "0", "I": "1", "B": "8", "S": "5", "Z": "2", "G": "6"}
+TO_LETTER = {"8": "B", "5": "S", "2": "Z", "6": "G"}
+
+
+def taiwan_plate(text, fix=True):
+    """Return the plate in a valid Taiwan layout, or None.
+
+    With ``fix`` a reading that misses every layout may be repaired only where
+    exactly one layout fits after the unambiguous swaps above; nothing is
+    invented and the length never changes.
+    """
     text = normalize_plate(text)
-    return bool(6 <= len(text) <= 8 and re.fullmatch(r"(?:[A-Z]{2,3}[0-9]{3,4}|[0-9]{3,4}[A-Z]{2,3})", text))
+    def fits(layout, value):
+        return all((c in TAIWAN_LETTERS) if k == "L" else c.isdigit() for k, c in zip(layout, value))
+    layouts = [layout for layout in TAIWAN_LAYOUTS if len(layout) == len(text)]
+    if any(fits(layout, text) for layout in layouts):
+        return text
+    if not fix:
+        return None
+    repaired = set()
+    for layout in layouts:
+        value = "".join((TO_LETTER.get(c, c) if k == "L" else TO_DIGIT.get(c, c)) for k, c in zip(layout, text))
+        if fits(layout, value):
+            repaired.add(value)
+    return repaired.pop() if len(repaired) == 1 else None
+
+
+def complete_plate(text):
+    """A conservative local Taiwan format filter, not proof that OCR is correct."""
+    return taiwan_plate(text, fix=False) is not None
 
 
 class PlateLearningMemory:
@@ -539,8 +572,18 @@ def recognition_candidates(alpr, frame, prediction):
                     "variant": name})
         except Exception:
             pass  # A failed second attempt must not fabricate a replacement.
+    for item in list(candidates):
+        # A layout-forced swap (e.g. 8->B in a letter slot) is kept beside the
+        # raw reading, never in place of it, so evidence shows both.
+        if not complete_plate(item["raw_text"]):
+            repaired = taiwan_plate(item["raw_text"])
+            if repaired:
+                candidates.append(dict(item, raw_text=repaired, variant=item["variant"]+"+tw_format",
+                                       repaired_from=item["raw_text"]))
     valid = [item for item in candidates if 4 <= len(normalize_plate(item["raw_text"])) <= 12]
-    return (max(valid, key=lambda item: item["confidence"]) if valid else None), candidates
+    # Impossible Taiwan layouts only win when nothing valid was read.
+    return (max(valid, key=lambda item: (complete_plate(item["raw_text"]), item["confidence"]))
+            if valid else None), candidates
 
 
 def detect_plate_observations(alpr, frame):

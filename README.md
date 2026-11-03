@@ -101,7 +101,7 @@ Selection or invalid capture/inference is unknown and resets the observation int
 | Activity recording | Normal clips 120–300 seconds; movement after 120 seconds rolls over; 120-second inactivity stop |
 | Notifications | Local alert/evidence at start; Telegram distinguishes people, vehicle types and actual plate observations; unconfirmed plates remain marked unconfirmed |
 | Daytime inactivity check | Silent 23:00–06:00; every two hours otherwise, a Telegram prompt asks the user to inspect the camera when no person or vehicle was seen in the preceding two hours |
-| Plate recognition | Full image plus overlapping tile scans, multi-frame confirmation, up to seven days of scrollable recognition history and an automatically restarted OCR worker |
+| Plate recognition | Full image plus overlapping tile scans, multi-frame confirmation, Taiwan plate-layout checking, automatic high-quality switch during vehicle events, up to seven days of scrollable recognition history and an automatically restarted OCR worker |
 | Video delivery | Actual-duration H.264 MP4; persistent queue/retries; no new sends during each clip's first 120 seconds |
 | Recovery | Capture retry and separate monitor/recorder watchdogs |
 | Storage | 10 FPS; the runtime `recordings` directory (existing paths preserved); drive rotation at 80% down to 78% |
@@ -122,6 +122,15 @@ These 36-second, silent demonstrations use the **actual preview renderer with a 
 | Polygon selection | Recording and activity | Inactivity and rearming |
 | --- | --- | --- |
 | ![Selecting polygon vertices](docs/media/polygon-selection.png) | ![Recording activity within the polygon](docs/media/activity-recording.png) | ![Waiting for renewed movement after inactivity](docs/media/inactivity-rearm.png) |
+
+<a id="plate-recognition"></a>
+## 車牌辨識 / License plate recognition
+
+Local CPU pipeline: YOLOv9-t plate detection on the full 1920×1080 frame plus overlapping tiles → CCT-S OCR on the original and enhanced crops → Taiwan layout check (ABC-1234, AB-1234, 1234-AB, ABC-123, 123-ABC; no I/O) → at least 3 agreeing frames per recording. During a person/vehicle event the SuperLive view switches to its highest quality once (at most 3 attempts) so plates get more pixels.
+
+本機 CPU 流程：完整 1920×1080 畫面加分塊做 YOLOv9-t 車牌偵測 → 原圖與增強裁切做 CCT-S 字元辨識 → 台灣車牌格式檢查 → 同一段錄影至少 3 張畫面一致才確認。人車事件時監看畫面自動切到最高畫質一次（最多 3 次）。
+
+Measured on 16 real local clips (239 frames, indoor car park, CPU): plates were confirmed in 4 clips, all matching the system's earlier confirmations, at 0.38 s per frame. A larger detector (YOLOv9-s-608) boxed 70% more plates but read the same number (58 vs 57 frames) at 8× the cost, so it is not used. This is not a human-labelled accuracy figure. Techniques, numbers, test conditions and limits: [docs/PLATE_RECOGNITION.md](docs/PLATE_RECOGNITION.md).
 
 ## Latest changes
 
