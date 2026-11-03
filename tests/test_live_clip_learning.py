@@ -63,7 +63,8 @@ class LiveClipLearningTests(unittest.TestCase):
         self.assertIsNone(self.votes(start=105))
 
     def test_incomplete_low_confidence_and_allowlist_guess_do_not_confirm(self):
-        for text, confidence in [('AB123', .99), ('A1234', .99), ('AB1234', .84), ('123456', .99)]:
+        # 0.45 x 3 frames stays below the character vote's 1.5 confidence mass.
+        for text, confidence in [('AB123', .99), ('A1234', .99), ('AB1234', .45), ('123456', .99)]:
             self.assertIsNone(self.votes(text=text, confidence=confidence))
         self.assertIsNone(self.live.winner())
 
@@ -91,7 +92,8 @@ class LiveClipLearningTests(unittest.TestCase):
         self.assertFalse(changed)
 
     def test_separated_plate_boxes_cannot_pool_votes(self):
-        for i, box in enumerate([(10, 10, 80, 30), (110, 10, 180, 30), (10, 10, 80, 30)]):
+        # A real plate moves up to ~1.3 widths/s at 1 fps; 400 px in 1 s is another plate.
+        for i, box in enumerate([(10, 10, 80, 30), (410, 10, 480, 30), (10, 10, 80, 30)]):
             self.assertIsNone(self.live.observe(prediction(box=box), 101+i, str(i), []))
 
     def test_duplicate_sample_and_pause_do_not_accumulate_votes(self):

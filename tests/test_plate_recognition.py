@@ -145,8 +145,8 @@ class PlateIsolationTests(unittest.TestCase):
         # Even when a different variant happens to resemble a target, confidence
         # selects the actual observation. The matcher runs only afterwards.
         self.assertEqual(selected["raw_text"], "AX1239")
-        self.assertEqual([item["variant"] for item in variants], ["original", "lanczos3"])
-        self.assertEqual([item["raw_text"] for item in variants], ["AX1239", "AB1234"])
+        self.assertEqual([item["variant"] for item in variants], ["original", "margin", "lanczos3"])
+        self.assertEqual([item["raw_text"] for item in variants], ["AX1239", "AB1234", "AB1234"])
         with patch.object(ocr, "predict", side_effect=ValueError("model unavailable")):
             selected, variants = recognition_candidates(SimpleNamespace(ocr=ocr), np.zeros((40, 80, 3), dtype=np.uint8), prediction)
         self.assertEqual(selected["raw_text"], "AX1239")

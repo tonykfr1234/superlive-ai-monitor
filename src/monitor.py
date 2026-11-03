@@ -504,8 +504,12 @@ def main():
                 if time.monotonic() >= next_plate_filter_read:
                     controller.plate_filter_targets = load_allowlist(ROOT)
                     next_plate_filter_read = time.monotonic() + 2
-                if capture_ok and not (adb_stream and adb_stream._quality_busy.is_set()):
-                    plate_service.submit(frame, frame_timestamp, None, vehicles=people)
+                if capture_ok:
+                    # Keep reading plates while quality switches: the vehicle
+                    # usually passes during the switch, and low quality beats none.
+                    plate_frame = getattr(adb_stream, "plate_frame", None) if adb_stream else None
+                    plate_service.submit(frame if plate_frame is None else plate_frame,
+                                         frame_timestamp, None, vehicles=people)
                 else:
                     plate_service.pause()
                 plate_state = plate_service.snapshot()

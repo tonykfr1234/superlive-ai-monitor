@@ -32,6 +32,8 @@ MODEL_LABEL = "YOLOv9 plate + CCT-S OCR"
 TAIPEI = timezone(timedelta(hours=8))
 DEFAULT_MAX_DISTANCE = 2
 MAX_SAMPLE_AGE = 8.0
+MAX_VEHICLE_REGIONS = 3
+OCR_MARGIN = 0.15
 HEARTBEAT_MAX_AGE = 12.0
 
 
@@ -102,6 +104,19 @@ def character_confidence(text, values, minimum=False):
         return min(scores) if minimum else sum(scores) / len(scores)
     except (TypeError, ValueError, IndexError, OverflowError):
         return 0.0
+
+
+def character_scores(text, values):
+    """Per-character probabilities aligned with normalize_plate(text), or None."""
+    visible = str(text or "").rstrip("_ ").upper()
+    positions = [i for i, char in enumerate(visible) if char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"]
+    try:
+        scores = [round(float(values[i]), 4) for i in positions]
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+    if not scores or any(not math.isfinite(value) or not 0 <= value <= 1 for value in scores):
+        return None
+    return scores
 
 
 def load_allowlist(root):
@@ -180,6 +195,118 @@ class PlateConsensus:
                     detector_confidence=best["detector_confidence"], bbox=best["bbox"],
                     confirmed=True, samples=len(queue), evidence=list(queue),
                     model=MODEL_LABEL, tolerance=int(self.max_distance))
+
+
+class CharacterVote:
+    """Per-character vote over the frames of one moving plate.
+
+    Small plates (45-80 px) rarely give three identical OCR strings: each frame
+    reads most characters right but a different one wrong. Readings join a
+    track only while the box moves like one plate (at most 1.5 plate widths
+    per second, plus half a width). Each frame splits one vote over its own
+    Taiwan-valid readings, weighted per character by OCR probability. The
+    voted plate must be a valid layout, be read verbatim in two frames, win
+    every position clearly and carry enough summed character probability, so
+    a character that stays blurred in every frame never confirms.
+    """
+    def __init__(self, frames=3, verbatim=2, share=0.5, mass=1.5, window=20.0,
+                 min_confidence=0.4, min_detector=0.5, tracks=4):
+        self.frames, self.verbatim, self.share, self.mass = frames, verbatim, share, mass
+        self.window, self.min_confidence, self.min_detector = window, min_confidence, min_detector
+        self.max_tracks = tracks
+        self.tracks = []
+
+    def reset(self):
+        self.tracks = []
+
+    @staticmethod
+    def _follows(previous, bbox, elapsed):
+        try:
+            ax1, ay1, ax2, ay2 = map(float, previous["bbox"])
+            bx1, by1, bx2, by2 = map(float, bbox)
+        except (TypeError, ValueError):
+            return False
+        width = max(1.0, (ax2 - ax1 + bx2 - bx1) / 2)
+        distance = math.hypot((ax1 + ax2 - bx1 - bx2) / 2, (ay1 + ay2 - by1 - by2) / 2)
+        return distance <= width * (0.5 + 1.5 * max(elapsed, 0.5))
+
+    def observe(self, variants, timestamp, sample_id, bbox=None, detector_confidence=1.0):
+        try:
+            now, detector_confidence = float(timestamp), float(detector_confidence)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(now) or bbox is None:
+            return None
+        self.tracks = [track for track in self.tracks if now - track[-1]["timestamp"] <= self.window]
+        reads = {}
+        for variant in variants or ():
+            if not isinstance(variant, dict):
+                continue
+            text = normalize_plate(variant.get("raw_text"))
+            try:
+                confidence = float(variant.get("confidence") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not (complete_plate(text) and math.isfinite(confidence) and confidence >= self.min_confidence):
+                continue
+            scores = variant.get("character_confidences")
+            if not (isinstance(scores, list) and len(scores) == len(text)):
+                # Without per-character scores, assume the weakest one everywhere.
+                weakest = variant.get("min_character_confidence", confidence)
+                scores = [float(weakest) if isinstance(weakest, (int, float)) else confidence] * len(text)
+            if confidence > reads.get(text, (0.0, None))[0]:
+                reads[text] = (confidence, scores)
+        if not reads or not detector_confidence >= self.min_detector:
+            return None
+        track = next((t for t in reversed(self.tracks)
+                      if self._follows(t[-1], bbox, now - t[-1]["timestamp"])), None)
+        if track is None:
+            track = []
+            self.tracks = (self.tracks + [track])[-self.max_tracks:]
+        if any(item["sample_id"] == str(sample_id) or now <= item["timestamp"] for item in track):
+            return None
+        track.append(dict(timestamp=now, sample_id=str(sample_id), reads=reads, bbox=list(bbox),
+                          detector_confidence=detector_confidence, variants=list(variants)))
+        best = None
+        for length in sorted({len(text) for text in reads}):
+            group = [item for item in track if any(len(t) == length for t in item["reads"])]
+            if len(group) < self.frames:
+                continue
+            votes = [{} for _ in range(length)]
+            for item in group:
+                same = {t: v for t, v in item["reads"].items() if len(t) == length}
+                total = sum(confidence for confidence, _ in same.values())
+                for text, (confidence, scores) in same.items():
+                    for index, character in enumerate(text):
+                        # Share of this frame's vote, scaled by the character's own probability.
+                        votes[index][character] = (votes[index].get(character, 0.0)
+                                                   + confidence / total * scores[index])
+            voted = "".join(max(position, key=position.get) for position in votes)
+            share = min(max(position.values()) / sum(position.values()) for position in votes)
+            mass = min(max(position.values()) for position in votes)
+            verbatim = [item for item in group if voted in item["reads"]]
+            if (complete_plate(voted) and share > self.share and mass >= self.mass
+                    and len(verbatim) >= self.verbatim):
+                if best is None or (len(group), share) > (best[1], best[2]):
+                    best = (voted, len(group), share, mass, group, verbatim)
+        if best is None:
+            return None
+        voted, _, share, mass, group, verbatim = best
+        strongest = max(verbatim, key=lambda item: (item["reads"][voted][0], item["detector_confidence"]))
+        evidence = [dict(raw_text=voted if voted in item["reads"] else max(item["reads"], key=lambda t: item["reads"][t][0]),
+                         text=voted, confidence=max(c for c, _ in item["reads"].values()),
+                         detector_confidence=item["detector_confidence"], timestamp=item["timestamp"],
+                         sample_id=item["sample_id"], bbox=item["bbox"], variants=item["variants"])
+                    for item in group]
+        self.tracks = [t for t in self.tracks if t is not track]
+        return dict(text=voted, raw_text=voted, confidence=strongest["reads"][voted][0],
+                    detector_confidence=strongest["detector_confidence"], bbox=strongest["bbox"],
+                    id=uuid.uuid4().hex, timestamp=now,
+                    time=datetime.fromtimestamp(now, TAIPEI).isoformat(timespec="seconds"),
+                    confirmed=True, samples=len(group), evidence=evidence, model=MODEL_LABEL,
+                    tolerance=DEFAULT_MAX_DISTANCE, consensus="character_vote",
+                    vote_share=round(share, 3), vote_mass=round(mass, 3),
+                    verbatim_frames=len(verbatim))
 
 
 # Taiwan plates (separator removed). L = letter, D = digit. Cars: ABC-1234
@@ -354,6 +481,7 @@ class LiveClipConsensus:
         self.database = DatabaseConsensus(root)
         self.context = None
         self.tracker = PlateConsensus([], min_confidence=.85, debounce=0)
+        self.vote = CharacterVote()
         self.boxes = {}
         self.influenced_samples = set()
 
@@ -370,6 +498,7 @@ class LiveClipConsensus:
 
     def reset(self):
         self.tracker.reset()
+        self.vote.reset()
         self.database.reset()
         self.tracker.last_emitted.clear()
         self.boxes.clear()
@@ -404,6 +533,14 @@ class LiveClipConsensus:
             return None
         variants = prediction.get("variants") or [prediction.get("selected")]
         variants = [item for item in variants if isinstance(item, dict)]
+        voted = self.vote.observe(variants, timestamp, sample_id, prediction.get("bbox"),
+                                  prediction.get("detector_confidence", 0))
+        if voted is not None:
+            corrections = load_corrections(self.root)
+            correct_event(voted, corrections)
+            # Other plates in view keep their own strict-consensus evidence.
+            self.tracker.observations.pop(voted["text"], None)
+            return self.finish_event(voted, timestamp, sample_id, allowlist, frame)
         selected, influenced = self.memory.choose(variants, timestamp)
         corrections = load_corrections(self.root)
         selected, verified_preference = prefer_verified(
@@ -557,18 +694,24 @@ def recognition_candidates(alpr, frame, prediction):
         candidates.append({"raw_text": original.text,
                            "confidence": character_confidence(original.text, original.confidence),
                            "min_character_confidence": character_confidence(original.text, original.confidence, minimum=True),
+                           "character_confidences": character_scores(original.text, original.confidence),
                            "variant": "original"})
     box = prediction.detection.bounding_box
     height, width = frame.shape[:2]
-    crop = frame[max(0, int(box.y1)):min(height, int(box.y2)),
-                 max(0, int(box.x1)):min(width, int(box.x2))]
-    for name, enhanced in enhanced_plate_crops(crop):
+    # A tight detector box clips edge characters; OCR models read plates with
+    # a border. On real 45-80 px plates a 15% margin lifted exact reads 0->3/14.
+    mx, my = int((box.x2 - box.x1) * OCR_MARGIN), int((box.y2 - box.y1) * OCR_MARGIN)
+    crop = frame[max(0, int(box.y1) - my):min(height, int(box.y2) + my),
+                 max(0, int(box.x1) - mx):min(width, int(box.x2) + mx)]
+    inputs = [("margin", crop)] if crop.size and (mx or my) else []
+    for name, enhanced in inputs + enhanced_plate_crops(crop):
         try:
             reading = alpr.ocr.predict(enhanced)
             if reading is not None:
                 candidates.append({"raw_text": reading.text,
                     "confidence": character_confidence(reading.text, reading.confidence),
                     "min_character_confidence": character_confidence(reading.text, reading.confidence, minimum=True),
+                    "character_confidences": character_scores(reading.text, reading.confidence),
                     "variant": name})
         except Exception:
             pass  # A failed second attempt must not fabricate a replacement.
@@ -586,12 +729,32 @@ def recognition_candidates(alpr, frame, prediction):
             if valid else None), candidates
 
 
-def detect_plate_observations(alpr, frame):
-    """Scan the full image plus overlapping tiles for small distant plates.
+def vehicle_regions(vehicles, width, height, limit=MAX_VEHICLE_REGIONS):
+    """Detector regions around the largest vehicles, with room for the plate."""
+    regions = []
+    for vehicle in vehicles or ():
+        try:
+            x1, y1, x2, y2 = map(float, vehicle.get("box") if isinstance(vehicle, dict) else vehicle)
+        except (TypeError, ValueError):
+            continue
+        if not all(math.isfinite(v) for v in (x1, y1, x2, y2)) or x2 <= x1 or y2 <= y1:
+            continue
+        mx, my = (x2 - x1) * 0.15, (y2 - y1) * 0.15
+        region = (max(0, int(x1 - mx)), max(0, int(y1 - my)),
+                  min(width, math.ceil(x2 + mx)), min(height, math.ceil(y2 + my)))
+        if region[2] - region[0] >= 32 and region[3] - region[1] >= 32:
+            regions.append(region)
+    regions.sort(key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=True)
+    return regions[:limit]
+
+
+def detect_plate_observations(alpr, frame, vehicles=None):
+    """Scan the full image plus overlapping tiles and vehicle crops.
 
     A 1600-pixel camera view shrunk to a 384-pixel detector input can erase a
     readable plate. Four 60% tiles preserve more pixels without requiring a
-    larger model. All boxes return to source coordinates and overlapping views
+    larger model, and a crop around each detected vehicle enlarges its plate
+    several times. All boxes return to source coordinates and overlapping views
     of one physical plate become one observation, retaining all OCR variants.
     No allowlist is consulted when choosing the observed text.
     """
@@ -602,6 +765,7 @@ def detect_plate_observations(alpr, frame):
         regions += [(x, y, x + tile_width, y + tile_height)
                     for y in (0, height - tile_height)
                     for x in (0, width - tile_width)]
+    regions += vehicle_regions(vehicles, width, height)
     observations = []
     for region in regions:
         x1, y1, x2, y2 = region
@@ -1123,7 +1287,7 @@ def run_worker(root, session):
             recording = live_context(metadata["timestamp"])
             if not recording or recording["request_id"] != live_clip.context["request_id"]:
                 continue
-            predictions = detect_plate_observations(alpr, frame)
+            predictions = detect_plate_observations(alpr, frame, metadata.get("vehicles"))
             # Pause/ROI/source changes can happen while inference is running.
             current_control = read_json(runtime / "control.json", {})
             if not valid_sample(metadata, current_control, time.time()):

@@ -79,6 +79,24 @@ class PlateTilingTests(unittest.TestCase):
         self.assertEqual(len(observed), 1)
         self.assertEqual(observed[0]["bbox"], [640, 360, 740, 390])
 
+    def test_vehicle_crop_finds_plate_missed_by_frame_and_tiles(self):
+        # Car at (1000, 500)-(1400, 800); the crop adds 15% margin on each side.
+        alpr = model([[], [], [], [], [], [prediction("ABC1234", [190, 300, 290, 330])]])
+        observed = detect_plate_observations(alpr, np.zeros((1080, 1920, 3), np.uint8),
+            [{"class_id": 2, "box": [1000, 500, 1400, 800]}])
+        self.assertEqual(alpr.predict.call_count, 6)
+        self.assertEqual(alpr.predict.call_args_list[5].args[0].shape[:2], (390, 520))
+        self.assertEqual(observed[0]["bbox"], [1130, 755, 1230, 785])
+        self.assertEqual(observed[0]["variants"][0]["source_region"], [940, 455, 1460, 845])
+
+    def test_vehicle_crops_are_bounded_and_ignore_invalid_boxes(self):
+        from plate_recognition import vehicle_regions
+        vehicles = [[0, 0, 100, 100], [0, 0, 400, 400], "bad", [5, 5, 5, 9],
+                    [0, 0, 200, 200], [0, 0, 300, 300]]
+        regions = vehicle_regions(vehicles, 1920, 1080)
+        self.assertEqual(len(regions), 3)
+        self.assertEqual(regions[0], (0, 0, 460, 460))
+
 
 if __name__ == "__main__":
     unittest.main()

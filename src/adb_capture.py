@@ -464,7 +464,10 @@ class AdbStream(SharedAdbReader):
     def capture(self):
         # Only the in-process AI reader excludes quality controls; recordings
         # and Telegram videos read the shared frame directly and stay full.
-        return self.camera_without_controls(super().capture())
+        # Plates keep the unmasked frame: during the 20-40 s switch to high the
+        # vehicle usually passes, and the masked bottom band holds its plate.
+        self.plate_frame = super().capture()
+        return self.camera_without_controls(self.plate_frame)
 
     def start(self):
         self.thread = threading.Thread(target=self.run, daemon=True, name='SuperLiveADB')
