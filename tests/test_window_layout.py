@@ -59,5 +59,39 @@ class WindowLayoutTests(unittest.TestCase):
         self.assertFalse(apply_default_window_layout(11, 22, gui=gui, api=api))
 
 
+class MemuRenderFitTests(unittest.TestCase):
+    def test_memu_render_area_becomes_16_by_9(self):
+        placed = {11: (1767, 7, 784, 449)}  # MEmu's current, user-sized window
+        def set_pos(hwnd, _, x, y, width, height, flags):
+            placed[hwnd] = (x, y, width, height)
+        def window_rect(hwnd):
+            x, y, width, height = placed[hwnd]
+            return x, y, x + width, y + height
+        def client(hwnd):
+            # MEmu: 33 px title bar and a 44 px side toolbar around the render widget.
+            x, y, width, height = placed[11]
+            return 0, 0, width - 44, height - 33
+        gui = SimpleNamespace(
+            IsWindow=lambda hwnd: True, IsIconic=lambda hwnd: False, ShowWindow=Mock(),
+            SetWindowPos=set_pos, GetWindowRect=window_rect,
+            EnumChildWindows=lambda hwnd, callback, _: callback(99, None) if hwnd == 11 else None,
+            IsWindowVisible=lambda hwnd: True, GetWindowText=lambda hwnd: "RenderWindowWindow",
+            ClientToScreen=lambda hwnd, point: (placed[11][0] + 1, placed[11][1] + 32),
+            GetClientRect=client)
+        api = SimpleNamespace(MonitorFromWindow=lambda hwnd, flag: 7,
+                              GetMonitorInfo=lambda handle: {"Work": (0, 0, 2558, 1153)})
+        planned = right_column_layout((0, 0, 2558, 1153))[0]
+        self.assertTrue(apply_default_window_layout(11, 22, gui=gui, api=api))
+        x, y, width, height = placed[11]
+        self.assertAlmostEqual((width - 44) / (height - 33), 16 / 9, delta=0.01)
+        self.assertEqual(x + width, planned[0] + planned[2])
+        self.assertLessEqual(height, planned[3])
+
+    def test_unmeasurable_emulator_keeps_planned_rectangle(self):
+        from window_layout import fit_render_aspect
+        gui = SimpleNamespace(EnumChildWindows=Mock(side_effect=OSError))
+        self.assertIsNone(fit_render_aspect(11, (0, 0, 800, 500), gui))
+
+
 if __name__ == "__main__":
     unittest.main()
