@@ -6,11 +6,13 @@
 
 - 使用者要求「右上角逍遙模擬器 SuperLive 我自己決定大小」。啟動時**不再移動或縮放模擬器視窗**（移除 52c243d 的 16:9 畫面區調整），只把 SuperLive AI 預覽視窗放到右下角一次。模擬器內的 1920×1080 解析度不變。
 - 擷取不受視窗大小影響：視窗擷取模式每張畫面都重新量測模擬器畫面區；ADB 擷取與畫質切換點按使用模擬器內部座標（1920×1080），與視窗大小無關。
+- **補回「錄影失敗時改傳事件照片」**（使用者先前在另一份工作目錄完成、未合併的 738f725，內容見 2026-11-02 段）：錄影無法產生影片時以 Telegram `sendPhoto` 傳原始偵測快照，左下卡片顯示 Telegram 傳送狀態。合併時保留本版的錄影容錯：事件開始最多等第一張畫面 10 秒（沿用該提交的重試方式，每次重試重建擷取），錄影中畫面中斷 20 秒內持續補上一張畫面。
 
 ### 怎麼測
 
 - 實機把逍遙模擬器視窗改成 1100×650 與 640×400 兩種大小：視窗擷取都正確跟著畫面區（1056×617、596×367），ADB 截圖仍是 1920×1080、畫面內容正常；測完還原到原本位置與大小（879×503，完全一致）。
 - 新增測試：只移動監控預覽、從不動模擬器（即使模擬器最小化）；任意視窗大小下擷取尺寸都等於畫面區。
+- 678 項離線測試通過（含 738f725 的照片備援、Telegram 狀態、首張畫面重試測試；「首張畫面等待」測試的停止時間由 3 秒改 6 秒，因為重試間隔改為該提交的 1 秒）。
 
 ### 已知限制
 
@@ -209,6 +211,9 @@
 
 ## 2026-11-02 — Daytime person/vehicle activity checks
 
+- If an event cannot produce a video, queue the original detection snapshot through Telegram `sendPhoto` with the trigger time, detected people/vehicle counts, failure reason and an explicit “no later-frame video” notice. Queue jobs and retries are durable and deduplicated by event ID.
+- Show the latest vehicle's Telegram delivery state in the lower-left card: recording-in-progress earliest/latest times, quiet-period deadline, retry time, queue position, configuration missing, or the recorder failure that prevented a video from being queued.
+- Retry a transient unavailable/stale ADB frame for the configured bounded attempts before failing event recording, covering the quality-switch gap that can occur immediately after an activity trigger.
 - Launch both watchdogs with `pythonw.exe` and run their monitor/recorder children with `CREATE_NO_WINDOW`. The monitoring preview remains visible, but the two black watchdog consoles no longer appear; logs continue in `logs/Stage5` and `logs/Stage5C`.
 - On first render, place the emulator at the top-right and the SuperLive AI preview at the bottom-right of the same monitor. Equal-width, aspect-aware rectangles are derived from the current work area with a gap between them, so they do not overlap and adapt to the display resolution.
 - Replace the notification-silence counter with fixed Taiwan-time checks at 06:00, 08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00 and 22:00. Send one Telegram prompt to inspect the camera when the preceding two hours contain no person or vehicle observation.
@@ -216,6 +221,9 @@
 - 將原本以「多久沒有成功推播」計時的提醒改為台灣時間固定兩小時檢查。過去兩小時沒有人或車時，推播請使用者查看監視器；23:00～06:00 完全靜默，重啟保留已檢查時段，其他 Telegram 通知不會重設判斷。
 - 兩個 watchdog 改用無主控台模式在背景執行，監控／錄影子程序也不再建立黑色命令視窗；監控預覽仍正常顯示，紀錄仍寫入原本的 `logs` 資料夾。
 - 首次顯示預覽時，自動把逍遙模擬器排在同一螢幕右上、SuperLive AI 預覽排在右下；兩者等寬、依畫面比例分配高度並保留間隔，隨目前工作區大小調整且不重疊。
+- 左下角最近車輛卡片新增 Telegram 推播狀態：直接顯示最快／最晚推播時間、靜默截止、重試時間、佇列位置，或「錄影失敗所以未排隊」的原因。
+- 錄影完全失敗時，仍會把事件當下的原始 JPG 證據透過 Telegram 照片推播送出；附上觸發時間、人物／車輛數量與失敗原因，並明示照片不代表後續影片畫面。照片佇列支援重試，同一事件不會重複送出。
+- 活動觸發後若剛好遇到 ADB 畫質切換、短期沒有新鮮影格，錄影會依設定次數短暫重試，不再因第一次取像失敗就放棄整起事件。
 
 ## 2026-10-28 — Consolidated installation and current behavior guide
 

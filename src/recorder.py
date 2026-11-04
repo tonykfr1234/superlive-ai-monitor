@@ -78,6 +78,7 @@ class Recorder:
         self.end_request_file = self.runtime / "record_end_request.json"
         self.quiet_file = self.runtime / "telegram_quiet.json"
         self.state_file = self.runtime / "recording_state.json"
+        self.last_error_file = self.runtime / "recorder_last_error.json"
         self.config = read_json(self.root / "config" / "recording_config.json", {})
         self.record_root = Path(self.config.get("record_root", "C:/SuperLive_Recordings"))
         self.record_root.mkdir(parents=True, exist_ok=True)
@@ -93,6 +94,7 @@ class Recorder:
         self.trigger_created_at = None
         self.clip_started_at = None
         self.next_request = None
+        self.last_video_queued = False
         self.last_publish = 0
         self.capture_resolver = CaptureRegionResolver()
         self.adb_reader = SharedAdbReader(self.root) if capture_settings(self.root).get("source") == "adb" else None
@@ -196,6 +198,42 @@ class Recorder:
                                  resolver=self.capture_resolver)
         return frame
 
+    def capture_first_frame(self, sct, hwnd, max_failures, retry_seconds):
+        """Bridge a quality-switch frame gap before failing the whole event."""
+        for capture_attempt in range(max_failures):
+            try:
+                return self.capture(sct, hwnd), sct, hwnd
+            except Exception as error:
+                self.log("EVENT_CAPTURE_RETRY=%d TYPE=%s" %
+                         (capture_attempt + 1, type(error).__name__))
+                if capture_attempt + 1 >= max_failures:
+                    raise
+                deadline = time.monotonic() + retry_seconds
+                while time.monotonic() < deadline and not self.stop.exists():
+                    time.sleep(min(0.05, deadline - time.monotonic()))
+                if self.stop.exists():
+                    raise RuntimeError("Monitoring stopped before recording began")
+                if not getattr(self, "adb_reader", None):
+                    try:
+                        sct.close()
+                    except Exception:
+                        pass
+                    sct = self.mss.MSS() if hasattr(self.mss, "MSS") else self.mss.mss()
+                    hwnd = self.find_window()
+        raise RuntimeError("Capture unavailable before recording began")
+
+    def queue_photo_fallback(self, request, reason):
+        """Use the trigger snapshot only when no video or partial clip exists."""
+        if self.last_video_queued:
+            return False
+        snapshot_path = request.get("snapshot_path")
+        if not snapshot_path:
+            self.log("TELEGRAM_PHOTO_QUEUED=SKIPPED NO_SNAPSHOT")
+            return False
+        self.uploader.enqueue_photo(snapshot_path, request, reason)
+        self.log("TELEGRAM_PHOTO_QUEUED REQUEST=%s" % request.get("request_id"))
+        return True
+
     def record(self, request):
         """Queue each completed presence event, preserving interrupted clips too."""
         writer = sct = path = timeline = None
@@ -205,22 +243,17 @@ class Recorder:
         self.request_id = request["request_id"]
         self.trigger_created_at = request.get("created_at", time.time())
         self.clip_started_at = None
+        max_failures = max(1, int(self.config.get("capture_max_failures", 5)))
+        retry_seconds = max(0.05, min(5.0, float(self.config.get("capture_retry_seconds", 1))))
         try:
             self.reports.record_trigger(request)
             hwnd = self.find_window()
             sct = self.mss.MSS() if hasattr(self.mss, "MSS") else self.mss.mss()
             # An event often starts exactly when the quality switch pauses the
-            # ADB stream; wait briefly for its first fresh frame.
-            first_deadline = time.monotonic() + float(self.config.get("first_frame_wait_seconds", 10))
-            while True:
-                try:
-                    frame = self.capture(sct, hwnd)
-                    break
-                except Exception as error:
-                    if time.monotonic() >= first_deadline or self.stop.exists():
-                        raise
-                    self.log("EVENT_CAPTURE_RETRY TYPE=%s" % type(error).__name__)
-                    time.sleep(0.5)
+            # ADB stream; keep retrying for up to first_frame_wait_seconds.
+            first_wait = float(self.config.get("first_frame_wait_seconds", 10))
+            frame, sct, hwnd = self.capture_first_frame(
+                sct, hwnd, max(max_failures, math.ceil(first_wait / retry_seconds)), retry_seconds)
             height, width = frame.shape[:2]
             size = (width // 2 * 2, height // 2 * 2)
             frame = fit_frame(frame, size, self.cv2)
@@ -239,9 +272,9 @@ class Recorder:
             self.reserve_quiet(request["request_id"])
             self.publish("RECORDING", file=str(path), duration_seconds=EVENT_SECONDS, elapsed_seconds=0)
             self.log("EVENT_RECORD_START=%s REQUEST=%s" % (path, self.request_id))
+            self.last_error_file.unlink(missing_ok=True)
             failures = 0
             last_disk_check = started
-            max_failures = max(1, int(self.config.get("capture_max_failures", 5)))
             # ADB frames pause for a few seconds while the camera quality menu
             # is operated or the stream reconnects; keep repeating the last
             # frame through such a gap instead of ending the event clip.
@@ -309,6 +342,7 @@ class Recorder:
             if path and timeline and timeline.written and path.exists() and path.stat().st_size:
                 try:
                     self.uploader.enqueue(path, request, timeline.written / self.fps, complete)
+                    self.last_video_queued = True
                 except Exception as error:
                     raise QueuePersistenceError("Unable to persist video upload") from error
                 self.log("EVENT_RECORD_QUEUED=%s COMPLETE=%s" % (path.name, complete))
@@ -377,6 +411,7 @@ class Recorder:
                 self.clip_started_at = None
                 self.reserve_quiet(self.request_id)
                 self.publish("STARTING")
+                self.last_video_queued = False
                 if consume_file:
                     self.request_file.unlink(missing_ok=True)
                 try:
@@ -384,7 +419,20 @@ class Recorder:
                 except QueuePersistenceError:
                     raise
                 except Exception as error:
-                    self.log("EVENT_RECORD_ERROR=%s" % type(error).__name__)
+                    detail = " ".join(str(error).split())[:180]
+                    atomic_json(self.last_error_file, {
+                        "timestamp": time.time(),
+                        "request_id": self.request_id,
+                        "error_type": type(error).__name__,
+                        "message": detail,
+                    })
+                    self.log("EVENT_RECORD_ERROR=%s DETAIL=%s" %
+                             (type(error).__name__, detail))
+                    try:
+                        self.queue_photo_fallback(request, detail)
+                    except Exception as photo_error:
+                        self.log("TELEGRAM_PHOTO_QUEUE_ERROR=%s" %
+                                 type(photo_error).__name__)
                     self.publish("PAUSED", reason=type(error).__name__)
                     for _ in range(20):
                         if self.stop.exists():

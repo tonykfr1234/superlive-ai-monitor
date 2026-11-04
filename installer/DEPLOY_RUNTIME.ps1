@@ -17,6 +17,7 @@ $ScriptMap = [ordered]@{
     'person_activity.py' = 'person_activity.py'
     'telegram_video.py' = 'telegram_video.py'
     'telegram_health.py' = 'telegram_health.py'
+    'telegram_status.py' = 'telegram_status.py'
     'telegram_upload.py' = 'telegram_upload.py'
     'preview_ui.py' = 'preview_ui.py'
     'latest_vehicle.py' = 'latest_vehicle.py'

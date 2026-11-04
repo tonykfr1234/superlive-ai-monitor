@@ -127,6 +127,7 @@ class TelegramVideoQueue:
         self.stop_event = threading.Event()
         self.thread = None
         self.plate_thread = None
+        self.photo_thread = None
         self.immediate_plates = immediate_plates
         self.immediate_sent = {}
         self.immediate_latest = None
@@ -136,6 +137,8 @@ class TelegramVideoQueue:
         self.plate_directory = self.root / "runtime" / "plate_events"
         self.plate_delivery = self.root / "runtime" / "telegram_plate_delivery"
         self.plate_delivery.mkdir(parents=True, exist_ok=True)
+        self.photo_directory = self.root / "runtime" / "telegram_photo_queue"
+        self.photo_directory.mkdir(parents=True, exist_ok=True)
         self.sent_in_process = set()
         self.sent_details_in_process = {}
         self.order_file = self.root / "runtime" / "telegram_delivery_order.json"
@@ -174,6 +177,31 @@ class TelegramVideoQueue:
                     result.add(prepared.with_name(prepared.stem + ".encoding.mp4").resolve())
         return result
 
+    def enqueue_photo(self, path, request, reason):
+        """Persist a failed-record fallback using the original event snapshot."""
+        request_id = request.get("request_id")
+        if not isinstance(request_id, str) or not request_id:
+            raise ValueError("Photo fallback requires a request ID")
+        source = Path(path).resolve()
+        events_root = (self.root / "events").resolve()
+        if events_root not in source.parents:
+            raise ValueError("Photo fallback must use local event evidence")
+        manifest = self.photo_directory / (hashlib.sha256(request_id.encode("utf-8")).hexdigest()+".json")
+        if manifest.exists():
+            return manifest
+        job = dict(
+            path=str(source),
+            request_id=request_id,
+            trigger_created_at=float(request.get("created_at", time.time())),
+            object_counts=event_object_counts(request),
+            reason=" ".join(str(reason or "錄影失敗").split())[:180],
+            attempts=0,
+            retry_at=0,
+        )
+        with self.lock:
+            atomic_json(manifest, job)
+        return manifest
+
     def start(self):
         if self.immediate_plates:
             self.plate_thread = threading.Thread(target=self.run_immediate_plates,
@@ -181,6 +209,8 @@ class TelegramVideoQueue:
             self.plate_thread.start()
         self.thread = threading.Thread(target=self.run, name="TelegramVideoUploader", daemon=True)
         self.thread.start()
+        self.photo_thread = threading.Thread(target=self.run_photos, name="TelegramPhotoFallback", daemon=True)
+        self.photo_thread.start()
 
     def stop(self):
         self.stop_event.set()
@@ -189,6 +219,8 @@ class TelegramVideoQueue:
             self.thread.join(timeout=6)
         if self.plate_thread:
             self.plate_thread.join(timeout=1)
+        if self.photo_thread:
+            self.photo_thread.join(timeout=2)
 
     def prepare(self, job):
         source = Path(job["path"])
@@ -398,6 +430,76 @@ class TelegramVideoQueue:
             raise RuntimeError("Telegram API failure")
         record_success(self.root, "video")
         return dict(notified_plates=content["plates"], notified_through=content["through"])
+
+    def photo_caption(self, job):
+        counts = event_object_counts(job)
+        vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
+        kind = "人物與車輛" if counts["person"] and vehicles else "車輛" if vehicles else "人物"
+        lines = [
+            "SuperLive AI：錄影失敗，附上事件照片",
+            "觸發時間（台灣）：" + taipei_time(event_time(job)),
+            "偵測內容：%s（人物 %d、車輛 %d）" % (kind, counts["person"], vehicles),
+            "原因：" + str(job.get("reason") or "錄影失敗"),
+            "這是事件當下留下的原始照片，不代表後續畫面。",
+        ]
+        return "\n".join(lines)[:1024]
+
+    def send_photo(self, path, job, token, chat_id):
+        import requests
+        source = Path(path)
+        with source.open("rb") as stream:
+            response = requests.post(
+                "https://api.telegram.org/bot%s/sendPhoto" % token,
+                data={"chat_id": chat_id, "caption": self.photo_caption(job)},
+                files={"photo": (source.name, stream, "image/jpeg")},
+                timeout=(10, 60),
+            )
+        if response.status_code != 200 or response.json().get("ok") is not True:
+            raise RuntimeError("Telegram photo fallback delivery failed")
+        record_success(self.root, "photo")
+
+    def process_photos_once(self, now=None):
+        jobs = []
+        for manifest in self.photo_directory.glob("*.json"):
+            job = read_json(manifest)
+            if not isinstance(job, dict):
+                self.log("TELEGRAM_PHOTO_QUEUE_ERROR=UNREADABLE")
+                continue
+            if not job.get("sent_at"):
+                jobs.append((event_time(job), manifest, job))
+        for _, manifest, job in sorted(jobs):
+            now = time.time() if now is None else now
+            if self.stop_event.is_set() or (self.root / "runtime/stop.flag").exists():
+                return
+            if float(job.get("retry_at", 0)) > now:
+                continue
+            try:
+                source = Path(job["path"])
+                if not source.is_file() or source.stat().st_size <= 0:
+                    raise FileNotFoundError("Event snapshot is not ready")
+                token, chat_id = load_credentials(self.root / "config/telegram.env")
+                if not token or not chat_id:
+                    raise RuntimeError("Telegram configuration missing")
+                self.send_photo(source, job, token, chat_id)
+                job["sent_at"] = now
+                job["retry_at"] = 0
+                atomic_json(manifest, job)
+                self.log("TELEGRAM_PHOTO=PASS FILE=%s" % source.name)
+            except Exception as error:
+                attempts = int(job.get("attempts", 0))+1
+                job.update(attempts=attempts,
+                           retry_at=now+min(300, 10*2**min(attempts, 5)))
+                atomic_json(manifest, job)
+                self.log("TELEGRAM_PHOTO=RETRY TYPE=%s ATTEMPT=%d" %
+                         (type(error).__name__, attempts))
+
+    def run_photos(self):
+        while not self.stop_event.is_set():
+            try:
+                self.process_photos_once()
+            except Exception as error:
+                self.log("TELEGRAM_PHOTO_QUEUE_ERROR=%s" % type(error).__name__)
+            self.stop_event.wait(2)
 
     def plate_receipt(self, identity):
         digest = hashlib.sha256(str(identity).encode("utf-8")).hexdigest()

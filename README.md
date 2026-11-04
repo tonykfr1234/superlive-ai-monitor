@@ -61,6 +61,10 @@ Both watchdogs and their monitor/recorder children run in the background without
 
 After startup, only the SuperLive AI preview is placed at the bottom-right of the display the emulator is on. The emulator window keeps whatever size and position you give it; capture follows its current picture area.
 
+The lower-left latest-vehicle card also shows the event's Telegram delivery window, quiet/retry state, queue position, or the recorder error that prevented a video from being queued.
+
+If no video is produced, the original event photo is sent instead through Telegram with its trigger time, people/vehicle counts and failure reason. Photo jobs are durable and deduplicated per event.
+
 **Already installed?** Run `installer\UPDATE_FROM_REPO.bat`. The updater backs up and stops the runtime, preserves local region/Telegram/storage settings and leaves it stopped for a deliberate restart. No Windows auto-start, scheduled task or service is created.
 
 <a id="workflow"></a>

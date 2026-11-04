@@ -157,6 +157,7 @@ class PresenceTriggerTests(unittest.TestCase):
         self.people = [{"box": (50, 50, 100, 180), "confidence": 0.85}]
         replacements = {
             "POLICY_FILE": self.root / "policy.json",
+            "EVENT_ROOT": self.root / "events",
             "REQUEST_FILE": self.root / "record_request.json",
             "STATE_FILE": self.root / "recording_state.json",
             "STOP_FLAG": self.root / "stop.flag",
@@ -235,6 +236,10 @@ class PresenceTriggerTests(unittest.TestCase):
         self.assertEqual(len(requests_at_dispatch), 1)
         self.assertEqual(requests_at_dispatch[0]["count"], 1)
         self.assertEqual(requests_at_dispatch[0]["request_id"], self.notification.call_args.args[3])
+        self.assertEqual(
+            requests_at_dispatch[0]["snapshot_path"],
+            self.notification.call_args.args[5],
+        )
 
     def test_policy_defaults_to_people_and_vehicles_full_frame_and_rejects_invalid_config(self):
         self.assertIsNone(monitor.load_policy()["roi"])
@@ -291,10 +296,10 @@ class AsyncDetectionNotificationTests(unittest.TestCase):
         started, release, finished = threading.Event(), threading.Event(), threading.Event()
         received = []
 
-        def slow_delivery(image, people, roi, request_id, credentials):
+        def slow_delivery(image, people, roi, request_id, credentials, snapshot_path=None):
             started.set()
             release.wait(3)
-            received.append((image, roi, request_id))
+            received.append((image, roi, request_id, snapshot_path))
             finished.set()
 
         image, roi = ["original frame"], [0.1, 0.2, 0.8, 0.9]
@@ -308,7 +313,7 @@ class AsyncDetectionNotificationTests(unittest.TestCase):
             finally:
                 release.set()
                 self.assertTrue(finished.wait(2), "notification worker did not finish")
-        self.assertEqual(received, [(["original frame"], [0.1, 0.2, 0.8, 0.9], "event-123")])
+        self.assertEqual(received, [(["original frame"], [0.1, 0.2, 0.8, 0.9], "event-123", None)])
 
 
 if __name__ == "__main__":

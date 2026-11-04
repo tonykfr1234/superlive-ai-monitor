@@ -40,6 +40,7 @@ from latest_vehicle import LatestVehicleTracker
 from plate_display import ClipPlateDisplay
 from plate_review import launch_review
 from window_layout import apply_default_window_layout
+from telegram_status import telegram_delivery_status
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -117,7 +118,7 @@ def load_telegram():
     return config.get("BOT_TOKEN", ""), config.get("CHAT_ID", "")
 
 
-def notify_detection(image, people, roi, request_id, credentials):
+def notify_detection(image, people, roi, request_id, credentials, snapshot_path=None):
     """Save local evidence and a Windows toast; never send a Telegram start alert.
 
     The credentials argument remains for local-call compatibility. Completed
@@ -130,7 +131,9 @@ def notify_detection(image, people, roi, request_id, credentials):
     counts = object_counts(people)
     types = [kind for kind, count in counts.items() if count]
     event_type = "PERSON_VEHICLE_ACTIVITY" if counts["person"] and len(types) > 1 else "PERSON_ACTIVITY" if counts["person"] else "VEHICLE_ACTIVITY"
-    jpg = day / ("%s_ACTIVITY_%s.jpg" % (now.strftime("%Y%m%d_%H%M%S"), request_id))
+    jpg = (Path(snapshot_path) if snapshot_path else
+           day / ("%s_ACTIVITY_%s.jpg" % (now.strftime("%Y%m%d_%H%M%S"), request_id)))
+    jpg.parent.mkdir(parents=True, exist_ok=True)
     confidence = max(item["confidence"] for item in people)
     area = "全畫面" if roi is None else "指定區域"
     written = cv2.imwrite(str(jpg), image, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -177,9 +180,15 @@ def can_trigger():
 
 
 def recording_request(people, cfg):
-    return {"request_id": uuid.uuid4().hex, "created_at": time.time(),
+    request_id = uuid.uuid4().hex
+    created_at = time.time()
+    created = datetime.fromtimestamp(created_at)
+    snapshot_path = (EVENT_ROOT / created.strftime("%Y-%m-%d") /
+                     ("%s_ACTIVITY_%s.jpg" % (created.strftime("%Y%m%d_%H%M%S"), request_id)))
+    return {"request_id": request_id, "created_at": created_at,
             "count": len(people), "confidence": max(item["confidence"] for item in people),
-            "roi": deepcopy(cfg["roi"]), "object_counts": object_counts(people)}
+            "roi": deepcopy(cfg["roi"]), "object_counts": object_counts(people),
+            "snapshot_path": str(snapshot_path)}
 
 
 def trigger_recording(image, people, cfg, credentials):
@@ -192,7 +201,9 @@ def trigger_recording(image, people, cfg, credentials):
     # Only local evidence/Windows notifications happen at the start. The queue
     # enforces Telegram silence independently of this asynchronous worker.
     try:
-        dispatch_detection_notification(image, people, cfg["roi"], request["request_id"], credentials)
+        dispatch_detection_notification(
+            image, people, cfg["roi"], request["request_id"], credentials,
+            request["snapshot_path"])
     except Exception as error:
         print("DETECTION_NOTIFICATION_ERROR=%s" % type(error).__name__, flush=True)
     return True
@@ -275,7 +286,9 @@ class DetectionSession:
                 if request_recording_end(state, "MOVEMENT", successor):
                     # This worker is local-only; it cannot bypass Telegram silence.
                     try:
-                        dispatch_detection_notification(image, people, cfg["roi"], successor["request_id"], credentials)
+                        dispatch_detection_notification(
+                            image, people, cfg["roi"], successor["request_id"], credentials,
+                            successor["snapshot_path"])
                     except Exception as error:
                         print("DETECTION_NOTIFICATION_ERROR=%s" % type(error).__name__, flush=True)
                     return "recording_rollover_requested"
@@ -289,12 +302,14 @@ class DetectionSession:
         return None
 
 
-def dispatch_detection_notification(image, people, roi, request_id, credentials):
+def dispatch_detection_notification(image, people, roi, request_id, credentials,
+                                    snapshot_path=None):
     snapshot = image.copy()
     region = deepcopy(roi)
     def deliver():
         try:
-            notify_detection(snapshot, people, region, request_id, credentials)
+            notify_detection(snapshot, people, region, request_id, credentials,
+                             snapshot_path)
         except Exception as error:
             print("DETECTION_NOTIFICATION_ERROR=%s" % type(error).__name__, flush=True)
     threading.Thread(target=deliver, name="IdleDetectionAlert", daemon=True).start()
@@ -342,6 +357,7 @@ def main():
     controller.plate_filter_targets = load_allowlist(ROOT)
     next_plate_filter_read = time.monotonic() + 2
     next_activity_receipt = 0.0
+    next_telegram_status_read = 0.0
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     latest_vehicle = LatestVehicleTracker(ROOT)
     clip_plate_display = ClipPlateDisplay()
@@ -533,6 +549,10 @@ def main():
                 next_review_read = time.monotonic()+.5
             clip_plate_display.update(latest_vehicle, getattr(controller, 'plate_events', []), read_json(STATE_FILE, {}))
             controller.latest_vehicle = clip_plate_display.display_record(latest_vehicle.snapshot())
+            if time.monotonic() >= next_telegram_status_read:
+                controller.telegram_status = telegram_delivery_status(
+                    ROOT, controller.latest_vehicle.get("timestamp"), now=time.time())
+                next_telegram_status_read = time.monotonic() + 1
             controller.latest_vehicle_image = latest_vehicle.image
             controller.latest_plate_image = clip_plate_display.image
             controller.layout = PreviewLayout.create(width, height, *canvas_size,

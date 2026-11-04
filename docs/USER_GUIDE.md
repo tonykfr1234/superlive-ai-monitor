@@ -24,6 +24,10 @@ Both watchdogs and their monitor/recorder children run without console windows. 
 
 On the first rendered frame, only the SuperLive AI preview moves to the bottom-right of the emulator's display. The emulator window is never moved or resized; size it as you like, and capture follows its current picture area.
 
+The latest-vehicle card also shows the event's Telegram state: earliest delivery after 120 seconds, latest completion near 300 seconds, quiet-period/retry deadlines, queue position, missing configuration, or a recorder error explaining why no video entered the queue.
+
+If an event produces no video at all, its original event JPG is delivered as a durable, deduplicated Telegram photo with trigger time, people/vehicle counts and the recorder failure reason. The photo represents only the trigger moment and does not substitute for later footage.
+
 The preview currently uses Traditional Chinese, with clickable R, C, Q, Save and Cancel controls below the camera image. README translations are documentation languages, not interface language settings. To define a region:
 
 1. Click R / Select.

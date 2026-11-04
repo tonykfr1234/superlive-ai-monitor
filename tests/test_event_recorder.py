@@ -210,7 +210,8 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(recorder.state, "RECORDING")
 
     def test_first_frame_waits_for_paused_adb_stream(self):
-        recorder, clock, _, queued = self.make_fake_recorder(stop_after=3)
+        # Three stale frames at the 1 s capture retry interval, then 3 s of recording.
+        recorder, clock, _, queued = self.make_fake_recorder(stop_after=6)
         original_capture = recorder.capture
         calls = [0]
         def capture(*args):

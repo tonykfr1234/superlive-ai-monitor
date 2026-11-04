@@ -39,7 +39,7 @@ def recently_observed(root, now):
 
 def record_success(root, kind, now=None):
     """Separate files avoid lost updates between independent sending workers."""
-    if kind not in ('plate', 'video', 'report', 'reminder'):
+    if kind not in ('plate', 'video', 'photo', 'report', 'reminder'):
         raise ValueError('Unknown Telegram activity kind')
     try:
         atomic_json(Path(root) / 'runtime' / ('telegram_activity_' + kind + '.json'),

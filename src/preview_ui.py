@@ -204,6 +204,7 @@ class PreviewController:
         self.plate_scan_status = ""
         self.object_counts = None
         self.latest_vehicle = {}
+        self.telegram_status = ""
         self.latest_vehicle_image = None
         self.latest_plate_image = None
         self.panel_order = ["camera", "plates", "latest", "controls"]
@@ -878,7 +879,7 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
     area = Rect(p.x+12, p.y+48, p.width-24, p.height-102)
     photo = controller.latest_vehicle_image
     record = controller.latest_vehicle
-    meta_height = 78 if area.width < 450 else 90
+    meta_height = 104 if area.width < 450 else 112
     picture = Rect(area.x, area.y, int((area.width-10)*.57), max(28, area.height-meta_height))
     plate_picture = Rect(picture.x+picture.width+10, picture.y,
                          area.width-picture.width-10, picture.height)
@@ -926,9 +927,16 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
     if photo is not None and isinstance(photo_stamp, (int, float)):
         lines.append(("影像時間  " if chinese else "Image captured  ")+
                      datetime.fromtimestamp(photo_stamp, timezone(timedelta(hours=8))).strftime("%H:%M:%S"))
+    telegram_status = str(getattr(controller, "telegram_status", "") or "").strip()
+    if telegram_status:
+        lines.append(telegram_status)
     for index, text in enumerate(lines):
+        while draw.textbbox((0, 0), text, font=small)[2] > area.width-4 and len(text) > 2:
+            text = text[:-2].rstrip() + "…"
         draw.text((area.x+2, picture.y+picture.height+8+index*22), text,
-                  font=font if index < 2 else small, fill=(155, 227, 199) if index == 1 else (182, 207, 223))
+                  font=font if index < 2 else small,
+                  fill=(245, 202, 111) if telegram_status and index == len(lines)-1 else
+                       (155, 227, 199) if index == 1 else (182, 207, 223))
     # Settings stay in controls; vehicle confirmation belongs to the latest card.
     control = layout.panels["controls"]
     status_bottom = min(rect.y for name, rect in layout.buttons.items() if name != "review_plate")-6
