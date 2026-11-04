@@ -368,6 +368,7 @@ def main():
             and all(isinstance(name, str) for name in saved_order) and set(saved_order) == set(controller.panel_order)):
         controller.panel_order = saved_order
     detection_session = DetectionSession()
+    clean_evidence = None
     ui_actions = []
     message = None
     message_until = 0.0
@@ -514,7 +515,12 @@ def main():
                         # the next inference rewrites the same signal.
                         pass
             controller.object_counts = object_counts(people) if count is not None else None
-            latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None, frame=frame)
+            # While SuperLive's quality toolbar/menu may be on screen, the
+            # latest-vehicle photo, plate photos and event photo use no new pixels.
+            controls = adb_stream.control_regions(width, height) if adb_stream else []
+            latest_vehicle.observe(people, frame_timestamp, (width, height), available=count is not None,
+                                   frame=None if controls else frame,
+                                   high_quality=bool(adb_stream) and adb_stream.high_quality_confirmed())
 
             if plate_service:
                 if time.monotonic() >= next_plate_filter_read:
@@ -525,7 +531,7 @@ def main():
                     # usually passes during the switch, and low quality beats none.
                     plate_frame = getattr(adb_stream, "plate_frame", None) if adb_stream else None
                     plate_service.submit(frame if plate_frame is None else plate_frame,
-                                         frame_timestamp, None, vehicles=people)
+                                         frame_timestamp, None, vehicles=people, controls=controls)
                 else:
                     plate_service.pause()
                 plate_state = plate_service.snapshot()
@@ -642,7 +648,15 @@ def main():
             # Any selection/control change discards detections from the old ROI.
             # The footer is composed separately and can never enter evidence or ROI.
             if count is not None and not controller.selecting and not changed and not cfg.get("roi_reselect_required"):
-                detection_session.observe(evidence, people, cfg, credentials, observation_state, width, height)
+                # The event photo (local alert and Telegram fallback) must not show
+                # the greyed quality-switch frame: reuse the last clean one, <= 10 s old.
+                photo = evidence
+                if not controls:
+                    if people:
+                        clean_evidence = (time.monotonic(), evidence)
+                elif clean_evidence and time.monotonic() - clean_evidence[0] <= 10:
+                    photo = clean_evidence[1]
+                detection_session.observe(photo, people, cfg, credentials, observation_state, width, height)
             else:
                 detection_session.suspend()
                 latest_vehicle.suspend()

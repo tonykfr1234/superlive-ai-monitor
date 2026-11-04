@@ -626,16 +626,30 @@ class AdbStream(SharedAdbReader):
                     boxes.append(values)
         self._quality_masks = boxes
 
-    def camera_without_controls(self, frame):
+    def control_regions(self, width, height):
+        """Frame areas the quality toolbar/menu may cover right now; [] when clear.
+
+        Covers the switch itself and the few seconds the toolbar takes to hide.
+        """
         if not self._quality_busy.is_set() and time.monotonic() >= self._quality_mask_until:
+            return []
+        regions = [[0, 0, width, int(height*.12)], [0, int(height*.82), width, height]]
+        regions += [[max(0, left-12), max(0, top-12), min(width, right+12), min(height, bottom+12)]
+                    for left, top, right, bottom in self._quality_masks]
+        return regions
+
+    def high_quality_confirmed(self):
+        return self._quality_applied == 'high' and not self._quality_busy.is_set()
+
+    def camera_without_controls(self, frame):
+        h, w = frame.shape[:2]
+        regions = self.control_regions(w, h)
+        if not regions:
             return frame
         # Exclude changing controls from inference, not from raw verification.
         clean = frame.copy()
-        h, w = clean.shape[:2]
-        clean[:int(h*.12)] = 51
-        clean[int(h*.82):] = 51
-        for left, top, right, bottom in self._quality_masks:
-            clean[max(0, top-12):min(h, bottom+12), max(0, left-12):min(w, right+12)] = 51
+        for left, top, right, bottom in regions:
+            clean[top:bottom, left:right] = 51
         return clean
 
     def apply_activity_quality(self):

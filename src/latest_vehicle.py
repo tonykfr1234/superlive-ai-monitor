@@ -44,6 +44,25 @@ def _box(value, width, height):
     return None
 
 
+def _masked(frame):
+    """True for a frame whose quality-control bands were greyed (value 51).
+
+    A small tolerance also catches greyed frames after video compression.
+    """
+    height = frame.shape[0]
+    for band in (frame[:max(1, int(height*.12))], frame[int(height*.82):]):
+        if band.size and (abs(band.astype('int16') - 51) <= 6).mean() > .95:
+            return True
+    return False
+
+
+def _sharpness(crop):
+    import cv2
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, (320, max(1, round(320*gray.shape[0]/gray.shape[1]))))
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+
 def _intersection(first, second):
     return max(0, min(first[2], second[2])-max(first[0], second[0])) * max(
         0, min(first[3], second[3])-max(first[1], second[1]))
@@ -102,6 +121,7 @@ class LatestVehicleTracker:
         self._candidate_timestamp = 0
         self._manual_receipt_id = None
         self._last_image_at = -math.inf
+        self._image_rank = None
         self.image_path = self.path.with_suffix(".jpg")
         self.plate_image_path = self.path.with_name('latest_plate.jpg')
         # A hash binds the restored photo to the JSON observation. A crash between
@@ -162,8 +182,12 @@ class LatestVehicleTracker:
         self._observations.clear()
         self.flush(force=True)
 
-    def observe(self, detections, timestamp, frame_size, available=True, frame=None):
-        """Observe only a successfully captured, inferred, non-editing ROI frame."""
+    def observe(self, detections, timestamp, frame_size, available=True, frame=None, high_quality=False):
+        """Observe only a successfully captured, inferred, non-editing ROI frame.
+
+        Pass frame=None while the quality controls are on screen: the photo then
+        keeps the best clean frame of this vehicle group instead.
+        """
         if not available:
             self.suspend()
             return
@@ -194,6 +218,7 @@ class LatestVehicleTracker:
             self.plate_image = None
             self.review_images, self.review_colors = [], []
             self._last_image_at = -math.inf
+            self._image_rank = None
         else:
             boxes = ordered
         self.latest["timestamp"] = stamp
@@ -204,16 +229,20 @@ class LatestVehicleTracker:
             self._observations.popleft()
         self._dirty = True
         if frame is not None:
-            self.capture_image(frame, boxes, stamp)
+            self.capture_image(frame, boxes, stamp, high_quality)
         self.flush(force=not same_group)
 
-    def capture_image(self, frame, boxes, stamp):
-        """Keep a bounded, local crop of this vehicle group; never use stale frames."""
+    def capture_image(self, frame, boxes, stamp, high_quality=False):
+        """Keep the best clean, bounded crop of this vehicle group.
+
+        Frames after high quality is confirmed beat earlier ones; otherwise the
+        sharper crop wins. Greyed quality-switch frames are never used.
+        """
         if stamp-self._last_image_at < 1 or not boxes:
             return
         import cv2
         height, width = frame.shape[:2]
-        if self._frame_size != (width, height):
+        if self._frame_size != (width, height) or _masked(frame):
             return
         left, top = min(b[0] for b in boxes), min(b[1] for b in boxes)
         right, bottom = max(b[2] for b in boxes), max(b[3] for b in boxes)
@@ -223,6 +252,11 @@ class LatestVehicleTracker:
         crop = frame[y1:y2, x1:x2].copy()
         if not crop.size:
             return
+        self._last_image_at = stamp
+        rank = (bool(high_quality), _sharpness(crop))
+        if self._image_rank is not None and self.image is not None and rank < self._image_rank:
+            return
+        self._image_rank = rank
         scale = min(1, 960/crop.shape[1], 540/crop.shape[0])
         if scale < 1:
             crop = cv2.resize(crop, (max(1, round(crop.shape[1]*scale)), max(1, round(crop.shape[0]*scale))))

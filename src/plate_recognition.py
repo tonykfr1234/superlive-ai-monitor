@@ -621,6 +621,17 @@ class LiveClipConsensus:
         return event
 
 
+def under_controls(bbox, controls, pad=0.25):
+    """True when a plate box, padded like its saved photo, overlaps a control area."""
+    try:
+        x1, y1, x2, y2 = map(float, bbox)
+        mx, my = (x2-x1)*pad, (y2-y1)*pad
+        return any(min(x2+mx, r[2]) > max(x1-mx, r[0]) and min(y2+my, r[3]) > max(y1-my, r[1])
+                   for r in controls or ())
+    except (TypeError, ValueError, IndexError):
+        return True  # unknown geometry: do not save a possibly covered photo
+
+
 def publish_candidate(root, prediction, metadata, frame):
     """One replaceable unconfirmed sample, for review only; never a Telegram event."""
     variants = prediction.get('variants') or [prediction.get('selected')]
@@ -1037,7 +1048,7 @@ class PlateService:
             except OSError as error:
                 self._schedule_restart(now, "Cannot start plate worker: " + type(error).__name__)
 
-    def submit(self, frame, now=None, roi=None, vehicles=None):
+    def submit(self, frame, now=None, roi=None, vehicles=None, controls=None):
         if self._thread is None or self._closed:
             return False
         now = time.time() if now is None else float(now)
@@ -1062,7 +1073,8 @@ class PlateService:
             self._latest = (frame.copy(), {"timestamp": now, "session": self.session,
                 "generation": self.generation, "sample_id": uuid.uuid4().hex, "roi": roi,
                 "vehicles": [{"class_id": int(v['class_id']), "box": list(map(float, v['box']))}
-                             for v in (vehicles or []) if v.get('class_id') in (2, 3, 5, 7)]})
+                             for v in (vehicles or []) if v.get('class_id') in (2, 3, 5, 7)],
+                "controls": [list(map(int, r)) for r in (controls or [])]})
         self._wake.set()
         return True
 
@@ -1346,9 +1358,12 @@ def run_worker(root, session):
                     live_clip.reset()
                     break
                 prediction['vehicle_color'] = color_for_plate(frame, prediction['bbox'], metadata.get('vehicles', []))
+                # The plate is still read during a quality switch, but its photo
+                # is not saved when the toolbar or menu may cover it.
+                photo = None if under_controls(prediction['bbox'], metadata.get('controls')) else frame
                 if prediction is predictions[0]:
-                    publish_candidate(root, prediction, metadata, frame)
-                event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1], frame=frame)
+                    publish_candidate(root, prediction, metadata, photo)
+                event = live_clip.observe(prediction, metadata["timestamp"], metadata["sample_id"], context[1], frame=photo)
                 if event is None:
                     continue
                 state("READY")
