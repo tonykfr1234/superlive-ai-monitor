@@ -93,7 +93,7 @@ class VehicleCaptionTests(unittest.TestCase):
 
     def test_explicit_class_counts_do_not_fall_back_to_legacy_total(self):
         counts = event_object_counts(dict(count=9, object_counts={"car": 1, "person": -2, "bus": True, "truck": "2"}))
-        self.assertEqual(counts, dict(person=0, car=1, motorcycle=0, bus=0, truck=2))
+        self.assertEqual(counts, dict(person=0, car=1, motorcycle=0, bus=0, truck=2, dog=0))
 
     def test_exact_target_is_highlighted_but_other_plates_have_no_list_notice(self):
         exact = self.plate(text="ZX-1234", matched="ZX1234", distance=0)

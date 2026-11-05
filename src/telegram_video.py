@@ -18,6 +18,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from record_protocol import atomic_json, read_json, telegram_send_allowed
+from region_policy import activity_label
+from box_overlay import render
 
 from telegram_health import record_success
 
@@ -67,7 +69,7 @@ def event_object_counts(event):
     source = event.get("object_counts")
     if not isinstance(source, dict):
         source = {"person": event.get("count", 1)}
-    return {name: count(source.get(name, 0)) for name in ("person", *(name for name, _ in VEHICLE_TYPES))}
+    return {name: count(source.get(name, 0)) for name in ("person", *(name for name, _ in VEHICLE_TYPES), "dog")}
 
 
 def event_line(event):
@@ -157,6 +159,9 @@ class TelegramVideoQueue:
         if request.get("continuous_plate_notifications"):
             job["continuous_plate_notifications"] = True
         job["trigger_created_at"] = request.get("created_at", job["clip_started_at"])
+        if request.get("box_log") and request.get("video_fps"):
+            job.update(box_log=str(request["box_log"]), video_fps=float(request["video_fps"]),
+                       boxes_path=str(path.with_name(path.stem + "_boxes.mp4")))
         if isinstance(request.get("object_counts"), dict):
             job["object_counts"] = event_object_counts(request)
         manifest = self.directory / (uuid.uuid4().hex + ".json")
@@ -169,7 +174,7 @@ class TelegramVideoQueue:
         with self.lock:
             for manifest in self.directory.glob("*.json"):
                 job = read_json(manifest, {})
-                for key in ("path", "prepared_path"):
+                for key in ("path", "prepared_path", "boxes_path"):
                     if job.get(key):
                         result.add(Path(job[key]).resolve())
                 if job.get("prepared_path"):
@@ -222,12 +227,37 @@ class TelegramVideoQueue:
         if self.photo_thread:
             self.photo_thread.join(timeout=2)
 
+    def boxed_source(self, job):
+        """The clip with detection boxes drawn in, or the original when unavailable.
+
+        The boxed copy is kept beside the original; the original is never changed.
+        """
+        original = Path(job["path"])
+        if not job.get("boxes_path") or not job.get("box_log"):
+            return original
+        boxed = Path(job["boxes_path"])
+        if boxed.resolve() == original.resolve():
+            return original
+        if boxed.exists() and boxed.stat().st_size > 0:
+            return boxed
+        if not Path(job["box_log"]).exists():
+            return original  # nothing was detected while this clip recorded
+        try:
+            render(original, boxed, job["box_log"], job["clip_started_at"], job["video_fps"], self.stop_event)
+        except InterruptedError:
+            raise
+        except Exception as error:
+            self.log("TELEGRAM_BOXES=SKIPPED TYPE=%s FILE=%s" % (type(error).__name__, original.name))
+            return original
+        self.log("TELEGRAM_BOXES=PASS FILE=%s" % boxed.name)
+        return boxed
+
     def prepare(self, job):
-        source = Path(job["path"])
+        source = self.boxed_source(job)
         if 0 < source.stat().st_size <= MAX_UPLOAD_BYTES:
             return source
         destination = Path(job["prepared_path"])
-        if destination.resolve() == source.resolve():
+        if destination.resolve() in (source.resolve(), Path(job["path"]).resolve()):
             raise ValueError("Delivery copy must not overwrite original")
         if destination.exists() and 0 < destination.stat().st_size <= MAX_UPLOAD_BYTES:
             return destination
@@ -235,11 +265,12 @@ class TelegramVideoQueue:
         temporary = destination.with_name(destination.stem + ".encoding.mp4")
         # Try full-resolution constant-quality video first. Only oversized
         # delivery copies use a duration-based bitrate budget; originals stay HQ.
-        self.encode(job, temporary, ["-crf", "20"])
+        compact = dict(job, path=str(source))  # shrink the boxed copy when there is one
+        self.encode(compact, temporary, ["-crf", "20"])
         if temporary.stat().st_size > MAX_UPLOAD_BYTES:
             duration = max(1.0, float(job["duration"]))
             bitrate = max(64, int(46_000_000 * 8 / duration / 1000))
-            self.encode(job, temporary, ["-b:v", str(bitrate)+"k",
+            self.encode(compact, temporary, ["-b:v", str(bitrate)+"k",
                 "-maxrate", str(bitrate)+"k", "-bufsize", str(bitrate*2)+"k"])
         if not 0 < temporary.stat().st_size <= MAX_UPLOAD_BYTES:
             temporary.unlink(missing_ok=True)
@@ -307,7 +338,7 @@ class TelegramVideoQueue:
         """Return precisely the observations included in Telegram's caption."""
         counts = event_object_counts(job)
         vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
-        kind = "人物與車輛" if counts["person"] and vehicles else "車輛" if vehicles else "人物" if counts["person"] else "物件"
+        kind = activity_label(counts)
         triggered = event_time(job)
         start = float(job.get("clip_started_at", job.get("created_at", 0)-float(job["duration"])))
         end = start+float(job["duration"])
@@ -434,11 +465,13 @@ class TelegramVideoQueue:
     def photo_caption(self, job):
         counts = event_object_counts(job)
         vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
-        kind = "人物與車輛" if counts["person"] and vehicles else "車輛" if vehicles else "人物"
+        kind = activity_label(counts)
+        if kind == "物件":
+            kind = "人物"  # pre-upgrade journals carry only a people count
         lines = [
             "SuperLive AI：錄影失敗，附上事件照片",
             "觸發時間（台灣）：" + taipei_time(event_time(job)),
-            "偵測內容：%s（人物 %d、車輛 %d）" % (kind, counts["person"], vehicles),
+            "偵測內容：%s（人物 %d、車輛 %d、狗 %d）" % (kind, counts["person"], vehicles, counts["dog"]),
             "原因：" + str(job.get("reason") or "錄影失敗"),
             "這是事件當下留下的原始照片，不代表後續畫面。",
         ]

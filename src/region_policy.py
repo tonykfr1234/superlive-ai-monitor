@@ -245,11 +245,35 @@ def people_in_region(boxes, classes, confidences, roi, width, height, minimum_co
     return people
 
 
-ACTIVITY_CLASSES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+ACTIVITY_CLASSES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck", 16: "dog"}
+VEHICLE_KINDS = ("car", "motorcycle", "bus", "truck")
+
+
+def vehicle_total(counts):
+    return sum(counts.get(kind, 0) for kind in VEHICLE_KINDS)
+
+
+def activity_event_type(counts):
+    """Existing person/vehicle types are unchanged; a dog alone is DOG_ACTIVITY."""
+    people, vehicles = counts.get("person", 0), vehicle_total(counts)
+    if people and vehicles:
+        return "PERSON_VEHICLE_ACTIVITY"
+    if people:
+        return "PERSON_ACTIVITY"
+    if vehicles:
+        return "VEHICLE_ACTIVITY"
+    return "DOG_ACTIVITY" if counts.get("dog", 0) else "PERSON_ACTIVITY"
+
+
+def activity_label(counts):
+    """Chinese label of what was seen, e.g. 人物與車輛, 人物與狗."""
+    parts = [name for name, present in (("人物", counts.get("person", 0)), ("車輛", vehicle_total(counts)),
+                                        ("狗", counts.get("dog", 0))) if present]
+    return "與".join(parts) if parts else "物件"
 
 
 def objects_in_region(boxes, classes, confidences, roi, width, height, minimum_confidence):
-    """Person and motor-vehicle boxes with positive overlap of the chosen ROI."""
+    """Person, motor-vehicle and dog boxes with positive overlap of the chosen ROI."""
     objects = []
     for box, cls, confidence in zip(boxes, classes, confidences):
         kind = ACTIVITY_CLASSES.get(int(cls))

@@ -62,7 +62,7 @@ $Mapping = @{
     'recorder.py'='stage5c_recorder.py'; 'recorder_watchdog.py'='stage5c_recorder_watchdog.py'
     'record_protocol.py'='record_protocol.py'; 'region_policy.py'='region_policy.py'
     'person_activity.py'='person_activity.py'; 'telegram_video.py'='telegram_video.py'
-    'telegram_status.py'='telegram_status.py'
+    'telegram_status.py'='telegram_status.py'; 'box_overlay.py'='box_overlay.py'
     'preview_ui.py'='preview_ui.py'; 'capture_region.py'='capture_region.py'
     'adb_capture.py'='adb_capture.py'; 'plate_recognition.py'='plate_recognition.py'
     'stream_health.py'='stream_health.py'; 'superlive_recovery.py'='superlive_recovery.py'

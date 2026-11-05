@@ -93,8 +93,9 @@ class PersonActivityTracker:
                 raise ValueError("person box must be finite and have positive area")
             boxes.append((left/width, top/height, right/width, bottom/height))
             # Car/bus/truck classification can fluctuate for one vehicle, but
-            # a nearby person must never inherit that vehicle's motion anchor.
-            categories.append("person" if person.get("class_id", 0) == 0 else "vehicle")
+            # a nearby person or dog must never inherit that vehicle's motion anchor.
+            class_id = person.get("class_id", 0)
+            categories.append("person" if class_id == 0 else "dog" if class_id == 16 else "vehicle")
 
         # Only observed absence starts expiry. A slow inference, paused startup,
         # or recording rollover must not turn an unchanged person into an arrival.

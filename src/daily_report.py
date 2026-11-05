@@ -10,12 +10,13 @@ from pathlib import Path
 
 from record_protocol import atomic_json, read_json
 from telegram_video import VEHICLE_TYPES, event_object_counts, load_credentials
+from region_policy import activity_event_type
 
 from telegram_health import record_success
 
 TAIPEI = timezone(timedelta(hours=8), "Asia/Taipei")
 HEADER = ["觸發時間（台灣時間）", "事件類型", "人數", "信心值", "事件ID", "影片檔名",
-          "車輛數", "車輛類型", "汽車數", "機車數", "巴士數", "卡車數", "總物件數"]
+          "車輛數", "車輛類型", "汽車數", "機車數", "巴士數", "卡車數", "總物件數", "狗數"]
 
 
 class DailyReports:
@@ -48,9 +49,7 @@ class DailyReports:
         typed = (request if isinstance(request.get("object_counts"), dict) else
                  previous if isinstance(previous.get("object_counts"), dict) else None)
         counts = event_object_counts(typed or request)
-        vehicles = sum(counts[name] for name, _ in VEHICLE_TYPES)
-        default_type = ("PERSON_VEHICLE_ACTIVITY" if counts["person"] and vehicles else
-                        "VEHICLE_ACTIVITY" if vehicles else "PERSON_ACTIVITY")
+        default_type = activity_event_type(counts)
         entry = dict(timestamp=timestamp, request_id=event_id,
             event_type=request.get("trigger_type", previous.get("event_type", default_type)),
             count=request.get("count", 1), confidence=request.get("confidence", ""),
@@ -93,6 +92,7 @@ class DailyReports:
             # Recent append-only evidence can have activity type + a total but
             # no class breakdown. Do not invent people or a particular vehicle
             # class if the richer recorder journal was never written.
+            dogs = counts["dog"] if typed else ""
             if not typed and event["event_type"] == "VEHICLE_ACTIVITY":
                 people, vehicles, kinds, breakdown = 0, event["count"], "未記錄", [""]*4
             elif not typed and event["event_type"] == "PERSON_VEHICLE_ACTIVITY":
@@ -100,7 +100,7 @@ class DailyReports:
             rows.append([datetime.fromtimestamp(event["timestamp"], TAIPEI).isoformat(timespec="seconds"),
                 event["event_type"], people, event["confidence"], event["request_id"],
                 Path(event["video"]).name if event["video"] else "", vehicles, kinds,
-                *breakdown, total])
+                *breakdown, total, dogs])
         return rows
 
     def generate(self, day, phase):

@@ -505,8 +505,9 @@ def status_lines(controller, status, count, infer_ms, elapsed=None, message=None
         person_count = str(object_counts.get("person", 0)) if count is not None else "--"
         vehicle_count = str(sum(object_counts.get(name, 0) for name in
                                ("car", "motorcycle", "bus", "truck"))) if count is not None else "--"
-        region_counts = (("區域：人物 %s／車輛 %s" if chinese else "ROI: people %s / vehicles %s") %
-                         (person_count, vehicle_count))
+        dog_count = str(object_counts.get("dog", 0)) if count is not None else "--"
+        region_counts = (("區域：人物 %s／車輛 %s／狗 %s" if chinese else "ROI: people %s / vehicles %s / dogs %s") %
+                         (person_count, vehicle_count, dog_count))
         counts = "%s   %s：%s" % (region_counts, model, inference)
     if controller.selecting:
         points = len(controller.draft)

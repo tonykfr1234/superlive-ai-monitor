@@ -27,7 +27,9 @@ from winotify import Notification
 from record_protocol import (atomic_json, read_json, recorder_ready, recording_active,
                              valid_end_request, MIN_RECORD_SECONDS, MAX_RECORD_SECONDS)
 from person_activity import PersonActivityTracker, InactivityTimer
-from region_policy import people_in_region, objects_in_region, object_counts, ACTIVITY_CLASSES, validate_roi, rebase_roi
+from region_policy import (people_in_region, objects_in_region, object_counts, ACTIVITY_CLASSES, validate_roi,
+                           rebase_roi, vehicle_total, activity_label, activity_event_type)
+from box_overlay import box_color, publish_detections
 from preview_ui import (PreviewController, PreviewLayout, render_preview,
                         latest_vehicle_footer_text)
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver, CaptureRegionUnavailable
@@ -129,8 +131,8 @@ def notify_detection(image, people, roi, request_id, credentials, snapshot_path=
     day = EVENT_ROOT / now.strftime("%Y-%m-%d")
     day.mkdir(parents=True, exist_ok=True)
     counts = object_counts(people)
-    types = [kind for kind, count in counts.items() if count]
-    event_type = "PERSON_VEHICLE_ACTIVITY" if counts["person"] and len(types) > 1 else "PERSON_ACTIVITY" if counts["person"] else "VEHICLE_ACTIVITY"
+    vehicles = vehicle_total(counts)
+    event_type = activity_event_type(counts)
     jpg = (Path(snapshot_path) if snapshot_path else
            day / ("%s_ACTIVITY_%s.jpg" % (now.strftime("%Y%m%d_%H%M%S"), request_id)))
     jpg.parent.mkdir(parents=True, exist_ok=True)
@@ -145,13 +147,14 @@ def notify_detection(image, people, roi, request_id, credentials, snapshot_path=
             writer.writerow(["timestamp", "event_type", "count", "confidence", "request_id", "roi", "snapshot"])
         writer.writerow([timestamp, event_type, len(people), "%.3f" % confidence, request_id, json.dumps(roi), str(jpg) if written else ""])
     try:
-        Notification(app_id="SuperLive AI", title="SuperLive AI - 偵測到人物／車輛移動",
-                     msg="%s：人物 %d、車輛 %d，已開始錄影；前 2 分鐘 Telegram 靜默\n%s" % (area, counts["person"], len(people)-counts["person"], timestamp),
+        Notification(app_id="SuperLive AI", title="SuperLive AI - 偵測到%s移動" % activity_label(counts),
+                     msg="%s：人物 %d、車輛 %d、狗 %d，已開始錄影；前 2 分鐘 Telegram 靜默\n%s" % (
+                         area, counts["person"], vehicles, counts["dog"], timestamp),
                      duration="short").show()
     except Exception as error:
         print("WINDOWS_NOTIFICATION_ERROR=%s" % type(error).__name__, flush=True)
-    print("ACTIVITY_DETECTED persons=%d vehicles=%d request=%s" %
-          (counts["person"], len(people)-counts["person"], request_id), flush=True)
+    print("ACTIVITY_DETECTED persons=%d vehicles=%d dogs=%d request=%s" %
+          (counts["person"], vehicles, counts["dog"], request_id), flush=True)
 
 
 def find_mumu():
@@ -492,16 +495,21 @@ def main():
                     )
                 for person in people:
                     x1, y1, x2, y2 = person["box"]
-                    color = (0, 255, 0) if person["class_id"] == 0 else (255, 190, 0)
-                    cv2.rectangle(evidence, (x1, y1), (x2, y2), color, 2)
+                    cv2.rectangle(evidence, (x1, y1), (x2, y2), box_color(person["class_id"]), 2)
                 count = len(people)
+                try:
+                    # The recorder draws these boxes into the Telegram copy of each clip.
+                    publish_detections(RUNTIME / "live_detections.json", frame_timestamp, width, height, people)
+                except PermissionError:
+                    pass  # a reader holds the file; the next inference rewrites it
                 if count > 0 and time.monotonic() >= next_activity_receipt:
                     counts = object_counts(people)
                     try:
                         atomic_json(RUNTIME / "person_vehicle_activity.json", {
                             "last_seen_at": time.time(),
                             "people": counts["person"],
-                            "vehicles": count - counts["person"],
+                            "vehicles": vehicle_total(counts),
+                            "dogs": counts["dog"],
                         })
                         next_activity_receipt = time.monotonic() + 1
                     except PermissionError:

@@ -80,7 +80,7 @@ def discover_videos(record_root=None, videos=(), days=7, now=None):
     automatic = []
     if record_root is not None:
         for path in Path(record_root).rglob("*"):
-            if path.suffix.lower() != ".mp4" or "_telegram" in path.stem.lower():
+            if path.suffix.lower() != ".mp4" or any(tag in path.stem.lower() for tag in ("_telegram", "_boxes")):
                 continue
             try:
                 info = identity(path)

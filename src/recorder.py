@@ -14,6 +14,7 @@ from plate_history import record_clip_result
 from telegram_video import TelegramVideoQueue
 from capture_region import find_emulator_window, capture_frame, CaptureRegionResolver
 from hq_video import HighQualityWriter, fit_frame
+from box_overlay import BoxLog, prune_logs
 from adb_capture import SharedAdbReader, settings as capture_settings
 from daily_report import DailyReports, TAIPEI
 
@@ -99,6 +100,7 @@ class Recorder:
         self.capture_resolver = CaptureRegionResolver()
         self.adb_reader = SharedAdbReader(self.root) if capture_settings(self.root).get("source") == "adb" else None
         self.uploader = TelegramVideoQueue(self.root, self.log, immediate_plates=True)
+        prune_logs(self.runtime / "box_logs")
         self.reports = DailyReports(self.root, self.record_root, self.log)
 
     def log(self, message):
@@ -267,6 +269,12 @@ class Recorder:
                 raise RuntimeError("VideoWriter failed")
             request = dict(request, clip_started_at=time.time())
             self.clip_started_at = request["clip_started_at"]
+            # Detection boxes for this clip's Telegram copy (the MP4 itself stays clean).
+            box_folder = self.runtime / "box_logs"
+            box_folder.mkdir(exist_ok=True)
+            request["box_log"] = str(box_folder / (path.stem + ".jsonl"))
+            request["video_fps"] = self.fps
+            box_log = BoxLog(request["box_log"], self.runtime / "live_detections.json", request["clip_started_at"])
             started = time.monotonic()
             timeline = FrameTimeline(self.fps, started)
             self.reserve_quiet(request["request_id"])
@@ -289,6 +297,7 @@ class Recorder:
                     for _ in range(due):
                         writer.write(frame)
                     timeline.written += due
+                box_log.poll()
                 self.heartbeat(file=str(path), elapsed_seconds=min(EVENT_SECONDS, now_mono-started))
                 if timeline.done(now_mono):
                     self.accept_end(read_json(self.end_request_file), request.get("request_id"),

@@ -241,10 +241,10 @@ class PresenceTriggerTests(unittest.TestCase):
             self.notification.call_args.args[5],
         )
 
-    def test_policy_defaults_to_people_and_vehicles_full_frame_and_rejects_invalid_config(self):
+    def test_policy_defaults_to_people_vehicles_and_dogs_full_frame_and_rejects_invalid_config(self):
         self.assertIsNone(monitor.load_policy()["roi"])
         atomic_json(monitor.POLICY_FILE, {"watch_classes": [2], "roi": [0, 0, 0.5, 1]})
-        self.assertEqual(monitor.load_policy()["watch_classes"], [0, 2, 3, 5, 7])
+        self.assertEqual(monitor.load_policy()["watch_classes"], [0, 2, 3, 5, 7, 16])
         for data in ([], {"roi": [0, 0, 0, 1]}, {"target_fps": 0},
                      {"target_fps": 61}, {"confidence": 0}, {"confidence": 1.1}):
             with self.subTest(data=data):

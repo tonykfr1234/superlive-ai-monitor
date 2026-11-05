@@ -8,14 +8,14 @@ from region_policy import objects_in_region, object_counts
 
 
 class ObjectRegionTests(unittest.TestCase):
-    def test_supported_motor_vehicles_and_people_require_confident_roi_overlap(self):
-        boxes = [(10, 10, 40, 50)] * 8
-        classes = [0, 2, 3, 5, 7, 1, 16, 2]
-        confidence = [.9] * 7 + [.1]
+    def test_supported_motor_vehicles_people_and_dogs_require_confident_roi_overlap(self):
+        boxes = [(10, 10, 40, 50)] * 9
+        classes = [0, 2, 3, 5, 7, 1, 16, 15, 2]  # 1 bicycle and 15 cat are not watched
+        confidence = [.9] * 8 + [.1]
         found = objects_in_region(boxes, classes, confidence,
                                   [[0, 0], [.8, 0], [.8, .8], [0, .8]], 100, 100, .25)
-        self.assertEqual([item['kind'] for item in found], ['person', 'car', 'motorcycle', 'bus', 'truck'])
-        self.assertEqual(object_counts(found), dict(person=1, car=1, motorcycle=1, bus=1, truck=1))
+        self.assertEqual([item['kind'] for item in found], ['person', 'car', 'motorcycle', 'bus', 'truck', 'dog'])
+        self.assertEqual(object_counts(found), dict(person=1, car=1, motorcycle=1, bus=1, truck=1, dog=1))
         self.assertEqual(objects_in_region([(90, 90, 99, 99)], [2], [.99], [0, 0, .5, .5], 100, 100, .25), [])
 
     def test_person_cannot_reuse_vehicle_track_but_vehicle_subtype_jitter_can(self):
@@ -24,6 +24,7 @@ class ObjectRegionTests(unittest.TestCase):
         self.assertTrue(tracker.update(obj(2), 100, 100, 1))
         self.assertFalse(tracker.update(obj(7), 100, 100, 2))
         self.assertTrue(tracker.update(obj(0), 100, 100, 3))
+        self.assertTrue(tracker.update(obj(16), 100, 100, 4))  # a dog is never a person's or car's track
 
 
 class VehicleMotionIntegrationTests(ActivityMonitorTests):
