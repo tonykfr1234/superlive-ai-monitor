@@ -9,7 +9,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from preview_ui import PreviewController, PreviewLayout, render_preview
 from record_protocol import atomic_json
-from telegram_status import TAIPEI, telegram_delivery_status
+from telegram_status import TAIPEI, telegram_button_state, telegram_delivery_status
 
 
 class TelegramStatusTests(unittest.TestCase):
@@ -79,6 +79,42 @@ class TelegramStatusTests(unittest.TestCase):
         self.assertIn("尚未建立可推播的錄影", text)
         (self.root / "config/telegram.env").write_text("BOT_TOKEN=\nCHAT_ID=\n", encoding="ascii")
         self.assertIn("尚未設定", telegram_delivery_status(self.root, self.event))
+
+    def test_settings_button_says_enabled_retrying_or_not_configured(self):
+        self.assertEqual(telegram_button_state(self.root), "enabled")
+        atomic_json(self.root / "runtime/telegram_upload_queue/sent.json", {"attempts": 2, "sent_at": 1})
+        atomic_json(self.root / "runtime/telegram_plate_delivery/late.json", {"local_only": True, "attempts": 1})
+        self.assertEqual(telegram_button_state(self.root), "enabled")
+        atomic_json(self.root / "runtime/telegram_photo_queue/failing.json", {"attempts": 1, "retry_at": 9})
+        self.assertEqual(telegram_button_state(self.root), "retrying")
+        (self.root / "config/telegram.env").write_text("BOT_TOKEN=\nCHAT_ID=\n", encoding="ascii")
+        self.assertEqual(telegram_button_state(self.root), "not_configured")
+
+    def test_settings_button_label_follows_state(self):
+        import numpy as np
+        from PIL import ImageDraw
+        controller = PreviewController()
+        controller.telegram_button = "enabled"
+        controller.layout = PreviewLayout.create(1600, 900, 1280, 820, show_plates=True, dashboard=True)
+        drawn = []
+        original = ImageDraw.Draw
+
+        def capture_draw(image, *args, **kwargs):
+            base = original(image, *args, **kwargs)
+
+            class Draw:
+                def __getattr__(self, name):
+                    return getattr(base, name)
+
+                def text(self, position, value, **options):
+                    drawn.append(value)
+                    return base.text(position, value, **options)
+
+            return Draw()
+
+        with patch("PIL.ImageDraw.Draw", side_effect=capture_draw):
+            render_preview(np.full((900, 1600, 3), 30, np.uint8), controller, "IDLE")
+        self.assertIn("Telegram 已啟用中", drawn)
 
     def test_dashboard_draws_delivery_status_inside_latest_card(self):
         import numpy as np

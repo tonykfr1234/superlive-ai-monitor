@@ -41,6 +41,24 @@ def _telegram_configured(root):
         return False
 
 
+def telegram_button_state(root):
+    """State shown on the Telegram settings button.
+
+    "enabled" once a bot and chat are configured and nothing is failing,
+    "retrying" while any video, photo or plate job has failed and waits to
+    retry, and "not_configured" without credentials.
+    """
+    if not _telegram_configured(root):
+        return "not_configured"
+    for folder in ("telegram_upload_queue", "telegram_photo_queue", "telegram_plate_delivery"):
+        for path in (Path(root) / "runtime" / folder).glob("*.json"):
+            job = read_json(path, {})
+            if (isinstance(job, dict) and not job.get("sent_at") and not job.get("local_only")
+                    and (_number(job.get("attempts")) or 0) > 0):
+                return "retrying"
+    return "enabled"
+
+
 def _last_error(root):
     runtime = read_json(Path(root) / "runtime" / "recorder_last_error.json", {})
     if isinstance(runtime, dict) and _number(runtime.get("timestamp")) is not None:

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-06（三）— Telegram 按鈕顯示是否已啟用 / The Telegram button shows whether delivery works
+
+### 改了什麼
+
+- 操作中心的 Telegram 按鈕依實際狀態顯示：已設定且沒有失敗 →「Telegram 已啟用中」；有影片、照片或車牌通知傳送失敗正在重試 →「Telegram 傳送失敗，重試中」；未設定 Bot 與聊天室 →「Telegram 設定（未啟用）」。點按仍是開啟 Telegram 設定。每 5 秒更新一次。
+
+### 怎麼測
+
+- 新增 2 項測試（三種狀態判斷、按鈕文字跟著狀態）。695 項離線測試通過，安全掃描通過。
+- 部署（備份 `backups/event_recording_20261106_135149_5d6523`）後截圖確認按鈕顯示「Telegram 已啟用中」。
+- 同時確認 11-06 13:31 的真實事件：有框影片 13:35 產生、13:39 送到 Telegram，畫面中騎士（person 0.72）與機車（motorcycle 0.65）框的位置正確。
+
+### 已知限制
+
+- 「已啟用」代表設定完整且目前沒有失敗的傳送，不代表剛剛才成功送過一次。
+- 左下卡片的 Telegram 狀態文字在 13:32 這筆顯示「尚未建立可推播的錄影」，但該段影片已送出；這是另一個顯示問題，尚未修正。
+
 ## 2026-11-06（二）— 讀錯 1～3 碼的車牌，用你確認過的車輛資料庫補正 / Misreads within tolerance resolve to confirmed vehicles
 
 ### 為什麼

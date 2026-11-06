@@ -42,7 +42,7 @@ from latest_vehicle import LatestVehicleTracker
 from plate_display import ClipPlateDisplay
 from plate_review import launch_review
 from window_layout import apply_default_window_layout
-from telegram_status import telegram_delivery_status
+from telegram_status import telegram_delivery_status, telegram_button_state
 
 ROOT = Path.home() / "Downloads" / "SuperLive_AI"
 MODEL_PATH = ROOT / "models" / "yolo11n.pt"
@@ -361,6 +361,7 @@ def main():
     next_plate_filter_read = time.monotonic() + 2
     next_activity_receipt = 0.0
     next_telegram_status_read = 0.0
+    next_telegram_button_read = 0.0
     controller.model_label = MODEL_PATH.stem.upper().replace("YOLO11N", "YOLO11n")
     latest_vehicle = LatestVehicleTracker(ROOT)
     clip_plate_display = ClipPlateDisplay()
@@ -567,6 +568,9 @@ def main():
                 controller.telegram_status = telegram_delivery_status(
                     ROOT, controller.latest_vehicle.get("timestamp"), now=time.time())
                 next_telegram_status_read = time.monotonic() + 1
+            if time.monotonic() >= next_telegram_button_read:
+                controller.telegram_button = telegram_button_state(ROOT)
+                next_telegram_button_read = time.monotonic() + 5
             controller.latest_vehicle_image = latest_vehicle.image
             controller.latest_plate_image = clip_plate_display.image
             controller.layout = PreviewLayout.create(width, height, *canvas_size,

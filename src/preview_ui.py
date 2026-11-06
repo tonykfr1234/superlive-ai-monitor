@@ -14,6 +14,13 @@ import time
 from region_policy import roi_vertices, validate_roi
 from latest_vehicle import latest_vehicle_text
 
+# The settings button reports whether Telegram is actually working.
+TELEGRAM_BUTTON_LABELS = {
+    "enabled": {"zh": "Telegram 已啟用中", "en": "Telegram enabled"},
+    "retrying": {"zh": "Telegram 傳送失敗，重試中", "en": "Telegram retrying"},
+    "not_configured": {"zh": "Telegram 設定（未啟用）", "en": "Telegram settings (off)"},
+}
+
 
 def enhance_plate_display(picture, size):
     """Display-only enlargement; preserve source pixels and OCR evidence."""
@@ -205,6 +212,7 @@ class PreviewController:
         self.object_counts = None
         self.latest_vehicle = {}
         self.telegram_status = ""
+        self.telegram_button = ""
         self.latest_vehicle_image = None
         self.latest_plate_image = None
         self.panel_order = ["camera", "plates", "latest", "controls"]
@@ -961,6 +969,8 @@ def render_dashboard(frame, controller, status, count=None, infer_ms=None, elaps
               {"select": "R  Set region", "full": "C  Full frame", "stop": "Q  Stop",
                "confirm": "Enter  Save", "cancel": "Esc  Cancel", "plates": "Hide others" if controller.plate_other_expanded else "Other records",
                "alert_settings": "Alert plates", 'review_plate': 'P  Confirm plate / color', 'settings': 'Telegram settings'})
+    labels['settings'] = TELEGRAM_BUTTON_LABELS.get(getattr(controller, 'telegram_button', ''), {}).get(
+        'zh' if chinese else 'en', labels['settings'])
     for name, rect in layout.buttons.items():
         enabled = controller.button_enabled(name)
         hover = controller.hover_point and rect.contains(*controller.hover_point)
