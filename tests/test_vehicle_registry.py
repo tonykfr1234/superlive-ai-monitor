@@ -164,6 +164,20 @@ class VehicleRegistryTests(unittest.TestCase):
             self.assertIsNone(c.observe(self.prediction('ABC1236'), stamp, str(stamp), []))
         self.assertFalse((self.root/'runtime/plate_events').exists())
 
+    def test_voted_misread_within_tolerance_becomes_the_confirmed_vehicle(self):
+        # Too unsure for the database's own 3-frame rule (< 0.65), but the
+        # character vote confirms "ABX1234": one character from a confirmed car.
+        self.registry.confirm('ABC1234')
+        c = LiveClipConsensus(self.root, continuous=True)
+        c.set_context(dict(request_id='fixture', started_at=100))
+        read = dict(raw_text='ABX1234', confidence=.5, character_confidences=[.9]*7)
+        events = [c.observe(dict(selected=read, variants=[read], detector_confidence=.9,
+                                 bbox=[100+20*i, 300, 170+20*i, 325]), 100+i, str(i), []) for i in range(4)]
+        event = next(e for e in events if e)
+        self.assertEqual((event['text'], event['observed_text']), ('ABC1234', 'ABX1234'))
+        self.assertTrue(event['database_matched'])
+        self.assertEqual(event['database_distance'], 1)
+
     def test_review_button_and_shortcut_work_in_reordered_dashboard(self):
         c = PreviewController()
         c.layout = PreviewLayout.create(1600, 900, 640, 720, dashboard=True,

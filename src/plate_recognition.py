@@ -22,8 +22,8 @@ import uuid
 from record_protocol import atomic_json, read_json
 from region_policy import box_in_roi, validate_roi
 from plate_history import load_history, record_result, prune_history
-from plate_corrections import load_corrections, prefer_verified, correct_event, save_plate_crop
-from vehicle_registry import DatabaseConsensus, color_for_plate
+from plate_corrections import load_corrections, prefer_verified, correct_event, save_plate_crop, display_plate
+from vehicle_registry import DatabaseConsensus, color_for_plate, match_registry
 
 
 DETECTOR_MODEL = "yolo-v9-t-384-license-plate-end2end"
@@ -538,8 +538,10 @@ class LiveClipConsensus:
         database_event = self.database.observe(prediction, timestamp, sample_id)
         if database_event is not None:
             return self.finish_event(database_event, timestamp, sample_id, allowlist, frame)
-        if self.database.pending:
-            return None
+        # Near a confirmed vehicle the vote and strict consensus still run: their
+        # result is mapped to that vehicle below. Pausing them while waiting for
+        # three database matches lost a car on 2026-11-03 08:08.
+        color = prediction.get("vehicle_color") or dict(name="unknown", confidence=0.0)
         variants = prediction.get("variants") or [prediction.get("selected")]
         variants = [item for item in variants if isinstance(item, dict)]
         voted = self.vote.observe(variants, timestamp, sample_id, prediction.get("bbox"),
@@ -549,7 +551,8 @@ class LiveClipConsensus:
             correct_event(voted, corrections)
             # Other plates in view keep their own strict-consensus evidence.
             self.tracker.observations.pop(voted["text"], None)
-            return self.finish_event(voted, timestamp, sample_id, allowlist, frame)
+            voted = self.to_database(voted, color)
+            return None if voted is None else self.finish_event(voted, timestamp, sample_id, allowlist, frame)
         selected, influenced = self.memory.choose(variants, timestamp)
         corrections = load_corrections(self.root)
         selected, verified_preference = prefer_verified(
@@ -587,7 +590,28 @@ class LiveClipConsensus:
         if event is None:
             return None
         correct_event(event, corrections)
-        return self.finish_event(event, timestamp, sample_id, allowlist, frame)
+        event = self.to_database(event, color)
+        return None if event is None else self.finish_event(event, timestamp, sample_id, allowlist, frame)
+
+    def to_database(self, event, color):
+        """A plate within the user's tolerance of exactly one confirmed vehicle is that vehicle.
+
+        The OCR text stays as observed_text and in the evidence; same rule as the
+        database's own consensus (unique nearest plate, conflicting colour excluded).
+        Returns None when the plate is near confirmed vehicles but matches none
+        uniquely: an ambiguous raw guess is never notified.
+        """
+        match = match_registry(event["text"], color, self.database.rows, self.database.settings)
+        tolerance = self.database.settings.get("tolerance", 3)
+        if match is None and any(row.get("enabled") and edit_distance(event["text"], row["plate"]) <= tolerance
+                                 for row in self.database.rows):
+            return None
+        if match and match["plate"] != event["text"]:
+            event.update(observed_text=event.get("observed_text", event["text"]), text=match["plate"],
+                         raw_text=match["plate"], display_text=display_plate(match["plate"]),
+                         database_matched=True, database_distance=match["distance"],
+                         database_color_used=match["color_used"])
+        return event
 
     def finish_event(self, event, timestamp, sample_id, allowlist, frame):
         canonical = event['text']
